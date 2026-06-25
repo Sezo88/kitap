@@ -61,14 +61,22 @@ export default async function TrackingPage() {
   }
   const { data: activeBooks } = await activeBooksQuery;
 
+  // Get books for inline assignment
+  const { data: books } = await supabase
+    .from("books")
+    .select("id, title")
+    .eq("school_id", profile.school_id ?? "")
+    .order("title");
+
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-6">Günlük Okuma Takip</h2>
+      <h2 className="text-2xl font-bold mb-4 sm:mb-6">Günlük Okuma Takip</h2>
       <DailyTracking
         students={students || []}
         classes={classes || []}
         todayLogs={todayLogs || []}
         activeBooks={activeBooks || []}
+        books={books || []}
         userId={user!.id}
         role={profile.role}
       />

@@ -5,11 +5,13 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogClose, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
-import { CheckCheck, BookOpen, CheckCircle2 } from "lucide-react";
+import { CheckCheck, BookOpen, CheckCircle2, BookPlus } from "lucide-react";
 import { getClassName, type Role, type StudentWithClass, type ReadingLog } from "@/lib/types/database";
 
 interface Props {
@@ -17,15 +19,14 @@ interface Props {
   classes: { id: string; name: string }[];
   todayLogs: ReadingLog[];
   activeBooks: { student_id: string; started_at: string; books: { title: string } | { title: string }[] | null }[];
+  books: { id: string; title: string }[];
   userId: string;
   role: Role;
 }
 
 function getBookTitle(book: { student_id: string; books: { title: string } | { title: string }[] | null } | undefined): string | null {
   if (!book?.books) return null;
-  if (Array.isArray(book.books)) {
-    return book.books[0]?.title || null;
-  }
+  if (Array.isArray(book.books)) return book.books[0]?.title || null;
   return book.books.title || null;
 }
 
@@ -39,9 +40,13 @@ interface StudentRowState {
   saved: boolean;
 }
 
-export function DailyTracking({ students, classes, todayLogs, activeBooks, userId, role }: Props) {
+export function DailyTracking({ students, classes, todayLogs, activeBooks, books, userId, role }: Props) {
   const [selectedClassId, setSelectedClassId] = useState(classes[0]?.id || "all");
   const [saving, setSaving] = useState<string | null>(null);
+  // Book assignment dialog
+  const [bookDialogStudent, setBookDialogStudent] = useState<StudentRowState | null>(null);
+  const [selectedBookId, setSelectedBookId] = useState("");
+  const [assigning, setAssigning] = useState(false);
   const { toast } = useToast();
 
   const isWeekend = useMemo(() => {
@@ -72,11 +77,53 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, userI
     return students.filter((s) => s.class_id === selectedClassId);
   }, [students, selectedClassId]);
 
-  async function updateField(studentId: string, classId: string, field: "broughtBook" | "didRead", value: boolean) {
-    if (isWeekend) {
-      toast("Hafta sonu takip kaydı girilemez.", "error");
-      return;
+  // ── Inline book assignment ──────────────────────────────────────
+  function openBookDialog(st: StudentRowState) {
+    setBookDialogStudent(st);
+    setSelectedBookId("");
+  }
+
+  async function handleAssignBook() {
+    if (!bookDialogStudent || !selectedBookId) return;
+    setAssigning(true);
+    const supabase = createClient();
+    const today = new Date().toISOString().split("T")[0];
+
+    // Mevcut aktif kitabı tamamla
+    await supabase
+      .from("student_books")
+      .update({ status: "completed", finished_at: today })
+      .eq("student_id", bookDialogStudent.studentId)
+      .eq("status", "active");
+
+    // Yeni kitabı ata
+    const { error } = await supabase.from("student_books").insert({
+      student_id: bookDialogStudent.studentId,
+      book_id: selectedBookId,
+      status: "active",
+      started_at: today,
+    });
+
+    if (!error) {
+      const book = books.find((b) => b.id === selectedBookId);
+      const updated = {
+        ...bookDialogStudent,
+        activeBookTitle: book?.title || null,
+        activeBookStartedAt: today,
+      };
+      setStateMap(new Map(stateMap.set(bookDialogStudent.studentId, updated)));
+      setTick((t) => t + 1);
+      toast(`"${book?.title}" atandı`, "success");
+      setBookDialogStudent(null);
+    } else {
+      toast("Hata: " + error.message, "error");
     }
+    setAssigning(false);
+  }
+
+  // ── Update reading field ────────────────────────────────────────
+  async function updateField(studentId: string, classId: string, field: "broughtBook" | "didRead", value: boolean) {
+    if (isWeekend) { toast("Hafta sonu takip kaydı girilemez.", "error"); return; }
     const current = stateMap.get(studentId)!;
     const updated = { ...current, [field]: value };
     setStateMap(new Map(stateMap.set(studentId, updated)));
@@ -86,76 +133,58 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, userI
     const supabase = createClient();
     const today = new Date().toISOString().split("T")[0];
 
-    const { error } = await supabase
-      .from("reading_logs")
-      .upsert(
-        {
-          student_id: studentId,
-          class_id: classId,
-          log_date: today,
-          brought_book: updated.broughtBook,
-          did_read: updated.didRead,
-          marked_by: userId,
-        },
-        { onConflict: "student_id, log_date" }
-      );
+    const { error } = await supabase.from("reading_logs").upsert(
+      {
+        student_id: studentId,
+        class_id: classId,
+        log_date: today,
+        brought_book: updated.broughtBook,
+        did_read: updated.didRead,
+        marked_by: userId,
+      },
+      { onConflict: "student_id, log_date" }
+    );
 
     if (!error) {
-      const newState = stateMap.get(studentId)!;
-      setStateMap(new Map(stateMap.set(studentId, { ...newState, saved: true })));
+      setStateMap(new Map(stateMap.set(studentId, { ...stateMap.get(studentId)!, saved: true })));
     }
     setSaving(null);
   }
 
+  // ── Mark all ───────────────────────────────────────────────────
   async function markAll() {
-    if (isWeekend) {
-      toast("Hafta sonu toplu işaretleme yapılamaz.", "error");
-      return;
-    }
+    if (isWeekend) { toast("Hafta sonu toplu işaretleme yapılamaz.", "error"); return; }
     const toUpdate = filteredStudents.filter((s) => {
       const st = stateMap.get(s.id);
       return st && (!st.broughtBook || !st.didRead);
     });
-
-    if (toUpdate.length === 0) {
-      toast("Tüm öğrenciler zaten işaretlenmiş", "info");
-      return;
-    }
+    if (toUpdate.length === 0) { toast("Tüm öğrenciler zaten işaretlenmiş", "info"); return; }
 
     const supabase = createClient();
     const today = new Date().toISOString().split("T")[0];
     const upserts = toUpdate.map((s) => ({
-      student_id: s.id,
-      class_id: s.class_id,
-      log_date: today,
-      brought_book: true,
-      did_read: true,
-      marked_by: userId,
+      student_id: s.id, class_id: s.class_id, log_date: today,
+      brought_book: true, did_read: true, marked_by: userId,
     }));
 
     const { error } = await supabase.from("reading_logs").upsert(upserts, { onConflict: "student_id, log_date" });
-
     if (!error) {
       const newMap = new Map(stateMap);
       toUpdate.forEach((s) => {
         newMap.set(s.id, {
-          studentId: s.id,
-          classId: s.class_id,
-          broughtBook: true,
-          didRead: true,
-          activeBookTitle: stateMap.get(s.id)?.activeBookTitle || null,
-          activeBookStartedAt: stateMap.get(s.id)?.activeBookStartedAt || null,
-          saved: true,
+          ...stateMap.get(s.id)!,
+          broughtBook: true, didRead: true, saved: true,
         });
       });
       setStateMap(newMap);
       setTick((t) => t + 1);
       toast(`${toUpdate.length} öğrenci işaretlendi`, "success");
     } else {
-      toast("Hata oluştu: " + error.message, "error");
+      toast("Hata: " + error.message, "error");
     }
   }
 
+  // ── Finish book ─────────────────────────────────────────────────
   async function handleFinishBook(studentId: string) {
     if (!confirm("Öğrencinin bu kitabı bitirdiğini onaylıyor musunuz?")) return;
     const supabase = createClient();
@@ -169,23 +198,116 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, userI
 
     if (!error) {
       const current = stateMap.get(studentId)!;
-      const updated = { ...current, activeBookTitle: null, activeBookStartedAt: null };
-      setStateMap(new Map(stateMap.set(studentId, updated)));
+      setStateMap(new Map(stateMap.set(studentId, {
+        ...current, activeBookTitle: null, activeBookStartedAt: null,
+      })));
       setTick((t) => t + 1);
-      toast("Kitap başarıyla bitirildi olarak işaretlendi", "success");
+      toast("Kitap bitirildi. Yeni kitap atayabilirsiniz.", "success");
     } else {
-      toast("Hata oluştu: " + error.message, "error");
+      toast("Hata: " + error.message, "error");
     }
   }
 
   const uniqueClassIds = [...new Set(students.map((s) => s.class_id))];
   const filteredClasses = classes.filter((c) => uniqueClassIds.includes(c.id));
 
+  // ── Book cell helper ─────────────────────────────────────────────
+  function BookCell({ st, compact = false }: { st: StudentRowState; compact?: boolean }) {
+    if (st.activeBookTitle) {
+      return (
+        <div className={compact ? "rounded-lg border border-primary/20 bg-primary/5 px-3 py-2" : "flex flex-col gap-0.5"}>
+          {compact ? (
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 text-sm font-semibold text-primary">
+                  <BookOpen className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{st.activeBookTitle}</span>
+                </div>
+                {st.activeBookStartedAt && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    📅 Başlama: <span className="font-medium text-foreground">{new Date(st.activeBookStartedAt).toLocaleDateString("tr-TR")}</span>
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-col gap-1 shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs border-green-500 text-green-600 hover:bg-green-50 h-7 px-2"
+                  onClick={() => handleFinishBook(st.studentId)}
+                  disabled={isWeekend}
+                >
+                  Bitirdi ✓
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs h-7 px-2"
+                  onClick={() => openBookDialog(st)}
+                >
+                  <BookPlus className="h-3 w-3 mr-1" />Değiştir
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <span className="text-sm font-semibold text-primary flex items-center gap-1">
+                <BookOpen className="h-3.5 w-3.5 shrink-0" />
+                {st.activeBookTitle}
+              </span>
+              {st.activeBookStartedAt && (
+                <span className="text-xs text-muted-foreground">
+                  📅 Başlama: <span className="font-medium text-foreground">{new Date(st.activeBookStartedAt).toLocaleDateString("tr-TR")}</span>
+                </span>
+              )}
+              <div className="flex gap-1 mt-1">
+                <Button
+                  variant="outline"
+                  className="h-6 px-2 text-xs border-green-500 text-green-600 hover:bg-green-50 font-normal"
+                  onClick={() => handleFinishBook(st.studentId)}
+                  disabled={isWeekend}
+                >
+                  Bitirdi ✓
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-6 px-2 text-xs font-normal"
+                  onClick={() => openBookDialog(st)}
+                >
+                  <BookPlus className="h-3 w-3 mr-1" />Değiştir
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className={compact
+        ? "rounded-lg border border-dashed border-orange-300 bg-orange-50/50 px-3 py-2 flex items-center justify-between gap-2"
+        : "flex items-center gap-2"
+      }>
+        <p className="text-xs text-orange-600 flex items-center gap-1">
+          <BookOpen className="h-3 w-3" /> Kitap atanmamış
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-xs h-7 px-2 border-primary/40 text-primary hover:bg-primary/5 shrink-0"
+          onClick={() => openBookDialog(st)}
+        >
+          <BookPlus className="h-3 w-3 mr-1" />Kitap Ata
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {isWeekend && (
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg p-4 text-sm">
-          Hafta sonu okuma takibi yapılmamaktadır. Takip kayıtları yalnızca hafta içi günlerinde girilebilir.
+          Hafta sonu okuma takibi yapılmamaktadır.
         </div>
       )}
 
@@ -225,39 +347,8 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, userI
                   {st.saved && <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />}
                 </div>
 
-                {/* Active book — always visible */}
-                {st.activeBookTitle ? (
-                  <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 text-sm font-semibold text-primary">
-                          <BookOpen className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate">{st.activeBookTitle}</span>
-                        </div>
-                        {st.activeBookStartedAt && (
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            📅 Başlama: <span className="font-medium text-foreground">{new Date(st.activeBookStartedAt).toLocaleDateString("tr-TR")}</span>
-                          </p>
-                        )}
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-xs border-green-500 text-green-600 hover:bg-green-50 h-8 px-2.5 shrink-0"
-                        onClick={() => handleFinishBook(s.id)}
-                        disabled={isWeekend}
-                      >
-                        Bitirdi
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="rounded-lg border border-dashed border-orange-300 bg-orange-50/50 px-3 py-2">
-                    <p className="text-xs text-orange-600 flex items-center gap-1">
-                      <BookOpen className="h-3 w-3" /> Kitap atanmamış
-                    </p>
-                  </div>
-                )}
+                {/* Book info (always visible, with inline assign) */}
+                <BookCell st={st} compact={true} />
 
                 {/* Switches */}
                 <div className="flex items-center gap-4">
@@ -293,9 +384,9 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, userI
                 <TableRow>
                   <TableHead>Öğrenci</TableHead>
                   <TableHead>Sınıf</TableHead>
-                  <TableHead>Aktif Kitap</TableHead>
+                  <TableHead>Aktif Kitap / Atama</TableHead>
                   <TableHead className="text-center w-28">Kitap Getirdi</TableHead>
-                  <TableHead className="text-center w-28">Okudu</TableHead>
+                  <TableHead className="text-center w-24">Okudu</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -314,33 +405,7 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, userI
                       <TableCell className="font-medium">{s.full_name}</TableCell>
                       <TableCell><Badge variant="outline">{getClassName(s)}</Badge></TableCell>
                       <TableCell>
-                        {st.activeBookTitle ? (
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-sm font-semibold text-primary flex items-center gap-1">
-                                <BookOpen className="h-3.5 w-3.5 shrink-0" />
-                                {st.activeBookTitle}
-                              </span>
-                              {st.activeBookStartedAt && (
-                                <span className="text-xs text-muted-foreground">
-                                  📅 Başlama: <span className="font-medium text-foreground">{new Date(st.activeBookStartedAt).toLocaleDateString("tr-TR")}</span>
-                                </span>
-                              )}
-                            </div>
-                            <Button
-                              variant="outline"
-                              className="h-6 px-2 text-xs border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700 ml-2 font-normal shrink-0"
-                              onClick={() => handleFinishBook(s.id)}
-                              disabled={isWeekend}
-                            >
-                              Bitirdi
-                            </Button>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-orange-500 flex items-center gap-1">
-                            <BookOpen className="h-3 w-3" /> Kitap atanmamış
-                          </span>
-                        )}
+                        <BookCell st={st} compact={false} />
                       </TableCell>
                       <TableCell className="text-center">
                         <div className="flex justify-center">
@@ -368,6 +433,45 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, userI
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Book Assignment Dialog ─────────────────────────── */}
+      <Dialog open={!!bookDialogStudent} onOpenChange={(open) => !open && setBookDialogStudent(null)}>
+        <DialogHeader>
+          <DialogTitle>
+            {bookDialogStudent?.activeBookTitle ? "Kitap Değiştir" : "Kitap Ata"}
+          </DialogTitle>
+        </DialogHeader>
+        <DialogClose onClick={() => setBookDialogStudent(null)} />
+        <div className="mt-4 space-y-4">
+          {bookDialogStudent?.activeBookTitle && (
+            <div className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
+              Mevcut kitap: <span className="font-medium text-foreground">{bookDialogStudent.activeBookTitle}</span>
+              <br />
+              <span className="text-xs">Yeni kitap atanınca mevcut kitap tamamlandı olarak işaretlenir.</span>
+            </div>
+          )}
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="book-select-dialog">Kitap Seç</Label>
+            <select
+              id="book-select-dialog"
+              value={selectedBookId}
+              onChange={(e) => setSelectedBookId(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">-- Kitap seçin --</option>
+              {books.map((b) => (
+                <option key={b.id} value={b.id}>{b.title}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setBookDialogStudent(null)}>İptal</Button>
+            <Button onClick={handleAssignBook} disabled={assigning || !selectedBookId}>
+              {assigning ? "Atanıyor..." : "Kitap Ata"}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 }
