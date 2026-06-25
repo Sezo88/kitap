@@ -216,7 +216,7 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, userI
           return (
             <Card key={s.id} className={st.saved ? "border-green-200 bg-green-50/30" : ""}>
               <CardContent className="p-3 space-y-2.5">
-                {/* Name + class */}
+                {/* Name + class + save indicator */}
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="font-semibold text-sm">{s.full_name}</p>
@@ -225,29 +225,37 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, userI
                   {st.saved && <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />}
                 </div>
 
-                {/* Active book */}
-                {st.activeBookTitle && (
-                  <div className="flex items-center justify-between gap-2 bg-muted/60 rounded-md px-2.5 py-2">
-                    <div>
-                      <div className="flex items-center gap-1 text-sm font-medium">
-                        <BookOpen className="h-3.5 w-3.5 text-primary" />
-                        <span>{st.activeBookTitle}</span>
+                {/* Active book — always visible */}
+                {st.activeBookTitle ? (
+                  <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 text-sm font-semibold text-primary">
+                          <BookOpen className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{st.activeBookTitle}</span>
+                        </div>
+                        {st.activeBookStartedAt && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            📅 Başlama: <span className="font-medium text-foreground">{new Date(st.activeBookStartedAt).toLocaleDateString("tr-TR")}</span>
+                          </p>
+                        )}
                       </div>
-                      {st.activeBookStartedAt && (
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Başlangıç: {new Date(st.activeBookStartedAt).toLocaleDateString("tr-TR")}
-                        </p>
-                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs border-green-500 text-green-600 hover:bg-green-50 h-8 px-2.5 shrink-0"
+                        onClick={() => handleFinishBook(s.id)}
+                        disabled={isWeekend}
+                      >
+                        Bitirdi
+                      </Button>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-xs border-green-500 text-green-600 hover:bg-green-50 h-8 px-2.5"
-                      onClick={() => handleFinishBook(s.id)}
-                      disabled={isWeekend}
-                    >
-                      Bitirdi
-                    </Button>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-orange-300 bg-orange-50/50 px-3 py-2">
+                    <p className="text-xs text-orange-600 flex items-center gap-1">
+                      <BookOpen className="h-3 w-3" /> Kitap atanmamış
+                    </p>
                   </div>
                 )}
 
@@ -307,21 +315,21 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, userI
                       <TableCell><Badge variant="outline">{getClassName(s)}</Badge></TableCell>
                       <TableCell>
                         {st.activeBookTitle ? (
-                          <div className="flex items-center justify-between gap-2 max-w-xs">
-                            <div className="flex flex-col">
-                              <span className="text-sm font-medium flex items-center gap-1">
-                                <BookOpen className="h-3 w-3 text-muted-foreground" />
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-sm font-semibold text-primary flex items-center gap-1">
+                                <BookOpen className="h-3.5 w-3.5 shrink-0" />
                                 {st.activeBookTitle}
                               </span>
                               {st.activeBookStartedAt && (
-                                <span className="text-[11px] text-muted-foreground">
-                                  Başlangıç: {new Date(st.activeBookStartedAt).toLocaleDateString("tr-TR")}
+                                <span className="text-xs text-muted-foreground">
+                                  📅 Başlama: <span className="font-medium text-foreground">{new Date(st.activeBookStartedAt).toLocaleDateString("tr-TR")}</span>
                                 </span>
                               )}
                             </div>
                             <Button
                               variant="outline"
-                              className="h-6 px-2 text-xs border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700 ml-2 font-normal"
+                              className="h-6 px-2 text-xs border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700 ml-2 font-normal shrink-0"
                               onClick={() => handleFinishBook(s.id)}
                               disabled={isWeekend}
                             >
@@ -329,7 +337,9 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, userI
                             </Button>
                           </div>
                         ) : (
-                          <span className="text-sm text-muted-foreground">-</span>
+                          <span className="text-xs text-orange-500 flex items-center gap-1">
+                            <BookOpen className="h-3 w-3" /> Kitap atanmamış
+                          </span>
                         )}
                       </TableCell>
                       <TableCell className="text-center">
