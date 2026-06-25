@@ -36,6 +36,7 @@ export function StudentList({ students: initialStudents, classes, books, role, s
   const [selectedBookId, setSelectedBookId] = useState("");
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
+  const [selectedClassId, setSelectedClassId] = useState("all");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -43,6 +44,9 @@ export function StudentList({ students: initialStudents, classes, books, role, s
   }, [initialStudents]);
 
   const filtered = students.filter((s) => {
+    const matchesClass = selectedClassId === "all" || s.class_id === selectedClassId;
+    if (!matchesClass) return false;
+
     if (!search) return true;
     const q = search.toLowerCase();
     return (
@@ -144,15 +148,50 @@ export function StudentList({ students: initialStudents, classes, books, role, s
     setBookDialogOpen(false);
   }
 
+  async function handleFinishBook(studentId: string) {
+    if (!confirm("Öğrencinin bu kitabı bitirdiğini onaylıyor musunuz?")) return;
+    setSaving(true);
+    const supabase = createClient();
+    const today = new Date().toISOString().split("T")[0];
+
+    const { error } = await supabase
+      .from("student_books")
+      .update({ status: "completed", finished_at: today })
+      .eq("student_id", studentId)
+      .eq("status", "active");
+
+    if (!error) {
+      setStudents((prev) =>
+        prev.map((s) => (s.id === studentId ? { ...s, active_book_title: null } : s))
+      );
+      toast("Kitap başarıyla bitirildi olarak işaretlendi", "success");
+    } else {
+      toast("Hata oluştu: " + error.message, "error");
+    }
+    setSaving(false);
+  }
+
   return (
     <>
-      <div className="flex items-center justify-between mb-4 gap-4">
-        <Input
-          placeholder="İsim, e-Okul no veya sınıf ile ara..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-sm"
-        />
+      <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
+        <div className="flex items-center gap-2 max-w-md w-full sm:w-auto">
+          <Input
+            placeholder="İsim, e-Okul no veya sınıf ile ara..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="max-w-sm"
+          />
+          <Select
+            value={selectedClassId}
+            onChange={(e) => setSelectedClassId(e.target.value)}
+            className="w-48"
+          >
+            <option value="all">Tüm Sınıflar</option>
+            {classes.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </Select>
+        </div>
         {canEdit && (
           <Button onClick={openCreate} size="sm">
             <Plus className="h-4 w-4 mr-1" /> Yeni Öğrenci
@@ -187,7 +226,19 @@ export function StudentList({ students: initialStudents, classes, books, role, s
                   <TableCell className="text-muted-foreground">{s.e_okul_no || "-"}</TableCell>
                   <TableCell>
                     {s.active_book_title ? (
-                      <span className="text-sm">{s.active_book_title}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">{s.active_book_title}</span>
+                        {canEdit && (
+                          <Button
+                            variant="outline"
+                            className="h-7 px-2 text-xs border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700 font-normal"
+                            onClick={() => handleFinishBook(s.id)}
+                            title="Kitabı Bitirdi"
+                          >
+                            Bitirdi
+                          </Button>
+                        )}
+                      </div>
                     ) : (
                       <span className="text-sm text-muted-foreground">Atanmamış</span>
                     )}

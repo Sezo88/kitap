@@ -16,7 +16,7 @@ interface Props {
   students: StudentWithClass[];
   classes: { id: string; name: string }[];
   todayLogs: ReadingLog[];
-  activeBooks: { student_id: string; books: { title: string } | { title: string }[] | null }[];
+  activeBooks: { student_id: string; started_at: string; books: { title: string } | { title: string }[] | null }[];
   userId: string;
   role: Role;
 }
@@ -35,6 +35,7 @@ interface StudentRowState {
   broughtBook: boolean;
   didRead: boolean;
   activeBookTitle: string | null;
+  activeBookStartedAt: string | null;
   saved: boolean;
 }
 
@@ -42,6 +43,11 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, userI
   const [selectedClassId, setSelectedClassId] = useState(classes[0]?.id || "all");
   const [saving, setSaving] = useState<string | null>(null);
   const { toast } = useToast();
+
+  const isWeekend = useMemo(() => {
+    const day = new Date().getDay();
+    return day === 0 || day === 6; // 0 = Sunday, 6 = Saturday
+  }, []);
 
   // Build initial state
   const initialState: Map<string, StudentRowState> = new Map();
@@ -55,6 +61,7 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, userI
       broughtBook: log?.brought_book || false,
       didRead: log?.did_read || false,
       activeBookTitle: getBookTitle(book),
+      activeBookStartedAt: book?.started_at || null,
       saved: !!log,
     });
   });
@@ -69,6 +76,10 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, userI
   }, [students, selectedClassId]);
 
   async function updateField(studentId: string, classId: string, field: "broughtBook" | "didRead", value: boolean) {
+    if (isWeekend) {
+      toast("Hafta sonu takip kaydı girilemez.", "error");
+      return;
+    }
     const current = stateMap.get(studentId)!;
     const updated = { ...current, [field]: value };
     setStateMap(new Map(stateMap.set(studentId, updated)));
@@ -101,6 +112,10 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, userI
   }
 
   async function markAll() {
+    if (isWeekend) {
+      toast("Hafta sonu toplu işaretleme yapılamaz.", "error");
+      return;
+    }
     const toUpdate = filteredStudents.filter((s) => {
       const st = stateMap.get(s.id);
       return st && (!st.broughtBook || !st.didRead);
@@ -134,6 +149,7 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, userI
           broughtBook: true,
           didRead: true,
           activeBookTitle: stateMap.get(s.id)?.activeBookTitle || null,
+          activeBookStartedAt: stateMap.get(s.id)?.activeBookStartedAt || null,
           saved: true,
         });
       });
@@ -145,12 +161,40 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, userI
     }
   }
 
+  async function handleFinishBook(studentId: string) {
+    if (!confirm("Öğrencinin bu kitabı bitirdiğini onaylıyor musunuz?")) return;
+    const supabase = createClient();
+    const today = new Date().toISOString().split("T")[0];
+
+    const { error } = await supabase
+      .from("student_books")
+      .update({ status: "completed", finished_at: today })
+      .eq("student_id", studentId)
+      .eq("status", "active");
+
+    if (!error) {
+      const current = stateMap.get(studentId)!;
+      const updated = { ...current, activeBookTitle: null, activeBookStartedAt: null };
+      setStateMap(new Map(stateMap.set(studentId, updated)));
+      setTick((t) => t + 1);
+      toast("Kitap başarıyla bitirildi olarak işaretlendi", "success");
+    } else {
+      toast("Hata oluştu: " + error.message, "error");
+    }
+  }
+
   // Class filtering
   const uniqueClassIds = [...new Set(students.map((s) => s.class_id))];
   const filteredClasses = classes.filter((c) => uniqueClassIds.includes(c.id));
 
   return (
     <div className="space-y-4">
+      {isWeekend && (
+        <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg p-4 text-sm">
+          Hafta sonu okuma takibi yapılmamaktadır. Takip kayıtları yalnızca hafta içi günlerinde girilebilir.
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <Select value={selectedClassId} onChange={(e) => setSelectedClassId(e.target.value)} className="w-auto">
@@ -161,7 +205,7 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, userI
           </Select>
           <Badge variant="secondary">{filteredStudents.length} öğrenci</Badge>
         </div>
-        <Button variant="outline" size="sm" onClick={markAll}>
+        <Button variant="outline" size="sm" onClick={markAll} disabled={isWeekend}>
           <CheckCheck className="h-4 w-4 mr-1" /> Tümünü Getirdi+Okudu İşaretle
         </Button>
       </div>
@@ -195,10 +239,27 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, userI
                     <TableCell><Badge variant="outline">{getClassName(s)}</Badge></TableCell>
                     <TableCell>
                       {st.activeBookTitle ? (
-                        <span className="text-sm flex items-center gap-1">
-                          <BookOpen className="h-3 w-3 text-muted-foreground" />
-                          {st.activeBookTitle}
-                        </span>
+                        <div className="flex items-center justify-between gap-2 max-w-xs">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium flex items-center gap-1">
+                              <BookOpen className="h-3 w-3 text-muted-foreground" />
+                              {st.activeBookTitle}
+                            </span>
+                            {st.activeBookStartedAt && (
+                              <span className="text-[11px] text-muted-foreground">
+                                Başlangıç: {new Date(st.activeBookStartedAt).toLocaleDateString("tr-TR")}
+                              </span>
+                            )}
+                          </div>
+                          <Button
+                            variant="outline"
+                            className="h-6 px-2 text-xs border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700 ml-2 font-normal"
+                            onClick={() => handleFinishBook(s.id)}
+                            disabled={isWeekend}
+                          >
+                            Bitirdi
+                          </Button>
+                        </div>
                       ) : (
                         <span className="text-sm text-muted-foreground">-</span>
                       )}
@@ -208,6 +269,7 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, userI
                         <Switch
                           checked={st.broughtBook}
                           onCheckedChange={(v) => updateField(s.id, s.class_id, "broughtBook", v)}
+                          disabled={isWeekend}
                         />
                       </div>
                     </TableCell>
@@ -216,6 +278,7 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, userI
                         <Switch
                           checked={st.didRead}
                           onCheckedChange={(v) => updateField(s.id, s.class_id, "didRead", v)}
+                          disabled={isWeekend}
                         />
                       </div>
                     </TableCell>

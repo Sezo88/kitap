@@ -30,9 +30,28 @@ export default async function StudentsPage() {
     }
   }
 
-  const { data: students } = await studentsQuery;
+  const { data: studentsData } = await studentsQuery;
   const { data: classes } = await supabase.from("classes").select("*").match(schoolFilter).order("name");
   const { data: books } = await supabase.from("books").select("id, title").match(schoolFilter).order("title");
+
+  const studentIds = studentsData?.map((s) => s.id) || [];
+  let activeBooks: any[] = [];
+  if (studentIds.length > 0) {
+    const { data } = await supabase
+      .from("student_books")
+      .select("student_id, books(title)")
+      .eq("status", "active")
+      .in("student_id", studentIds);
+    activeBooks = data || [];
+  }
+
+  const students = studentsData?.map((s) => {
+    const activeBook = activeBooks.find((ab) => ab.student_id === s.id);
+    return {
+      ...s,
+      active_book_title: activeBook ? (Array.isArray(activeBook.books) ? activeBook.books[0]?.title : activeBook.books?.title) || null : null
+    };
+  }) || [];
 
   const canEdit = profile?.role === "super_admin" || profile?.role === "idareci" || profile?.role === "ogretmen";
   const canImport = profile?.role === "super_admin" || profile?.role === "idareci";

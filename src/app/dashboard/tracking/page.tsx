@@ -53,7 +53,7 @@ export default async function TrackingPage() {
   const studentIds = students?.map((s) => s.id) || [];
   let activeBooksQuery = supabase
     .from("student_books")
-    .select("student_id, books(title)")
+    .select("student_id, started_at, books(title)")
     .eq("status", "active");
 
   if (studentIds.length > 0) {
