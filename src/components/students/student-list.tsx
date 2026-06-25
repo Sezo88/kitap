@@ -11,7 +11,7 @@ import { Dialog, DialogClose, DialogHeader, DialogTitle } from "@/components/ui/
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
-import { Plus, Pencil, Trash2, BookPlus, ExternalLink } from "lucide-react";
+import { Plus, Pencil, Trash2, BookPlus, ExternalLink, BookOpen } from "lucide-react";
 import Link from "next/link";
 import { getClassName, type Role, type Class, type Book, type StudentWithClass } from "@/lib/types/database";
 
@@ -46,7 +46,6 @@ export function StudentList({ students: initialStudents, classes, books, role, s
   const filtered = students.filter((s) => {
     const matchesClass = selectedClassId === "all" || s.class_id === selectedClassId;
     if (!matchesClass) return false;
-
     if (!search) return true;
     const q = search.toLowerCase();
     return (
@@ -123,14 +122,12 @@ export function StudentList({ students: initialStudents, classes, books, role, s
     setSaving(true);
     const supabase = createClient();
 
-    // Deactivate current active book
     await supabase
       .from("student_books")
       .update({ status: "completed", finished_at: new Date().toISOString().split("T")[0] })
       .eq("student_id", selectedStudent.id)
       .eq("status", "active");
 
-    // Assign new book
     await supabase.from("student_books").insert({
       student_id: selectedStudent.id,
       book_id: selectedBookId,
@@ -173,18 +170,19 @@ export function StudentList({ students: initialStudents, classes, books, role, s
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
-        <div className="flex items-center gap-2 max-w-md w-full sm:w-auto">
+      {/* ── Filters & Actions ───────────────────────────────── */}
+      <div className="flex flex-col gap-3 mb-4">
+        <div className="flex gap-2">
           <Input
-            placeholder="İsim, e-Okul no veya sınıf ile ara..."
+            placeholder="İsim veya e-Okul no ara..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="max-w-sm"
+            className="flex-1"
           />
           <Select
             value={selectedClassId}
             onChange={(e) => setSelectedClassId(e.target.value)}
-            className="w-48"
+            className="w-36 shrink-0"
           >
             <option value="all">Tüm Sınıflar</option>
             {classes.map((c) => (
@@ -193,86 +191,154 @@ export function StudentList({ students: initialStudents, classes, books, role, s
           </Select>
         </div>
         {canEdit && (
-          <Button onClick={openCreate} size="sm">
+          <Button onClick={openCreate} size="sm" className="w-full sm:w-auto sm:self-end">
             <Plus className="h-4 w-4 mr-1" /> Yeni Öğrenci
           </Button>
         )}
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Ad Soyad</TableHead>
-                <TableHead>Sınıf</TableHead>
-                <TableHead>e-Okul No</TableHead>
-                <TableHead>Aktif Kitap</TableHead>
-                <TableHead className="w-32">İşlem</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                    {search ? "Aramanızla eşleşen öğrenci bulunamadı" : "Henüz öğrenci eklenmemiş"}
-                  </TableCell>
-                </TableRow>
+      {/* ── MOBILE: card list ────────────────────────────────── */}
+      <div className="sm:hidden space-y-2">
+        {filtered.length === 0 && (
+          <div className="text-center text-muted-foreground py-10">
+            {search ? "Aramanızla eşleşen öğrenci bulunamadı" : "Henüz öğrenci eklenmemiş"}
+          </div>
+        )}
+        {filtered.map((s) => (
+          <Card key={s.id}>
+            <CardContent className="p-3 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="font-semibold text-sm">{s.full_name}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <Badge variant="outline" className="text-xs">{getClassName(s)}</Badge>
+                    {s.e_okul_no && <span className="text-xs text-muted-foreground">#{s.e_okul_no}</span>}
+                  </div>
+                </div>
+                {/* Actions */}
+                <div className="flex items-center gap-0.5">
+                  <Link href={`/dashboard/profile/${s.id}`}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" title="Profil">
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openBookSelect(s)} title="Kitap Ata">
+                    <BookPlus className="h-4 w-4" />
+                  </Button>
+                  {canEdit && (
+                    <>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(s)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDelete(s.id)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+              {/* Active book */}
+              {s.active_book_title ? (
+                <div className="flex items-center justify-between gap-2 bg-muted/60 rounded-md px-2.5 py-1.5">
+                  <div className="flex items-center gap-1.5 text-sm min-w-0">
+                    <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span className="truncate">{s.active_book_title}</span>
+                  </div>
+                  {canEdit && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs border-green-500 text-green-600 hover:bg-green-50 h-7 px-2 shrink-0"
+                      onClick={() => handleFinishBook(s.id)}
+                    >
+                      Bitirdi
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">Kitap atanmamış</p>
               )}
-              {filtered.map((s) => (
-                <TableRow key={s.id}>
-                  <TableCell className="font-medium">{s.full_name}</TableCell>
-                  <TableCell><Badge variant="outline">{getClassName(s)}</Badge></TableCell>
-                  <TableCell className="text-muted-foreground">{s.e_okul_no || "-"}</TableCell>
-                  <TableCell>
-                    {s.active_book_title ? (
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm">{s.active_book_title}</span>
-                        {canEdit && (
-                          <Button
-                            variant="outline"
-                            className="h-7 px-2 text-xs border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700 font-normal"
-                            onClick={() => handleFinishBook(s.id)}
-                            title="Kitabı Bitirdi"
-                          >
-                            Bitirdi
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* ── DESKTOP: table ───────────────────────────────────── */}
+      <div className="hidden sm:block">
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Ad Soyad</TableHead>
+                  <TableHead>Sınıf</TableHead>
+                  <TableHead>e-Okul No</TableHead>
+                  <TableHead>Aktif Kitap</TableHead>
+                  <TableHead className="w-32">İşlem</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                      {search ? "Aramanızla eşleşen öğrenci bulunamadı" : "Henüz öğrenci eklenmemiş"}
+                    </TableCell>
+                  </TableRow>
+                )}
+                {filtered.map((s) => (
+                  <TableRow key={s.id}>
+                    <TableCell className="font-medium">{s.full_name}</TableCell>
+                    <TableCell><Badge variant="outline">{getClassName(s)}</Badge></TableCell>
+                    <TableCell className="text-muted-foreground">{s.e_okul_no || "-"}</TableCell>
+                    <TableCell>
+                      {s.active_book_title ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">{s.active_book_title}</span>
+                          {canEdit && (
+                            <Button
+                              variant="outline"
+                              className="h-7 px-2 text-xs border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700 font-normal"
+                              onClick={() => handleFinishBook(s.id)}
+                            >
+                              Bitirdi
+                            </Button>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">Atanmamış</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => openBookSelect(s)} title="Kitap Ata">
+                          <BookPlus className="h-4 w-4" />
+                        </Button>
+                        <Link href={`/dashboard/profile/${s.id}`}>
+                          <Button variant="ghost" size="icon" title="Profil">
+                            <ExternalLink className="h-4 w-4" />
                           </Button>
+                        </Link>
+                        {canEdit && (
+                          <>
+                            <Button variant="ghost" size="icon" onClick={() => openEdit(s)}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleDelete(s.id)}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </>
                         )}
                       </div>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">Atanmamış</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => openBookSelect(s)} title="Kitap Ata">
-                        <BookPlus className="h-4 w-4" />
-                      </Button>
-                      <Link href={`/dashboard/profile/${s.id}`}>
-                        <Button variant="ghost" size="icon" title="Profil">
-                          <ExternalLink className="h-4 w-4" />
-                        </Button>
-                      </Link>
-                      {canEdit && (
-                        <>
-                          <Button variant="ghost" size="icon" onClick={() => openEdit(s)}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(s.id)}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
 
-      {/* Student Create/Edit Dialog */}
+      {/* ── Student Create/Edit Dialog ──────────────────────── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogHeader>
           <DialogTitle>{editingStudent ? "Öğrenci Düzenle" : "Yeni Öğrenci"}</DialogTitle>
@@ -302,7 +368,7 @@ export function StudentList({ students: initialStudents, classes, books, role, s
         </div>
       </Dialog>
 
-      {/* Book Assignment Dialog */}
+      {/* ── Book Assignment Dialog ──────────────────────────── */}
       <Dialog open={bookDialogOpen} onOpenChange={setBookDialogOpen}>
         <DialogHeader>
           <DialogTitle>Kitap Ata - {selectedStudent?.full_name}</DialogTitle>
