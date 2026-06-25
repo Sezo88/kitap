@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, GraduationCap, Library, ClipboardCheck } from "lucide-react";
+import { redirect } from "next/navigation";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -8,6 +9,11 @@ export default async function DashboardPage() {
   const { data: profile } = await supabase.from("profiles").select("*").eq("id", user!.id).single();
 
   if (!profile) return null;
+
+  // Öğretmenler direkt okuma takip sayfasına yönlendirilsin
+  if (profile.role === "ogretmen") {
+    redirect("/dashboard/tracking");
+  }
 
   // Get school code for idareci to share with teachers
   const { data: school } = profile.school_id
