@@ -48,6 +48,10 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, books
   const [selectedBookId, setSelectedBookId] = useState("");
   const [bookSearch, setBookSearch] = useState("");
   const [assigning, setAssigning] = useState(false);
+  const [showNewBookForm, setShowNewBookForm] = useState(false);
+  const [newBookTitle, setNewBookTitle] = useState("");
+  const [newBookAuthor, setNewBookAuthor] = useState("");
+  const [addingBook, setAddingBook] = useState(false);
   const { toast } = useToast();
 
   const isWeekend = useMemo(() => {
@@ -83,6 +87,38 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, books
     setBookDialogStudent(st);
     setSelectedBookId("");
     setBookSearch("");
+    setShowNewBookForm(false);
+    setNewBookTitle("");
+    setNewBookAuthor("");
+  }
+
+  async function handleAddNewBook() {
+    const title = newBookTitle.trim();
+    if (!title) { toast("Lutfen kitap adini girin", "error"); return; }
+
+    setAddingBook(true);
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("books")
+      .insert({
+        title,
+        author: newBookAuthor.trim() || null,
+        school_id: students[0]?.school_id,
+        added_by: userId,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      toast("Kitap eklenirken hata: " + error.message, "error");
+    } else if (data) {
+      toast(`"${title}" kutuphaneye eklendi`, "success");
+      setSelectedBookId(data.id);
+      setShowNewBookForm(false);
+      setNewBookTitle("");
+      setNewBookAuthor("");
+    }
+    setAddingBook(false);
   }
 
   async function handleAssignBook() {
@@ -483,6 +519,43 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, books
                 <p className="text-sm text-muted-foreground text-center py-4">Kitap bulunamadi</p>
               )}
             </div>
+
+            {/* Yeni Kitap Ekle */}
+            {!showNewBookForm ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs"
+                onClick={() => setShowNewBookForm(true)}
+              >
+                <BookPlus className="h-3.5 w-3.5 mr-1" /> Kutuphaneye Yeni Kitap Ekle
+              </Button>
+            ) : (
+              <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
+                <p className="text-xs font-semibold">Yeni Kitap Ekle</p>
+                <input
+                  type="text"
+                  value={newBookTitle}
+                  onChange={(e) => setNewBookTitle(e.target.value)}
+                  placeholder="Kitap adi *"
+                  className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  autoFocus
+                />
+                <input
+                  type="text"
+                  value={newBookAuthor}
+                  onChange={(e) => setNewBookAuthor(e.target.value)}
+                  placeholder="Yazar (opsiyonel)"
+                  className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                <div className="flex justify-end gap-2 pt-1">
+                  <Button variant="outline" size="sm" onClick={() => setShowNewBookForm(false)}>Iptal</Button>
+                  <Button size="sm" onClick={handleAddNewBook} disabled={addingBook || !newBookTitle.trim()}>
+                    {addingBook ? "Ekleniyor..." : "Ekle"}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setBookDialogStudent(null)}>İptal</Button>
