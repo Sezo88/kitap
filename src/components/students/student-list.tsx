@@ -15,6 +15,7 @@ import { Plus, Pencil, Trash2, BookPlus, ExternalLink, BookOpen, Download, Uploa
 import Link from "next/link";
 import { getClassName, type Role, type Class, type Book, type StudentWithClass } from "@/lib/types/database";
 import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
 
 interface Props {
   students: (StudentWithClass)[];
@@ -199,6 +200,10 @@ export function StudentList({ students: initialStudents, classes, books, role, s
   }
 
   function handleExportVeliTemplate() {
+    if (classes.length === 0) {
+      toast("Sınıflar henüz yüklenmedi, tekrar deneyin", "error");
+      return;
+    }
     try {
       const wb = XLSX.utils.book_new();
 
@@ -218,18 +223,7 @@ export function StudentList({ students: initialStudents, classes, books, role, s
 
       const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
       const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      const url = URL.createObjectURL(blob);
-      
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "veli_telefon_listesi.xlsx";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      
-      setTimeout(() => {
-        URL.revokeObjectURL(url);
-      }, 1000);
+      saveAs(blob, "veli_telefon_listesi.xlsx");
       toast("Veli telefon şablonu başarıyla indirildi", "success");
     } catch (err: any) {
       toast("Şablon oluşturulurken hata: " + err.message, "error");
@@ -333,13 +327,13 @@ export function StudentList({ students: initialStudents, classes, books, role, s
         </div>
         {canEdit && (
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto sm:self-end">
-            <Button onClick={handleExportVeliTemplate} size="sm" variant="outline" className="w-full sm:w-auto">
+            <Button type="button" onClick={handleExportVeliTemplate} size="sm" variant="outline" className="w-full sm:w-auto">
               <Download className="h-4 w-4 mr-1" /> Veli Tel Şablonu İndir
             </Button>
-            <Button onClick={() => setImportDialogOpen(true)} size="sm" variant="outline" className="w-full sm:w-auto">
+            <Button type="button" onClick={() => setImportDialogOpen(true)} size="sm" variant="outline" className="w-full sm:w-auto">
               <Upload className="h-4 w-4 mr-1" /> Veli Tel İçe Aktar
             </Button>
-            <Button onClick={openCreate} size="sm" className="w-full sm:w-auto">
+            <Button type="button" onClick={openCreate} size="sm" className="w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-1" /> Yeni Öğrenci
             </Button>
           </div>
@@ -577,7 +571,7 @@ export function StudentList({ students: initialStudents, classes, books, role, s
             </div>
           )}
           <div className="flex justify-end gap-2 pt-2 border-t mt-2">
-            <Button variant="outline" onClick={() => setImportDialogOpen(false)} disabled={importing}>Kapat</Button>
+            <Button type="button" variant="outline" onClick={() => setImportDialogOpen(false)} disabled={importing}>Kapat</Button>
           </div>
         </div>
       </Dialog>
