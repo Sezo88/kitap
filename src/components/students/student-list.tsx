@@ -33,6 +33,8 @@ export function StudentList({ students: initialStudents, classes, books, role, s
   const [fullName, setFullName] = useState("");
   const [classId, setClassId] = useState("");
   const [eOkulNo, setEOkulNo] = useState("");
+  const [veliTelefon, setVeliTelefon] = useState("");
+  const [veliTelefon2, setVeliTelefon2] = useState("");
   const [selectedBookId, setSelectedBookId] = useState("");
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
@@ -60,6 +62,8 @@ export function StudentList({ students: initialStudents, classes, books, role, s
     setFullName("");
     setClassId(classes[0]?.id || "");
     setEOkulNo("");
+    setVeliTelefon("");
+    setVeliTelefon2("");
     setDialogOpen(true);
   }
 
@@ -68,6 +72,8 @@ export function StudentList({ students: initialStudents, classes, books, role, s
     setFullName(s.full_name);
     setClassId(s.class_id);
     setEOkulNo(s.e_okul_no || "");
+    setVeliTelefon(s.veli_telefon || "");
+    setVeliTelefon2(s.veli_telefon_2 || "");
     setDialogOpen(true);
   }
 
@@ -85,12 +91,26 @@ export function StudentList({ students: initialStudents, classes, books, role, s
     if (editingStudent) {
       await supabase
         .from("students")
-        .update({ full_name: fullName, class_id: classId, e_okul_no: eOkulNo || null })
+        .update({
+          full_name: fullName,
+          class_id: classId,
+          e_okul_no: eOkulNo || null,
+          veli_telefon: veliTelefon || null,
+          veli_telefon_2: veliTelefon2 || null
+        })
         .eq("id", editingStudent.id);
       setStudents((prev) =>
         prev.map((s) =>
           s.id === editingStudent.id
-            ? { ...s, full_name: fullName, class_id: classId, e_okul_no: eOkulNo || null, classes: classes.find((c) => c.id === classId) || s.classes }
+            ? {
+                ...s,
+                full_name: fullName,
+                class_id: classId,
+                e_okul_no: eOkulNo || null,
+                veli_telefon: veliTelefon || null,
+                veli_telefon_2: veliTelefon2 || null,
+                classes: classes.find((c) => c.id === classId) || s.classes
+              }
             : s
         )
       );
@@ -98,7 +118,14 @@ export function StudentList({ students: initialStudents, classes, books, role, s
     } else {
       const { data } = await supabase
         .from("students")
-        .insert({ full_name: fullName, class_id: classId, school_id: schoolId, e_okul_no: eOkulNo || null })
+        .insert({
+          full_name: fullName,
+          class_id: classId,
+          school_id: schoolId,
+          e_okul_no: eOkulNo || null,
+          veli_telefon: veliTelefon || null,
+          veli_telefon_2: veliTelefon2 || null
+        })
         .select("*, classes!inner(name)")
         .single();
       if (data) setStudents((prev) => [...prev, data as StudentWithClass]);
@@ -360,6 +387,14 @@ export function StudentList({ students: initialStudents, classes, books, role, s
           <div className="flex flex-col gap-2">
             <Label htmlFor="enumber">e-Okul No</Label>
             <Input id="enumber" value={eOkulNo} onChange={(e) => setEOkulNo(e.target.value)} placeholder="opsiyonel" />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="vphone">Veli Telefon Numarası</Label>
+            <Input id="vphone" value={veliTelefon} onChange={(e) => setVeliTelefon(e.target.value)} placeholder="+905XXXXXXXXX" />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="vphone2">2. Veli Telefon Numarası</Label>
+            <Input id="vphone2" value={veliTelefon2} onChange={(e) => setVeliTelefon2(e.target.value)} placeholder="+905XXXXXXXXX (opsiyonel)" />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setDialogOpen(false)}>İptal</Button>

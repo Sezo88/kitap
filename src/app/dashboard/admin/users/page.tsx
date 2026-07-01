@@ -6,28 +6,39 @@ import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { UserRoleManager } from "@/components/admin/user-role-manager";
 import type { Role } from "@/lib/types/database";
+import { getCachedUserAndProfile } from "@/lib/supabase/auth-cache";
 
 export default async function AdminUsersPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user!.id).single();
+  const { user, profile } = await getCachedUserAndProfile();
 
   if (!profile || (profile.role !== "super_admin" && profile.role !== "idareci")) {
     return <div className="text-center py-8 text-muted-foreground">Bu sayfaya erişim yetkiniz yok.</div>;
   }
 
   const schoolFilter = profile.role === "super_admin" ? {} : { school_id: profile.school_id };
-  const { data: users } = await supabase
-    .from("profiles")
-    .select("*")
-    .match(schoolFilter)
-    .order("role")
-    .order("full_name");
 
-  const { data: classes } = await supabase.from("classes").select("*").match(schoolFilter).order("name");
-
-  // Get teacher-class assignments
-  const { data: teacherClasses } = await supabase.from("teacher_classes").select("*");
+  // Parallelize users list, classes list and teacher assignments queries
+  const [
+    { data: users },
+    { data: classes },
+    { data: teacherClasses }
+  ] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("*")
+      .match(schoolFilter)
+      .order("role")
+      .order("full_name"),
+    supabase
+      .from("classes")
+      .select("*")
+      .match(schoolFilter)
+      .order("name"),
+    supabase
+      .from("teacher_classes")
+      .select("*")
+  ]);
 
   return (
     <div>

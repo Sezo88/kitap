@@ -2,11 +2,11 @@ import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, GraduationCap, Library, ClipboardCheck } from "lucide-react";
 import { redirect } from "next/navigation";
+import { getCachedUserAndProfile } from "@/lib/supabase/auth-cache";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user!.id).single();
+  const { user, profile } = await getCachedUserAndProfile();
 
   if (!profile) return null;
 
@@ -15,22 +15,30 @@ export default async function DashboardPage() {
     redirect("/dashboard/tracking");
   }
 
-  // Get school code for idareci to share with teachers
-  const { data: school } = profile.school_id
-    ? await supabase.from("schools").select("code, name").eq("id", profile.school_id).single()
-    : { data: null };
+  // Get school details from joined relation (already fetched in getCachedUserAndProfile)
+  const schoolData = (profile as any).schools;
+  const school = Array.isArray(schoolData) ? schoolData[0] : schoolData;
 
   const schoolFilter = profile.role === "super_admin" ? {} : { school_id: profile.school_id };
 
-  const { count: studentCount } = await supabase.from("students").select("*", { count: "exact", head: true }).match(schoolFilter).eq("is_active", true);
-  const { count: classCount } = await supabase.from("classes").select("*", { count: "exact", head: true }).match(schoolFilter);
-  const { count: bookCount } = await supabase.from("books").select("*", { count: "exact", head: true }).match(schoolFilter);
+  const [
+    { count: studentCount },
+    { count: classCount },
+    { count: bookCount },
+    schoolClassIdsRes
+  ] = await Promise.all([
+    supabase.from("students").select("*", { count: "exact", head: true }).match(schoolFilter).eq("is_active", true),
+    supabase.from("classes").select("*", { count: "exact", head: true }).match(schoolFilter),
+    supabase.from("books").select("*", { count: "exact", head: true }).match(schoolFilter),
+    profile.school_id
+      ? supabase.from("classes").select("id").eq("school_id", profile.school_id)
+      : Promise.resolve({ data: null })
+  ]);
 
   const today = new Date().toISOString().split("T")[0];
   let todayQuery = supabase.from("reading_logs").select("*", { count: "exact", head: true }).eq("log_date", today);
-  if (profile.school_id) {
-    const { data: schoolClassIds } = await supabase.from("classes").select("id").eq("school_id", profile.school_id);
-    const ids = schoolClassIds?.map((c) => c.id) || [];
+  if (profile.school_id && schoolClassIdsRes.data) {
+    const ids = schoolClassIdsRes.data.map((c) => c.id) || [];
     if (ids.length > 0) {
       todayQuery = todayQuery.in("class_id", ids);
     }

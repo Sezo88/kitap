@@ -235,7 +235,6 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, books
                   size="sm"
                   className="text-xs border-green-500 text-green-600 hover:bg-green-50 h-7 px-2"
                   onClick={() => handleFinishBook(st.studentId)}
-                  disabled={isWeekend}
                 >
                   Bitirdi ✓
                 </Button>
@@ -265,7 +264,6 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, books
                   variant="outline"
                   className="h-6 px-2 text-xs border-green-500 text-green-600 hover:bg-green-50 font-normal"
                   onClick={() => handleFinishBook(st.studentId)}
-                  disabled={isWeekend}
                 >
                   Bitirdi ✓
                 </Button>

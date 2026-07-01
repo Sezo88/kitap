@@ -1,22 +1,30 @@
 import { createClient } from "@/lib/supabase/server";
 import { ClassList } from "@/components/classes/class-list";
+import { getCachedUserAndProfile } from "@/lib/supabase/auth-cache";
 
 export default async function ClassesPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user!.id).single();
+  const { user, profile } = await getCachedUserAndProfile();
 
-  let query = supabase.from("classes").select("*").order("grade_level").order("name");
-  if (profile?.role !== "super_admin" && profile?.school_id) {
-    query = query.eq("school_id", profile.school_id);
+  if (!profile) return null;
+
+  let classesQuery = supabase.from("classes").select("*").order("grade_level").order("name");
+  if (profile.role !== "super_admin" && profile.school_id) {
+    classesQuery = classesQuery.eq("school_id", profile.school_id);
   }
-  const { data: classes } = await query;
 
-  const { data: teachers } = await supabase
-    .from("profiles")
-    .select("id, full_name")
-    .eq("role", "ogretmen")
-    .match(profile?.role === "super_admin" ? {} : { school_id: profile?.school_id });
+  // Parallelize classes and teachers query
+  const [
+    { data: classes },
+    { data: teachers }
+  ] = await Promise.all([
+    classesQuery,
+    supabase
+      .from("profiles")
+      .select("id, full_name")
+      .eq("role", "ogretmen")
+      .match(profile.role === "super_admin" ? {} : { school_id: profile.school_id })
+  ]);
 
   return (
     <div>

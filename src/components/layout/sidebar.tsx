@@ -15,6 +15,9 @@ import {
   Settings,
   Send,
   X,
+  ClipboardList,
+  MessageSquare,
+  FileText,
 } from "lucide-react";
 import type { Role } from "@/lib/types/database";
 
@@ -30,10 +33,13 @@ const menuItems = [
   { href: "/dashboard/students", label: "Öğrenciler", icon: Users, roles: ["super_admin", "idareci", "ogretmen"] },
   { href: "/dashboard/library", label: "Kütüphane", icon: Library, roles: ["super_admin", "idareci", "ogretmen"] },
   { href: "/dashboard/tracking", label: "Okuma Takip", icon: ClipboardCheck, roles: ["super_admin", "idareci", "ogretmen"] },
+  { href: "/dashboard/attendance", label: "Yoklama", icon: ClipboardList, roles: ["super_admin", "idareci", "ogretmen"] },
   { href: "/dashboard/reports", label: "Raporlar", icon: BarChart3, roles: ["super_admin", "idareci"] },
   { href: "/dashboard/admin/approvals", label: "Bekleyen Onaylar", icon: Clock, roles: ["super_admin", "idareci"] },
   { href: "/dashboard/admin/users", label: "Kullanıcılar", icon: Settings, roles: ["super_admin", "idareci"] },
   { href: "/dashboard/admin/invite", label: "Davet Gönder", icon: Send, roles: ["super_admin", "idareci"] },
+  { href: "/dashboard/admin/sms-settings", label: "SMS Ayarları", icon: MessageSquare, roles: ["super_admin", "idareci"] },
+  { href: "/dashboard/admin/sms-logs", label: "SMS Geçmişi", icon: FileText, roles: ["super_admin", "idareci"] },
 ];
 
 export function Sidebar({ role, schoolName, onClose }: SidebarProps) {

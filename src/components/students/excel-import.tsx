@@ -23,6 +23,8 @@ interface ParsedStudent {
   eOkulNo: string;
   className: string;
   classId: string; // matched
+  veliTelefon: string;
+  veliTelefon2: string;
 }
 
 export function ExcelImport({ classes, schoolId }: Props) {
@@ -32,6 +34,8 @@ export function ExcelImport({ classes, schoolId }: Props) {
   const [nameCol, setNameCol] = useState("");
   const [eOkulCol, setEOkulCol] = useState("");
   const [classCol, setClassCol] = useState("");
+  const [veliCol, setVeliCol] = useState("");
+  const [veli2Col, setVeli2Col] = useState("");
   const [parsed, setParsed] = useState<ParsedStudent[]>([]);
   const [importing, setImporting] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -57,9 +61,13 @@ export function ExcelImport({ classes, schoolId }: Props) {
       const nameCandidate = h.find((k) => /ad.*soyad|isim|adı|name/i.test(k)) || h[0];
       const noCandidate = h.find((k) => /okul.*no|no|numara/i.test(k)) || "";
       const classCandidate = h.find((k) => /sınıf|sinif|class/i.test(k)) || "";
+      const veliCandidate = h.find((k) => /veli.*tel|veli.*telefon|telefon|phone|tel/i.test(k)) || "";
+      const veli2Candidate = h.find((k) => /veli.*tel.*2|veli.*telefon.*2|telefon.*2|phone.*2|tel.*2/i.test(k)) || "";
       setNameCol(nameCandidate);
       setEOkulCol(noCandidate);
       setClassCol(classCandidate);
+      setVeliCol(veliCandidate);
+      setVeli2Col(veli2Candidate);
       setStep("map");
     };
     reader.readAsBinaryString(file);
@@ -76,6 +84,8 @@ export function ExcelImport({ classes, schoolId }: Props) {
       const fullName = (row[nameCol] || "").trim();
       const eOkulNo = (row[eOkulCol] || "").trim();
       const className = (row[classCol] || "").trim();
+      const veliTelefon = (row[veliCol] || "").trim();
+      const veliTelefon2 = (row[veli2Col] || "").trim();
 
       if (!fullName) {
         errs.push(`Satır ${i + 2}: İsim alanı boş`);
@@ -93,7 +103,7 @@ export function ExcelImport({ classes, schoolId }: Props) {
         }
       }
 
-      result.push({ fullName, eOkulNo, className, classId: matchedClassId || "" });
+      result.push({ fullName, eOkulNo, className, classId: matchedClassId || "", veliTelefon, veliTelefon2 });
     });
 
     if (result.length === 0) {
@@ -132,6 +142,8 @@ export function ExcelImport({ classes, schoolId }: Props) {
       e_okul_no: p.eOkulNo || null,
       class_id: p.classId || newClassIds[p.className] || classes[0]?.id,
       school_id: schoolId,
+      veli_telefon: p.veliTelefon || null,
+      veli_telefon_2: p.veliTelefon2 || null,
     }));
 
     // Batch insert in chunks of 50
@@ -212,6 +224,20 @@ export function ExcelImport({ classes, schoolId }: Props) {
                 {headers.map((h) => <option key={h} value={h}>{h}</option>)}
               </Select>
             </div>
+            <div className="flex flex-col gap-2">
+              <Label>Veli Telefon Sütunu (opsiyonel)</Label>
+              <Select value={veliCol} onChange={(e) => setVeliCol(e.target.value)}>
+                <option value="">-- Yok --</option>
+                {headers.map((h) => <option key={h} value={h}>{h}</option>)}
+              </Select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label>2. Veli Telefon Sütunu (opsiyonel)</Label>
+              <Select value={veli2Col} onChange={(e) => setVeli2Col(e.target.value)}>
+                <option value="">-- Yok --</option>
+                {headers.map((h) => <option key={h} value={h}>{h}</option>)}
+              </Select>
+            </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setStep("upload")}>Geri</Button>
               <Button onClick={handleMap}>Önizle</Button>
@@ -242,6 +268,7 @@ export function ExcelImport({ classes, schoolId }: Props) {
                     <TableHead>Ad Soyad</TableHead>
                     <TableHead>e-Okul No</TableHead>
                     <TableHead>Sınıf</TableHead>
+                    <TableHead>Veli Tel.</TableHead>
                     <TableHead>Durum</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -251,6 +278,7 @@ export function ExcelImport({ classes, schoolId }: Props) {
                       <TableCell>{p.fullName}</TableCell>
                       <TableCell>{p.eOkulNo || "-"}</TableCell>
                       <TableCell>{p.className || "-"}</TableCell>
+                      <TableCell>{p.veliTelefon || "-"}</TableCell>
                       <TableCell>
                         {p.classId ? (
                           <Badge variant="success"><Check className="h-3 w-3 mr-1" /> Eşleşti</Badge>

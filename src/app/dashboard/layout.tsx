@@ -1,24 +1,18 @@
-import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { DashboardLayoutClient } from "@/components/layout/dashboard-layout-client";
+import { getCachedUserAndProfile } from "@/lib/supabase/auth-cache";
+import { createClient } from "@/lib/supabase/server";
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user, profile } = await getCachedUserAndProfile();
 
   if (!user) {
     redirect("/login");
   }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
 
   // If pending, show waiting page (no sidebar)
   if (profile?.status === "pending") {
@@ -45,10 +39,9 @@ export default async function DashboardLayout({
     );
   }
 
-  // Get school name for active users
-  const { data: school } = profile?.school_id
-    ? await supabase.from("schools").select("name, code").eq("id", profile.school_id).single()
-    : { data: null };
+  // Get school details from joined relation (already fetched in getCachedUserAndProfile)
+  const schoolData = (profile as any)?.schools;
+  const school = Array.isArray(schoolData) ? schoolData[0] : schoolData;
 
   return (
     <DashboardLayoutClient
@@ -60,3 +53,4 @@ export default async function DashboardLayout({
     </DashboardLayoutClient>
   );
 }
+

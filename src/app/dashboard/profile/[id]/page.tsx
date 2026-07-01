@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { BookOpen, CalendarCheck, TrendingUp } from "lucide-react";
 import { notFound } from "next/navigation";
+import { getCachedUserAndProfile } from "@/lib/supabase/auth-cache";
 
 function getAcademicYear(dateStrOrObj: string | Date | null): string {
   if (!dateStrOrObj) return "Bilinmeyen";
@@ -28,8 +29,7 @@ export default async function StudentProfilePage({
   const { id } = await params;
   const { year: selectedYearParam } = await searchParams;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user!.id).single();
+  const { user, profile } = await getCachedUserAndProfile();
 
   if (!profile) return null;
 
@@ -44,29 +44,18 @@ export default async function StudentProfilePage({
     }
   }
 
-  const { data: student } = await supabase
-    .from("students")
-    .select("*, classes(name)")
-    .eq("id", studentId)
-    .single();
+  // Parallelize student info, reading logs history and student books history queries
+  const [
+    { data: student },
+    { data: readingLogs },
+    { data: studentBooks }
+  ] = await Promise.all([
+    supabase.from("students").select("*, classes(name)").eq("id", studentId).single(),
+    supabase.from("reading_logs").select("*").eq("student_id", studentId).order("log_date", { ascending: false }).limit(1000),
+    supabase.from("student_books").select("*, books(title, author)").eq("student_id", studentId).order("created_at", { ascending: false }).limit(500)
+  ]);
 
   if (!student) notFound();
-
-  // Reading history
-  const { data: readingLogs } = await supabase
-    .from("reading_logs")
-    .select("*")
-    .eq("student_id", studentId)
-    .order("log_date", { ascending: false })
-    .limit(1000);
-
-  // Books read
-  const { data: studentBooks } = await supabase
-    .from("student_books")
-    .select("*, books(title, author)")
-    .eq("student_id", studentId)
-    .order("created_at", { ascending: false })
-    .limit(500);
 
   const currentAcademicYear = getAcademicYear(new Date());
 

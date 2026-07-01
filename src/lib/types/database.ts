@@ -38,6 +38,8 @@ export interface Student {
   e_okul_no: string | null;
   full_name: string;
   is_active: boolean;
+  veli_telefon: string | null;
+  veli_telefon_2: string | null;
   created_at: string;
 }
 
@@ -105,3 +107,67 @@ export interface ReportRow {
   read_rate: number;
   brought_rate: number;
 }
+
+// ── Yoklama + SMS Tipleri ─────────────────────────────────────
+
+export type AttendanceStatus = "absent" | "present" | "corrected_present";
+export type AttendanceReason = "bilinmiyor" | "veli_bilgi_verdi" | "raporlu_izinli";
+export type SmsMessageType = "absence_alert" | "correction_alert" | "test";
+export type SmsStatus = "pending" | "sent" | "failed";
+export type SmsProviderName = "netgsm" | "iletim_merkezi" | "vatan_sms" | "custom";
+
+export interface AttendanceLog {
+  id: string;
+  student_id: string;
+  class_id: string;
+  log_date: string;
+  lesson_no: number;
+  status: AttendanceStatus;
+  reason: AttendanceReason | null;
+  marked_by: string;
+  corrected_at: string | null;
+  corrected_by: string | null;
+  created_at: string;
+}
+
+export interface SmsLog {
+  id: string;
+  attendance_log_id: string | null;
+  student_id: string;
+  phone_number: string;
+  message_type: SmsMessageType;
+  message_body: string;
+  status: SmsStatus;
+  provider_response: Record<string, unknown> | null;
+  sent_at: string | null;
+  created_at: string;
+}
+
+export interface SmsProviderSettings {
+  id: string;
+  school_id: string;
+  provider_name: SmsProviderName;
+  api_base_url: string | null;
+  api_key: string;
+  api_secret: string | null;
+  sender_id: string;
+  http_method: "GET" | "POST";
+  header_template: Record<string, string> | null;
+  body_template: string | null;
+  is_active: boolean;
+  sms_unit_cost: number | null;
+  last_tested_at: string | null;
+  last_test_result: string | null;
+  updated_by: string;
+  updated_at: string;
+}
+
+export interface AttendanceLogWithStudent extends AttendanceLog {
+  students?: {
+    full_name: string;
+    veli_telefon: string | null;
+    veli_telefon_2: string | null;
+    classes?: { name: string } | null;
+  } | null;
+}
+

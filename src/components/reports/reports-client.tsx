@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Download, Trophy, Users, BookOpen, TrendingUp, Activity, Star } from "lucide-react";
+import { Download, Trophy, Users, BookOpen, TrendingUp, Activity, Star, ClipboardList, MessageSquare } from "lucide-react";
 import * as XLSX from "xlsx";
 
 interface Class { id: string; name: string; school_id: string; }
@@ -62,6 +62,8 @@ export function ReportsClient({ classes, schoolFilter, teachers }: Props) {
   const [completedBooks, setCompletedBooks] = useState<any[]>([]);
   const [teacherActivity, setTeacherActivity] = useState<any[]>([]);
   const [classStats, setClassStats] = useState<any[]>([]);
+  const [attendanceStats, setAttendanceStats] = useState<any[]>([]);
+  const [smsSummary, setSmsSummary] = useState<any>({ total: 0, sent: 0, failed: 0, pending: 0, totalCost: 0 });
 
   useEffect(() => {
     fetchAll();
@@ -83,7 +85,6 @@ export function ReportsClient({ classes, schoolFilter, teachers }: Props) {
       const ids = schoolClassIds?.map((c: any) => c.id) || [];
       if (ids.length > 0) logsQuery = logsQuery.in("class_id", ids);
     }
-    const { data: logs } = await logsQuery;
 
     // ── 2. Completed books ───────────────────────────────────────
     let booksQuery = supabase
@@ -93,7 +94,54 @@ export function ReportsClient({ classes, schoolFilter, teachers }: Props) {
       .gte("finished_at", startDate)
       .lte("finished_at", endDate);
     if (selectedClassId !== "all") booksQuery = booksQuery.eq("students.class_id", selectedClassId);
-    const { data: booksData } = await booksQuery;
+
+    // ── 3. Attendance logs ───────────────────────────────────────
+    let attendanceQuery = supabase
+      .from("attendance_logs")
+      .select("student_id, class_id, log_date, status, reason, students!inner(full_name, classes!inner(name))")
+      .gte("log_date", startDate)
+      .lte("log_date", endDate);
+    if (selectedClassId !== "all") attendanceQuery = attendanceQuery.eq("class_id", selectedClassId);
+    if (schoolFilter.school_id) {
+      const { data: schoolClassIds } = await supabase.from("classes").select("id").eq("school_id", schoolFilter.school_id);
+      const ids = schoolClassIds?.map((c: any) => c.id) || [];
+      if (ids.length > 0) attendanceQuery = attendanceQuery.in("class_id", ids);
+    }
+
+    // ── 4. SMS logs ──────────────────────────────────────────────
+    let smsQuery = supabase
+      .from("sms_logs")
+      .select("id, status, message_type, created_at, student_id, students!inner(full_name, class_id, classes!inner(name))")
+      .gte("created_at", startDate + "T00:00:00Z")
+      .lte("created_at", endDate + "T23:59:59Z");
+    if (selectedClassId !== "all") smsQuery = smsQuery.eq("students.class_id", selectedClassId);
+    if (schoolFilter.school_id) {
+      const { data: schoolClassIds } = await supabase.from("classes").select("id").eq("school_id", schoolFilter.school_id);
+      const ids = schoolClassIds?.map((c: any) => c.id) || [];
+      if (ids.length > 0) smsQuery = smsQuery.in("students.class_id", ids);
+    }
+
+    // ── 5. SMS provider settings (maliyet için) ──────────────────
+    let smsCostQuery = supabase
+      .from("sms_provider_settings")
+      .select("sms_unit_cost")
+      .match(schoolFilter);
+
+    const [
+      { data: logs },
+      { data: booksData },
+      { data: attendanceData },
+      { data: smsData },
+      smsCostSettings
+    ] = await Promise.all([
+      logsQuery,
+      booksQuery,
+      attendanceQuery,
+      smsQuery,
+      smsCostQuery.maybeSingle() as any
+    ]);
+
+    const unitCost = (smsCostSettings as any)?.data?.sms_unit_cost || 0;
 
     // ── Aggregate student stats ──────────────────────────────────
     const aggMap = new Map<string, any>();
@@ -191,6 +239,46 @@ export function ReportsClient({ classes, schoolFilter, teachers }: Props) {
     })).sort((a, b) => b.entry_count - a.entry_count);
     setTeacherActivity(teacherArr);
 
+    // ── 6. Aggregate attendance stats ────────────────────────────
+    const attMap = new Map<string, any>();
+    (attendanceData || []).forEach((a: any) => {
+      const sid = a.student_id;
+      if (!attMap.has(sid)) {
+        attMap.set(sid, {
+          student_id: sid,
+          student_name: a.students?.full_name || "",
+          class_name: (a.students as any)?.classes?.name || "",
+          total_days: 0,
+          absent_days: 0,
+          present_days: 0,
+          corrected_days: 0,
+        });
+      }
+      const row = attMap.get(sid)!;
+      row.total_days++;
+      if (a.status === "absent") row.absent_days++;
+      else if (a.status === "present") row.present_days++;
+      else if (a.status === "corrected_present") row.corrected_days++;
+    });
+    setAttendanceStats(Array.from(attMap.values()).sort((a, b) => b.absent_days - a.absent_days));
+
+    // ── 7. Aggregate SMS logs ────────────────────────────────────
+    let smsSent = 0;
+    let smsFailed = 0;
+    let smsPending = 0;
+    (smsData || []).forEach((s: any) => {
+      if (s.status === "sent") smsSent++;
+      else if (s.status === "failed") smsFailed++;
+      else if (s.status === "pending") smsPending++;
+    });
+    setSmsSummary({
+      total: (smsData || []).length,
+      sent: smsSent,
+      failed: smsFailed,
+      pending: smsPending,
+      totalCost: parseFloat((smsSent * unitCost).toFixed(2)),
+    });
+
     setLoading(false);
   }
 
@@ -204,6 +292,7 @@ export function ReportsClient({ classes, schoolFilter, teachers }: Props) {
     return Array.from(countMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, count]) => ({ label: name, value: count }));
   }, [completedBooks]);
   const schoolAvg = useMemo(() => studentStats.length > 0 ? Math.round(studentStats.reduce((s, r) => s + r.read_rate, 0) / studentStats.length) : 0, [studentStats]);
+  const frequentAbsentees = useMemo(() => attendanceStats.filter((a) => a.absent_days >= 5), [attendanceStats]);
 
   function exportExcel() {
     const wb = XLSX.utils.book_new();
@@ -222,6 +311,11 @@ export function ReportsClient({ classes, schoolFilter, teachers }: Props) {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(teacherActivity.map((t) => ({
       Öğretmen: t.teacher_name, "Toplam Kayıt": t.entry_count, "Aktif Gün": t.unique_days,
     }))), "Öğretmen Aktivitesi");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(attendanceStats.map((a) => ({
+      Öğrenci: a.student_name, Sınıf: a.class_name,
+      "Toplam Gün": a.total_days, "Devamsız Gün": a.absent_days,
+      "Geldiği Gün": a.present_days, "Düzeltilen Gün": a.corrected_days,
+    }))), "Devamsızlık Raporu");
     XLSX.writeFile(wb, `detayli-rapor-${startDate}_${endDate}.xlsx`);
   }
 
@@ -280,6 +374,8 @@ export function ReportsClient({ classes, schoolFilter, teachers }: Props) {
               <TabsTrigger value="rankings"><Trophy className="h-3.5 w-3.5 mr-1" />Sıralamalar</TabsTrigger>
               <TabsTrigger value="classes"><Star className="h-3.5 w-3.5 mr-1" />Sınıf İstatistikleri</TabsTrigger>
               <TabsTrigger value="books"><BookOpen className="h-3.5 w-3.5 mr-1" />Bitirilen Kitaplar</TabsTrigger>
+              <TabsTrigger value="attendance"><ClipboardList className="h-3.5 w-3.5 mr-1" />Devamsızlık</TabsTrigger>
+              <TabsTrigger value="sms"><MessageSquare className="h-3.5 w-3.5 mr-1" />SMS Raporu</TabsTrigger>
               <TabsTrigger value="teachers"><Activity className="h-3.5 w-3.5 mr-1" />Öğretmen Aktivitesi</TabsTrigger>
               <TabsTrigger value="all"><Users className="h-3.5 w-3.5 mr-1" />Tüm Öğrenciler</TabsTrigger>
             </TabsList>
@@ -478,6 +574,108 @@ export function ReportsClient({ classes, schoolFilter, teachers }: Props) {
                     </Table>
                   </CardContent>
                 </Card>
+              </div>
+            </TabsContent>
+
+            {/* ── TAB: Attendance ───────────────────────────────── */}
+            <TabsContent value="attendance">
+              <div className="grid md:grid-cols-3 gap-4 mb-4">
+                <Card className="md:col-span-1">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <span className="text-2xl">🚨</span> Tekrarlayan Devamsızlık (5+ Gün)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                      {frequentAbsentees.map((s, i) => (
+                        <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-red-50 border border-red-100">
+                          <div>
+                            <p className="text-xs font-semibold text-red-800">{s.student_name}</p>
+                            <p className="text-[10px] text-red-600">{s.class_name}</p>
+                          </div>
+                          <Badge variant="destructive">{s.absent_days} Gün</Badge>
+                        </div>
+                      ))}
+                      {frequentAbsentees.length === 0 && (
+                        <p className="text-sm text-muted-foreground text-center py-4">Tekrarlayan devamsızlığı olan öğrenci yok</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="md:col-span-2">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm">En Çok Devamsızlık Yapanlar</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <BarChart
+                      data={attendanceStats.slice(0, 10).map((a) => ({ label: a.student_name, value: a.absent_days, sub: `${a.absent_days} gün` }))}
+                      max={attendanceStats[0]?.absent_days || 1}
+                      color="bg-red-500"
+                    />
+                    {attendanceStats.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Veri yok</p>}
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Card>
+                <CardContent className="p-0 overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Öğrenci</TableHead>
+                        <TableHead>Sınıf</TableHead>
+                        <TableHead className="text-center">Toplam Gün</TableHead>
+                        <TableHead className="text-center">Devamsız Gün</TableHead>
+                        <TableHead className="text-center">Geldiği Gün</TableHead>
+                        <TableHead className="text-center">Sonradan Geldi</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {attendanceStats.map((row) => (
+                        <TableRow key={row.student_id} className={row.absent_days >= 5 ? "bg-red-50/50" : ""}>
+                          <TableCell className="font-medium">{row.student_name}</TableCell>
+                          <TableCell>{row.class_name}</TableCell>
+                          <TableCell className="text-center">{row.total_days}</TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant={row.absent_days >= 5 ? "destructive" : row.absent_days > 0 ? "warning" : "success"}>
+                              {row.absent_days} Gün
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-center">{row.present_days}</TableCell>
+                          <TableCell className="text-center">{row.corrected_days}</TableCell>
+                        </TableRow>
+                      ))}
+                      {attendanceStats.length === 0 && (
+                        <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Devamsızlık kaydı bulunamadı</TableCell></TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* ── TAB: SMS ──────────────────────────────────────── */}
+            <TabsContent value="sms">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                {[
+                  { label: "Toplam Gönderilen", value: smsSummary.total, color: "text-foreground" },
+                  { label: "Başarılı SMS", value: smsSummary.sent, color: "text-green-600" },
+                  { label: "Başarısız SMS", value: smsSummary.failed, color: "text-red-600" },
+                  { label: "Tahmini Maliyet", value: `₺${smsSummary.totalCost}`, color: "text-blue-600" },
+                ].map((s) => (
+                  <Card key={s.label}>
+                    <CardContent className="p-4">
+                      <p className="text-xs text-muted-foreground">{s.label}</p>
+                      <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              
+              <div className="rounded-lg border bg-card p-4 text-sm text-muted-foreground">
+                <p>💡 SMS Raporunda listelenen gönderimler, seçilen tarih aralığındaki günlük yoklama bildirimleridir. Maliyet hesabı, okulunuz için yapılandırılmış olan birim maliyet değerine göre hesaplanmaktadır.</p>
               </div>
             </TabsContent>
 
