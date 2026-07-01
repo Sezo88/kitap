@@ -52,9 +52,26 @@ export function SmsSettingsClient({ schoolId, existingSettings, schoolTotalLesso
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [savingSchool, setSavingSchool] = useState(false);
 
   const { toast } = useToast();
   const isCustom = providerName === "custom";
+
+  async function handleSaveSchoolSettings() {
+    setSavingSchool(true);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("schools")
+      .update({ total_lessons: parseInt(totalLessons) })
+      .eq("id", schoolId);
+
+    if (error) {
+      toast("Okul ayarları güncellenemedi: " + error.message, "error");
+    } else {
+      toast("Okul genel ayarları güncellendi", "success");
+    }
+    setSavingSchool(false);
+  }
 
   async function handleSave() {
     if (!apiKey || !senderId) {
@@ -91,18 +108,7 @@ export function SmsSettingsClient({ schoolId, existingSettings, schoolTotalLesso
       updated_at: new Date().toISOString(),
     };
 
-    // Update school settings (total lessons)
-    const { error: schoolErr } = await supabase
-      .from("schools")
-      .update({ total_lessons: parseInt(totalLessons) })
-      .eq("id", schoolId);
-
-    if (schoolErr) {
-      toast("Okul ayarları güncellenemedi: " + schoolErr.message, "error");
-      setSaving(false);
-      return;
-    }
-
+    // Sadece SMS ayarlarını kaydet
     if (existingSettings) {
       const { error } = await supabase
         .from("sms_provider_settings")
@@ -111,7 +117,7 @@ export function SmsSettingsClient({ schoolId, existingSettings, schoolTotalLesso
       if (error) {
         toast("Güncelleme hatası: " + error.message, "error");
       } else {
-        toast("Ayarlar güncellendi", "success");
+        toast("SMS ayarları güncellendi", "success");
       }
     } else {
       const { error } = await supabase
@@ -120,7 +126,7 @@ export function SmsSettingsClient({ schoolId, existingSettings, schoolTotalLesso
       if (error) {
         toast("Kayıt hatası: " + error.message, "error");
       } else {
-        toast("Ayarlar kaydedildi", "success");
+        toast("SMS ayarları kaydedildi", "success");
       }
     }
 
@@ -176,6 +182,9 @@ export function SmsSettingsClient({ schoolId, existingSettings, schoolTotalLesso
             </Select>
             <p className="text-xs text-muted-foreground">Öğretmenlerin günlük alabileceği toplam yoklama/ders saati sayısıdır.</p>
           </div>
+          <Button onClick={handleSaveSchoolSettings} disabled={savingSchool} size="sm">
+            <Save className="h-4 w-4 mr-1" /> {savingSchool ? "Kaydediliyor..." : "Okul Ayarlarını Kaydet"}
+          </Button>
         </CardContent>
       </Card>
 
