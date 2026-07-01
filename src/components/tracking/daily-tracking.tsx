@@ -46,6 +46,7 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, books
   // Book assignment dialog
   const [bookDialogStudent, setBookDialogStudent] = useState<StudentRowState | null>(null);
   const [selectedBookId, setSelectedBookId] = useState("");
+  const [bookSearch, setBookSearch] = useState("");
   const [assigning, setAssigning] = useState(false);
   const { toast } = useToast();
 
@@ -81,6 +82,7 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, books
   function openBookDialog(st: StudentRowState) {
     setBookDialogStudent(st);
     setSelectedBookId("");
+    setBookSearch("");
   }
 
   async function handleAssignBook() {
@@ -449,18 +451,38 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, books
             </div>
           )}
           <div className="flex flex-col gap-2">
-            <Label htmlFor="book-select-dialog">Kitap Seç</Label>
-            <select
-              id="book-select-dialog"
-              value={selectedBookId}
-              onChange={(e) => setSelectedBookId(e.target.value)}
+            <Label htmlFor="book-search-dialog">Kitap Ara</Label>
+            <input
+              id="book-search-dialog"
+              type="text"
+              value={bookSearch}
+              onChange={(e) => { setBookSearch(e.target.value); setSelectedBookId(""); }}
+              placeholder="Kitap adi yazarak ara..."
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value="">-- Kitap seçin --</option>
-              {books.map((b) => (
-                <option key={b.id} value={b.id}>{b.title}</option>
-              ))}
-            </select>
+              autoFocus
+            />
+            <div className="max-h-48 overflow-y-auto border rounded-md">
+              {books
+                .filter((b) => !bookSearch || b.title.toLowerCase().includes(bookSearch.toLowerCase()))
+                .slice(0, 50)
+                .map((b) => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => setSelectedBookId(b.id === selectedBookId ? "" : b.id)}
+                    className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                      b.id === selectedBookId
+                        ? "bg-primary text-primary-foreground font-medium"
+                        : "hover:bg-muted"
+                    }`}
+                  >
+                    {b.title}
+                  </button>
+                ))}
+              {books.filter((b) => !bookSearch || b.title.toLowerCase().includes(bookSearch.toLowerCase())).length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">Kitap bulunamadi</p>
+              )}
+            </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setBookDialogStudent(null)}>İptal</Button>
