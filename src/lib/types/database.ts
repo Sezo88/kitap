@@ -189,3 +189,27 @@ export interface CleanlinessScore {
   created_at: string;
 }
 
+// ── Proje / Ders Tipleri ─────────────────────────────────────
+
+export interface Subject {
+  id: string;
+  school_id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface StudentProject {
+  id: string;
+  student_id: string;
+  subject_id: string;
+  class_id: string;
+  assigned_by: string;
+  created_at: string;
+}
+
+export interface StudentProjectWithDetails extends StudentProject {
+  students?: { full_name: string; e_okul_no: string | null } | null;
+  subjects?: { name: string } | null;
+  classes?: { name: string } | null;
+}
+

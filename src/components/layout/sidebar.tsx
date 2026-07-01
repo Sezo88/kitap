@@ -19,6 +19,9 @@ import {
   MessageSquare,
   FileText,
   Sparkles,
+  BookMarked,
+  FolderKanban,
+  FileSearch,
 } from "lucide-react";
 import type { Role } from "@/lib/types/database";
 
@@ -36,7 +39,10 @@ const menuItems = [
   { href: "/dashboard/tracking", label: "Okuma Takip", icon: ClipboardCheck, roles: ["super_admin", "idareci", "ogretmen"] },
   { href: "/dashboard/attendance", label: "Yoklama", icon: ClipboardList, roles: ["super_admin", "idareci", "ogretmen"] },
   { href: "/dashboard/cleanliness", label: "Temiz Sınıf Puanlama", icon: Sparkles, roles: ["super_admin", "idareci", "ogretmen"] },
+  { href: "/dashboard/projects", label: "Proje Belirleme", icon: FolderKanban, roles: ["super_admin", "idareci", "ogretmen"] },
+  { href: "/dashboard/projects/list", label: "Proje Listesi", icon: FileSearch, roles: ["super_admin", "idareci", "ogretmen"] },
   { href: "/dashboard/reports", label: "Raporlar", icon: BarChart3, roles: ["super_admin", "idareci", "ogretmen"] },
+  { href: "/dashboard/subjects", label: "Ders Yönetimi", icon: BookMarked, roles: ["super_admin", "idareci"] },
   { href: "/dashboard/admin/approvals", label: "Bekleyen Onaylar", icon: Clock, roles: ["super_admin", "idareci"] },
   { href: "/dashboard/admin/users", label: "Kullanıcılar", icon: Settings, roles: ["super_admin", "idareci"] },
   { href: "/dashboard/admin/invite", label: "Davet Gönder", icon: Send, roles: ["super_admin", "idareci"] },
