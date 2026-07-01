@@ -252,8 +252,11 @@ export function StudentList({ students: initialStudents, classes, books, role, s
           for (const row of rows) {
             const ogrenciNo = row["Öğrenci No"]?.toString().trim();
             const adiSoyadi = row["Adı Soyadı"]?.toString().trim();
-            const veliTel = row["1. Veli Telefonu"]?.toString().trim();
-            const veliTel2 = row["2. Veli Telefonu"]?.toString().trim();
+            const rawTel = row["1. Veli Telefonu"]?.toString().trim();
+            const rawTel2 = row["2. Veli Telefonu"]?.toString().trim();
+            // Excel basinda 0'i silebilir, otomatik ekle
+            const veliTel = rawTel ? (rawTel.startsWith("+") || rawTel.startsWith("0") ? rawTel : "0" + rawTel) : undefined;
+            const veliTel2 = rawTel2 ? (rawTel2.startsWith("+") || rawTel2.startsWith("0") ? rawTel2 : "0" + rawTel2) : undefined;
 
             if (!ogrenciNo && !adiSoyadi) continue;
 
