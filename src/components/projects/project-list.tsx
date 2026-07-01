@@ -108,14 +108,9 @@ export function ProjectList({ classes, subjects }: Props) {
 
     doc.setFontSize(10);
     doc.setTextColor(100);
-    const selectedClassNames = classes
-      .filter((c) => selectedClassIds.has(c.id))
-      .map((c) => t(c.name))
-      .join(", ");
-    doc.text(t(`Siniflar: ${selectedClassNames}`), 14, 26);
-    doc.text(t(`Toplam: ${totalStudents} ogrenci | Tarih: ${new Date().toLocaleDateString("tr-TR")}`), 14, 32);
+    doc.text(t(`Toplam: ${totalStudents} ogrenci | Tarih: ${new Date().toLocaleDateString("tr-TR")}`), 14, 26);
 
-    let yPos = 40;
+    let yPos = 34;
 
     groupedResults.forEach((group) => {
       if (yPos > 250) {
