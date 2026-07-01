@@ -212,7 +212,8 @@ export function StudentList({ students: initialStudents, classes, books, role, s
         }));
 
         const ws = XLSX.utils.json_to_sheet(rows);
-        XLSX.utils.book_append_sheet(wb, ws, c.name.substring(0, 31));
+        const safeSheetName = c.name.replace(/[\\\/\?\*\:\[\]]/g, "-").substring(0, 31);
+        XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
       });
 
       XLSX.writeFile(wb, "veli_telefon_listesi.xlsx");
