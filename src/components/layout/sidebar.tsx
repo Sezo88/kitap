@@ -18,6 +18,7 @@ import {
   ClipboardList,
   MessageSquare,
   FileText,
+  Sparkles,
 } from "lucide-react";
 import type { Role } from "@/lib/types/database";
 
@@ -34,6 +35,7 @@ const menuItems = [
   { href: "/dashboard/library", label: "Kütüphane", icon: Library, roles: ["super_admin", "idareci", "ogretmen"] },
   { href: "/dashboard/tracking", label: "Okuma Takip", icon: ClipboardCheck, roles: ["super_admin", "idareci", "ogretmen"] },
   { href: "/dashboard/attendance", label: "Yoklama", icon: ClipboardList, roles: ["super_admin", "idareci", "ogretmen"] },
+  { href: "/dashboard/cleanliness", label: "Temiz Sınıf Puanlama", icon: Sparkles, roles: ["super_admin", "idareci", "ogretmen"] },
   { href: "/dashboard/reports", label: "Raporlar", icon: BarChart3, roles: ["super_admin", "idareci"] },
   { href: "/dashboard/admin/approvals", label: "Bekleyen Onaylar", icon: Clock, roles: ["super_admin", "idareci"] },
   { href: "/dashboard/admin/users", label: "Kullanıcılar", icon: Settings, roles: ["super_admin", "idareci"] },

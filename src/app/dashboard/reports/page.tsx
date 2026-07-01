@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BookOpen, ClipboardList, ArrowRight } from "lucide-react";
+import { BookOpen, ClipboardList, ArrowRight, Sparkles } from "lucide-react";
 import { getCachedUserAndProfile } from "@/lib/supabase/auth-cache";
 
 export default async function ReportsPortalPage() {
@@ -25,6 +25,13 @@ export default async function ReportsPortalPage() {
       icon: ClipboardList,
       color: "text-red-600 bg-red-100",
     },
+    {
+      title: "Temiz Sınıf Raporları",
+      description: "Sınıfların haftalık temizlik puan sıralamaları, haftanın birincileri, günlük puan kırılımları ve aylık/yıllık liderlik tabloları.",
+      href: "/dashboard/reports/cleanliness",
+      icon: Sparkles,
+      color: "text-amber-600 bg-amber-100",
+    },
   ];
 
   return (
@@ -34,7 +41,7 @@ export default async function ReportsPortalPage() {
         <p className="text-sm text-muted-foreground mt-1">Okulunuza ait analiz ve rapor gruplarını seçin.</p>
       </div>
 
-      <div className="grid gap-6 sm:grid-cols-2">
+      <div className="grid gap-6 sm:grid-cols-3">
         {reports.map((report) => {
           const Icon = report.icon;
           return (

@@ -172,3 +172,20 @@ export interface AttendanceLogWithStudent extends AttendanceLog {
   } | null;
 }
 
+export interface CleanlinessCriteria {
+  id: string;
+  school_id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface CleanlinessScore {
+  id: string;
+  class_id: string;
+  criteria_id: string;
+  score_date: string;
+  score: number;
+  marked_by: string | null;
+  created_at: string;
+}
+
