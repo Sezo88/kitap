@@ -361,46 +361,27 @@ export function StudentList({ students: initialStudents, classes, books, role, s
                 {/* Actions */}
                 <div className="flex items-center gap-0.5">
                   <Link href={`/dashboard/profile/${s.id}`}>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" title="Profil">
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8" title="Profil">
                       <ExternalLink className="h-4 w-4" />
                     </Button>
                   </Link>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openBookSelect(s)} title="Kitap Ata">
-                    <BookPlus className="h-4 w-4" />
-                  </Button>
                   {canEdit && (
                     <>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(s)}>
+                      <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(s)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDelete(s.id)}>
+                      <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDelete(s.id)}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </>
                   )}
                 </div>
               </div>
-              {/* Active book */}
-              {s.active_book_title ? (
-                <div className="flex items-center justify-between gap-2 bg-muted/60 rounded-md px-2.5 py-1.5">
-                  <div className="flex items-center gap-1.5 text-sm min-w-0">
-                    <BookOpen className="h-3.5 w-3.5 text-primary shrink-0" />
-                    <span className="truncate">{s.active_book_title}</span>
-                  </div>
-                  {canEdit && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-xs border-green-500 text-green-600 hover:bg-green-50 h-7 px-2 shrink-0"
-                      onClick={() => handleFinishBook(s.id)}
-                    >
-                      Bitirdi
-                    </Button>
-                  )}
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground">Kitap atanmamış</p>
-              )}
+              {/* Veli Telefonları */}
+              <div className="space-y-1 bg-muted/60 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground">
+                <div>1. Veli: {s.veli_telefon || "-"}</div>
+                <div>2. Veli: {s.veli_telefon_2 || "-"}</div>
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -416,7 +397,7 @@ export function StudentList({ students: initialStudents, classes, books, role, s
                   <TableHead>Ad Soyad</TableHead>
                   <TableHead>Sınıf</TableHead>
                   <TableHead>e-Okul No</TableHead>
-                  <TableHead>Aktif Kitap</TableHead>
+                  <TableHead>Veli Telefon</TableHead>
                   <TableHead className="w-32">İşlem</TableHead>
                 </TableRow>
               </TableHeader>
@@ -434,39 +415,24 @@ export function StudentList({ students: initialStudents, classes, books, role, s
                     <TableCell><Badge variant="outline">{getClassName(s)}</Badge></TableCell>
                     <TableCell className="text-muted-foreground">{s.e_okul_no || "-"}</TableCell>
                     <TableCell>
-                      {s.active_book_title ? (
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm">{s.active_book_title}</span>
-                          {canEdit && (
-                            <Button
-                              variant="outline"
-                              className="h-7 px-2 text-xs border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700 font-normal"
-                              onClick={() => handleFinishBook(s.id)}
-                            >
-                              Bitirdi
-                            </Button>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">Atanmamış</span>
-                      )}
+                      <div className="text-sm space-y-0.5 text-muted-foreground">
+                        <div>1. Veli: {s.veli_telefon || "-"}</div>
+                        <div>2. Veli: {s.veli_telefon_2 || "-"}</div>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => openBookSelect(s)} title="Kitap Ata">
-                          <BookPlus className="h-4 w-4" />
-                        </Button>
                         <Link href={`/dashboard/profile/${s.id}`}>
-                          <Button variant="ghost" size="icon" title="Profil">
+                          <Button type="button" variant="ghost" size="icon" title="Profil">
                             <ExternalLink className="h-4 w-4" />
                           </Button>
                         </Link>
                         {canEdit && (
                           <>
-                            <Button variant="ghost" size="icon" onClick={() => openEdit(s)}>
+                            <Button type="button" variant="ghost" size="icon" onClick={() => openEdit(s)}>
                               <Pencil className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleDelete(s.id)}>
+                            <Button type="button" variant="ghost" size="icon" onClick={() => handleDelete(s.id)}>
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
                           </>
