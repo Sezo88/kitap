@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
-import { CheckCircle2, AlertCircle, Save, Info, Lock } from "lucide-react";
+import { CheckCircle2, Save, Info } from "lucide-react";
 import type { CleanlinessCriteria, CleanlinessScore } from "@/lib/types/database";
 
 interface ClassRow {
@@ -29,13 +29,26 @@ export function CleanlinessForm({ classes, criterias, todayScores, userId }: Pro
   const [localScores, setLocalScores] = useState<CleanlinessScore[]>(todayScores);
   const { toast } = useToast();
 
-  const today = new Date(new Date().getTime() + 3 * 3600 * 1000).toISOString().split("T")[0];
+  // Bu haftanın Pazartesi gününü hesapla
+  function getMondayOfCurrentWeek(): string {
+    const now = new Date(new Date().getTime() + 3 * 3600 * 1000);
+    const day = now.getDay(); // 0=Pazar, 1=Pazartesi, ...
+    const diff = day === 0 ? 6 : day - 1; // Pazartesiye kaç gün geri gidilecek
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - diff);
+    return monday.toISOString().split("T")[0];
+  }
 
-  // Seçilen sınıfın bugün puanı var mı kontrol et
-  const classScores = localScores.filter((s) => s.class_id === selectedClassId);
+  const today = new Date(new Date().getTime() + 3 * 3600 * 1000).toISOString().split("T")[0];
+  const mondayOfWeek = getMondayOfCurrentWeek();
+
+  const [selectedDate, setSelectedDate] = useState(today);
+
+  // Seçilen sınıfın seçili tarihte puanı var mı kontrol et
+  const classScores = localScores.filter((s) => s.class_id === selectedClassId && s.score_date === selectedDate);
   const isAlreadyScored = classScores.length > 0;
 
-  // Seçilen sınıf değiştiğinde puanları doldur veya sıfırla
+  // Tarih veya sınıf değiştiğinde puanları doldur veya sıfırla
   useEffect(() => {
     if (isAlreadyScored) {
       const initialScores: Record<string, number> = {};
@@ -51,10 +64,28 @@ export function CleanlinessForm({ classes, criterias, todayScores, userId }: Pro
       });
       setScores(defaultScores);
     }
-  }, [selectedClassId, isAlreadyScored]);
+  }, [selectedClassId, isAlreadyScored, selectedDate]);
 
-  // Hangi sınıfların bugün puanlandığı eşleştirmesi
-  const scoredClassIds = new Set(localScores.map((s) => s.class_id));
+  // Tarih değiştiğinde o tarihe ait puanları çek
+  useEffect(() => {
+    async function fetchScoresForDate() {
+      const supabase = createClient();
+      const classIds = classes.map((c) => c.id);
+      if (classIds.length === 0) return;
+      const { data } = await supabase
+        .from("cleanliness_scores")
+        .select("*")
+        .eq("score_date", selectedDate)
+        .in("class_id", classIds);
+      if (data) {
+        setLocalScores(data as CleanlinessScore[]);
+      }
+    }
+    fetchScoresForDate();
+  }, [selectedDate, classes]);
+
+  // Hangi sınıfların seçili tarihte puanlandığı eşleştirmesi
+  const scoredClassIds = new Set(localScores.filter((s) => s.score_date === selectedDate).map((s) => s.class_id));
 
   const handleScoreChange = (criteriaId: string, score: number) => {
     setScores((prev) => ({ ...prev, [criteriaId]: score }));
@@ -74,7 +105,7 @@ export function CleanlinessForm({ classes, criterias, todayScores, userId }: Pro
     const payload = criterias.map((c) => ({
       class_id: selectedClassId,
       criteria_id: c.id,
-      score_date: today,
+      score_date: selectedDate,
       score: scores[c.id],
       marked_by: userId,
     }));
@@ -91,7 +122,7 @@ export function CleanlinessForm({ classes, criterias, todayScores, userId }: Pro
       if (data) {
         setLocalScores((prev) => {
           const filtered = prev.filter(
-            (s) => !(s.class_id === selectedClassId && s.score_date === today)
+            (s) => !(s.class_id === selectedClassId && s.score_date === selectedDate)
           );
           return [...filtered, ...(data as CleanlinessScore[])];
         });
@@ -155,9 +186,20 @@ export function CleanlinessForm({ classes, criterias, todayScores, userId }: Pro
               <CardTitle className="text-base flex items-center gap-2">
                 <span>{classes.find((c) => c.id === selectedClassId)?.name || "Seçili Sınıf"} Puan tablosu</span>
               </CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">
-                Tarih: {new Date(today).toLocaleDateString("tr-TR", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-              </p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs text-muted-foreground">Tarih:</span>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  min={mondayOfWeek}
+                  max={today}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="text-xs border rounded-md px-2 py-1 bg-background"
+                />
+                <span className="text-xs text-muted-foreground">
+                  ({new Date(selectedDate).toLocaleDateString("tr-TR", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })})
+                </span>
+              </div>
             </div>
             {isAlreadyScored && (
               <Badge variant="success" className="gap-1 bg-green-100 text-green-700 hover:bg-green-100 border-green-300">
@@ -170,8 +212,19 @@ export function CleanlinessForm({ classes, criterias, todayScores, userId }: Pro
               <div className="bg-green-50 border border-green-200 text-green-800 rounded-lg p-3 text-sm flex items-start gap-2">
                 <Info className="h-4 w-4 shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-semibold">Bugünkü Puanlar Yüklendi</p>
-                  <p className="text-xs mt-0.5 text-green-700">Bu sınıfın bugünkü puanları daha önce girilmiştir. Puanlar üzerinde değişiklik yapıp tekrar kaydedebilirsiniz.</p>
+                  <p className="font-semibold">Bu Tarihe Ait Puanlar Yüklendi</p>
+                  <p className="text-xs mt-0.5 text-green-700">Bu sınıfın seçili tarihe ait puanları daha önce girilmiştir. Puanlar üzerinde değişiklik yapıp tekrar kaydedebilirsiniz.</p>
+                </div>
+              </div>
+            )}
+
+            {/* Hafta başından eskiye gitme uyarısı */}
+            {selectedDate < mondayOfWeek && (
+              <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 text-sm flex items-start gap-2">
+                <Info className="h-4 w-4 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold">Geçersiz Tarih</p>
+                  <p className="text-xs mt-0.5 text-amber-700">Sadece bu haftanın Pazartesi gününden ({new Date(mondayOfWeek).toLocaleDateString("tr-TR")}) itibaren puan girişi yapabilirsiniz.</p>
                 </div>
               </div>
             )}

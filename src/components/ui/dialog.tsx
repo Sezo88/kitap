@@ -58,6 +58,10 @@ export function DialogTitle({ className, ...props }: React.HTMLAttributes<HTMLHe
   return <h2 className={cn("text-lg font-semibold leading-none tracking-tight", className)} {...props} />;
 }
 
+export function DialogDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
+  return <p className={cn("text-sm text-muted-foreground", className)} {...props} />;
+}
+
 export function DialogClose({ onClick }: { onClick: () => void }) {
   return (
     <button

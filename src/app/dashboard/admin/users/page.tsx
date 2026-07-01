@@ -96,6 +96,12 @@ export default async function AdminUsersPage() {
                         allClasses={classes || []}
                         assignedClassIds={userClassIds}
                         isAdmin={profile.role === "super_admin"}
+                        canDelete={
+                          user !== null && u.id !== user.id && (
+                            profile.role === "super_admin" ||
+                            (profile.role === "idareci" && u.role === "ogretmen")
+                          )
+                        }
                       />
                     </TableCell>
                   </TableRow>

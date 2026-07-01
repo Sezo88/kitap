@@ -9,6 +9,7 @@ export default async function ReadingReportsPage() {
   if (!profile) return null;
 
   const schoolFilter = profile.role === "super_admin" ? {} : { school_id: profile.school_id };
+  const isOgretmen = profile.role === "ogretmen";
 
   const [
     { data: classes },
@@ -22,7 +23,7 @@ export default async function ReadingReportsPage() {
     supabase
       .from("profiles")
       .select("id, full_name")
-      .match({ ...schoolFilter, role: "ogretmen", status: "active" })
+      .match({ ...schoolFilter, role: "ogretmen" })
       .order("full_name")
   ]);
 
@@ -33,6 +34,7 @@ export default async function ReadingReportsPage() {
         classes={classes || []}
         schoolFilter={schoolFilter}
         teachers={teachers || []}
+        hideTeacherActivity={isOgretmen}
       />
     </div>
   );

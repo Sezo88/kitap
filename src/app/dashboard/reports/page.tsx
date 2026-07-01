@@ -6,7 +6,7 @@ import { getCachedUserAndProfile } from "@/lib/supabase/auth-cache";
 export default async function ReportsPortalPage() {
   const { profile } = await getCachedUserAndProfile();
 
-  if (!profile || (profile.role !== "super_admin" && profile.role !== "idareci")) {
+  if (!profile || (profile.role !== "super_admin" && profile.role !== "idareci" && profile.role !== "ogretmen")) {
     return <div className="text-center py-8 text-muted-foreground">Bu sayfaya erişim yetkiniz yok.</div>;
   }
 

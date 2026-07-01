@@ -17,6 +17,7 @@ interface Props {
   classes: Class[];
   schoolFilter: { school_id?: string };
   teachers: { id: string; full_name: string }[];
+  hideTeacherActivity?: boolean;
 }
 
 // ── Mini bar chart (SVG-free, pure CSS) ─────────────────────────
@@ -49,7 +50,7 @@ function RateBadge({ rate }: { rate: number }) {
   return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${color}`}>%{rate}</span>;
 }
 
-export function ReadingReportClient({ classes, schoolFilter, teachers }: Props) {
+export function ReadingReportClient({ classes, schoolFilter, teachers, hideTeacherActivity }: Props) {
   const [startDate, setStartDate] = useState(() => {
     const d = new Date(); d.setMonth(d.getMonth() - 1); return d.toISOString().split("T")[0];
   });
@@ -287,7 +288,9 @@ export function ReadingReportClient({ classes, schoolFilter, teachers }: Props) 
               <TabsTrigger value="rankings"><Trophy className="h-3.5 w-3.5 mr-1" />Sıralamalar</TabsTrigger>
               <TabsTrigger value="classes"><Star className="h-3.5 w-3.5 mr-1" />Sınıf İstatistikleri</TabsTrigger>
               <TabsTrigger value="books"><BookOpen className="h-3.5 w-3.5 mr-1" />Bitirilen Kitaplar</TabsTrigger>
-              <TabsTrigger value="teachers"><Activity className="h-3.5 w-3.5 mr-1" />Öğretmen Aktivitesi</TabsTrigger>
+              {!hideTeacherActivity && (
+                <TabsTrigger value="teachers"><Activity className="h-3.5 w-3.5 mr-1" />Öğretmen Aktivitesi</TabsTrigger>
+              )}
               <TabsTrigger value="all"><Users className="h-3.5 w-3.5 mr-1" />Tüm Öğrenciler</TabsTrigger>
             </TabsList>
 
@@ -436,6 +439,7 @@ export function ReadingReportClient({ classes, schoolFilter, teachers }: Props) 
             </TabsContent>
 
             {/* ── TAB: Teacher Activity ─────────────────────────── */}
+            {!hideTeacherActivity && (
             <TabsContent value="teachers">
               <div className="grid md:grid-cols-2 gap-4">
                 <Card>
@@ -487,6 +491,7 @@ export function ReadingReportClient({ classes, schoolFilter, teachers }: Props) 
                 </Card>
               </div>
             </TabsContent>
+            )}
 
             {/* ── TAB: All Students ─────────────────────────────── */}
             <TabsContent value="all">
