@@ -379,8 +379,8 @@ export function StudentList({ students: initialStudents, classes, books, role, s
               </div>
               {/* Veli Telefonları */}
               <div className="space-y-1 bg-muted/60 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground">
-                <div>1. Veli: {s.veli_telefon || "-"}</div>
-                <div>2. Veli: {s.veli_telefon_2 || "-"}</div>
+                <div>1. Veli: {s.veli_telefon ? <a href={`tel:${s.veli_telefon}`} className="text-primary hover:underline font-medium">{s.veli_telefon}</a> : "-"}</div>
+                <div>2. Veli: {s.veli_telefon_2 ? <a href={`tel:${s.veli_telefon_2}`} className="text-primary hover:underline font-medium">{s.veli_telefon_2}</a> : "-"}</div>
               </div>
             </CardContent>
           </Card>
@@ -416,8 +416,8 @@ export function StudentList({ students: initialStudents, classes, books, role, s
                     <TableCell className="text-muted-foreground">{s.e_okul_no || "-"}</TableCell>
                     <TableCell>
                       <div className="text-sm space-y-0.5 text-muted-foreground">
-                        <div>1. Veli: {s.veli_telefon || "-"}</div>
-                        <div>2. Veli: {s.veli_telefon_2 || "-"}</div>
+                        <div>1. Veli: {s.veli_telefon ? <a href={`tel:${s.veli_telefon}`} className="text-primary hover:underline font-medium">{s.veli_telefon}</a> : "-"}</div>
+                        <div>2. Veli: {s.veli_telefon_2 ? <a href={`tel:${s.veli_telefon_2}`} className="text-primary hover:underline font-medium">{s.veli_telefon_2}</a> : "-"}</div>
                       </div>
                     </TableCell>
                     <TableCell>
