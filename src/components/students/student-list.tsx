@@ -11,9 +11,10 @@ import { Dialog, DialogClose, DialogHeader, DialogTitle } from "@/components/ui/
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
-import { Plus, Pencil, Trash2, BookPlus, ExternalLink, BookOpen } from "lucide-react";
+import { Plus, Pencil, Trash2, BookPlus, ExternalLink, BookOpen, Download, Upload } from "lucide-react";
 import Link from "next/link";
 import { getClassName, type Role, type Class, type Book, type StudentWithClass } from "@/lib/types/database";
+import * as XLSX from "xlsx";
 
 interface Props {
   students: (StudentWithClass)[];
@@ -39,6 +40,8 @@ export function StudentList({ students: initialStudents, classes, books, role, s
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedClassId, setSelectedClassId] = useState("all");
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -195,6 +198,103 @@ export function StudentList({ students: initialStudents, classes, books, role, s
     setSaving(false);
   }
 
+  function handleExportVeliTemplate() {
+    try {
+      const wb = XLSX.utils.book_new();
+
+      classes.forEach((c) => {
+        const classStudents = students.filter((s) => s.class_id === c.id);
+        const rows = classStudents.map((s) => ({
+          "Öğrenci No": s.e_okul_no || "",
+          "Adı Soyadı": s.full_name,
+          "1. Veli Telefonu": s.veli_telefon || "",
+          "2. Veli Telefonu": s.veli_telefon_2 || "",
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(rows);
+        XLSX.utils.book_append_sheet(wb, ws, c.name.substring(0, 31));
+      });
+
+      XLSX.writeFile(wb, "veli_telefon_listesi.xlsx");
+      toast("Veli telefon şablonu başarıyla indirildi", "success");
+    } catch (err: any) {
+      toast("Şablon oluşturulurken hata: " + err.message, "error");
+    }
+  }
+
+  async function handleImportVeliPhones(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const data = evt.target?.result;
+        const workbook = XLSX.read(data, { type: "binary" });
+        const supabase = createClient();
+        
+        let updateCount = 0;
+        const updatedStudentsList = [...students];
+
+        for (const sheetName of workbook.SheetNames) {
+          const sheet = workbook.Sheets[sheetName];
+          const rows = XLSX.utils.sheet_to_json<any>(sheet);
+
+          for (const row of rows) {
+            const ogrenciNo = row["Öğrenci No"]?.toString().trim();
+            const adiSoyadi = row["Adı Soyadı"]?.toString().trim();
+            const veliTel = row["1. Veli Telefonu"]?.toString().trim();
+            const veliTel2 = row["2. Veli Telefonu"]?.toString().trim();
+
+            if (!ogrenciNo && !adiSoyadi) continue;
+
+            const matchedIndex = updatedStudentsList.findIndex(
+              (s) =>
+                (ogrenciNo && s.e_okul_no?.toString().trim() === ogrenciNo) ||
+                (!ogrenciNo && s.full_name.toLowerCase().trim() === adiSoyadi?.toLowerCase())
+            );
+
+            if (matchedIndex !== -1) {
+              const matchedStudent = updatedStudentsList[matchedIndex];
+              const hasChanges = 
+                (veliTel !== undefined && matchedStudent.veli_telefon !== (veliTel || null)) ||
+                (veliTel2 !== undefined && matchedStudent.veli_telefon_2 !== (veliTel2 || null));
+
+              if (hasChanges) {
+                const updatePayload: any = {};
+                if (veliTel !== undefined) updatePayload.veli_telefon = veliTel || null;
+                if (veliTel2 !== undefined) updatePayload.veli_telefon_2 = veliTel2 || null;
+
+                const { error } = await supabase
+                  .from("students")
+                  .update(updatePayload)
+                  .eq("id", matchedStudent.id);
+
+                if (!error) {
+                  updatedStudentsList[matchedIndex] = {
+                    ...matchedStudent,
+                    ...updatePayload
+                  };
+                  updateCount++;
+                }
+              }
+            }
+          }
+        }
+
+        setStudents(updatedStudentsList);
+        toast(`Başarıyla ${updateCount} öğrencinin veli telefonu güncellendi!`, "success");
+        setImportDialogOpen(false);
+      } catch (err: any) {
+        toast("Excel okunurken hata oluştu: " + err.message, "error");
+      } finally {
+        setImporting(false);
+      }
+    };
+    reader.readAsBinaryString(file);
+  }
+
   return (
     <>
       {/* ── Filters & Actions ───────────────────────────────── */}
@@ -218,9 +318,17 @@ export function StudentList({ students: initialStudents, classes, books, role, s
           </Select>
         </div>
         {canEdit && (
-          <Button onClick={openCreate} size="sm" className="w-full sm:w-auto sm:self-end">
-            <Plus className="h-4 w-4 mr-1" /> Yeni Öğrenci
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto sm:self-end">
+            <Button onClick={handleExportVeliTemplate} size="sm" variant="outline" className="w-full sm:w-auto">
+              <Download className="h-4 w-4 mr-1" /> Veli Tel Şablonu İndir
+            </Button>
+            <Button onClick={() => setImportDialogOpen(true)} size="sm" variant="outline" className="w-full sm:w-auto">
+              <Upload className="h-4 w-4 mr-1" /> Veli Tel İçe Aktar
+            </Button>
+            <Button onClick={openCreate} size="sm" className="w-full sm:w-auto">
+              <Plus className="h-4 w-4 mr-1" /> Yeni Öğrenci
+            </Button>
+          </div>
         )}
       </div>
 
@@ -424,6 +532,38 @@ export function StudentList({ students: initialStudents, classes, books, role, s
             <Button onClick={handleAssignBook} disabled={saving || !selectedBookId}>
               {saving ? "Atanıyor..." : "Kitap Ata"}
             </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* ── Veli Telefon İçe Aktar Dialog ─────────────────────────── */}
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogHeader>
+          <DialogTitle>Veli Telefonlarını İçe Aktar</DialogTitle>
+        </DialogHeader>
+        <DialogClose onClick={() => setImportDialogOpen(false)} />
+        <div className="flex flex-col gap-4 mt-4 text-sm">
+          <p className="text-muted-foreground leading-relaxed">
+            İndirip doldurduğunuz veli telefon şablonu Excel dosyasını (.xlsx) yükleyin. Sistem, öğrenci numaralarına göre veli telefonlarını toplu güncelleyecektir.
+          </p>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="excelfile" className="font-semibold">Excel Dosyası Seçin</Label>
+            <Input
+              id="excelfile"
+              type="file"
+              accept=".xlsx, .xls"
+              onChange={handleImportVeliPhones}
+              disabled={importing}
+              className="cursor-pointer"
+            />
+          </div>
+          {importing && (
+            <div className="text-primary text-xs font-semibold animate-pulse">
+              Excel okunuyor ve veriler güncelleniyor, lütfen bekleyin...
+            </div>
+          )}
+          <div className="flex justify-end gap-2 pt-2 border-t mt-2">
+            <Button variant="outline" onClick={() => setImportDialogOpen(false)} disabled={importing}>Kapat</Button>
           </div>
         </div>
       </Dialog>
