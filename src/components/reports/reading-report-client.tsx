@@ -74,7 +74,7 @@ export function ReadingReportClient({ classes, schoolFilter, teachers }: Props) 
     // ── 1. Reading logs ──────────────────────────────────────────
     let logsQuery = supabase
       .from("reading_logs")
-      .select("student_id, class_id, brought_book, did_read, marked_by, students!inner(full_name, classes!inner(name))")
+      .select("student_id, class_id, brought_book, did_read, marked_by, students!inner(full_name, e_okul_no, classes!inner(name))")
       .gte("log_date", startDate)
       .lte("log_date", endDate);
     if (selectedClassId !== "all") logsQuery = logsQuery.eq("class_id", selectedClassId);
@@ -109,6 +109,7 @@ export function ReadingReportClient({ classes, schoolFilter, teachers }: Props) 
         aggMap.set(sid, {
           student_id: sid,
           student_name: l.students?.full_name || "",
+          student_no: l.students?.e_okul_no || "",
           class_name: (l.students as any)?.classes?.name || "",
           class_id: l.class_id,
           total_days: 0, read_days: 0, brought_days: 0,
@@ -214,6 +215,7 @@ export function ReadingReportClient({ classes, schoolFilter, teachers }: Props) 
   function exportExcel() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sortedByRead.map((r) => ({
+      No: r.student_no,
       Öğrenci: r.student_name, Sınıf: r.class_name,
       "Okuma %": r.read_rate, "Getirme %": r.brought_rate,
       "Toplam Gün": r.total_days, "Okuduğu Gün": r.read_days,
@@ -493,7 +495,7 @@ export function ReadingReportClient({ classes, schoolFilter, teachers }: Props) 
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>#</TableHead>
+                        <TableHead>No</TableHead>
                         <TableHead>Öğrenci</TableHead>
                         <TableHead>Sınıf</TableHead>
                         <TableHead className="text-center">Toplam Gün</TableHead>
@@ -504,9 +506,9 @@ export function ReadingReportClient({ classes, schoolFilter, teachers }: Props) 
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {sortedByRead.map((row, i) => (
+                      {sortedByRead.map((row) => (
                         <TableRow key={row.student_id}>
-                          <TableCell className="text-muted-foreground text-sm">{i + 1}</TableCell>
+                          <TableCell className="text-xs font-mono text-muted-foreground">{row.student_no || "—"}</TableCell>
                           <TableCell className="font-medium">{row.student_name}</TableCell>
                           <TableCell>{row.class_name}</TableCell>
                           <TableCell className="text-center">{row.total_days}</TableCell>

@@ -5,6 +5,7 @@ export type BookStatus = "active" | "completed" | "abandoned";
 export interface School {
   id: string;
   name: string;
+  total_lessons: number;
   created_by: string;
   created_at: string;
 }

@@ -33,6 +33,7 @@ interface Props {
   userId: string;
   schoolId: string;
   smsActive: boolean;
+  totalLessons: number;
 }
 
 function getClassName(s: StudentRow): string {
@@ -51,7 +52,7 @@ interface RowState {
   smsFailed: boolean;
 }
 
-export function AttendanceForm({ students, classes, todayLogs, userId, schoolId, smsActive }: Props) {
+export function AttendanceForm({ students, classes, todayLogs, userId, schoolId, smsActive, totalLessons }: Props) {
   const [localStudents, setLocalStudents] = useState<StudentRow[]>(students);
   const [selectedClassId, setSelectedClassId] = useState(classes[0]?.id || "all");
   const [lessonNo, setLessonNo] = useState(1);
@@ -402,7 +403,9 @@ export function AttendanceForm({ students, classes, todayLogs, userId, schoolId,
             {filteredClasses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </Select>
           <Select value={String(lessonNo)} onChange={(e) => handleLessonChange(e.target.value)} className="w-24">
-            {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => <option key={n} value={n}>{n}. Ders</option>)}
+            {Array.from({ length: totalLessons }, (_, i) => i + 1).map((n) => (
+              <option key={n} value={n}>{n}. Ders</option>
+            ))}
           </Select>
           <div className="flex items-center gap-2">
             <Badge variant="secondary" className="shrink-0">{filteredStudents.length} öğrenci</Badge>

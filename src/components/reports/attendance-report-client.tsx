@@ -54,7 +54,7 @@ export function AttendanceReportClient({ classes, schoolFilter }: Props) {
     // ── 1. Attendance logs query ─────────────────────────────────
     let attendanceQuery = supabase
       .from("attendance_logs")
-      .select("student_id, class_id, log_date, status, reason, students!inner(full_name, classes!inner(name))")
+      .select("student_id, class_id, log_date, status, reason, students!inner(full_name, e_okul_no, classes!inner(name))")
       .gte("log_date", startDate)
       .lte("log_date", endDate);
     if (selectedClassId !== "all") attendanceQuery = attendanceQuery.eq("class_id", selectedClassId);
@@ -138,6 +138,7 @@ export function AttendanceReportClient({ classes, schoolFilter }: Props) {
         attMap.set(studentId, {
           student_id: studentId,
           student_name: a.students?.full_name || "",
+          student_no: a.students?.e_okul_no || "",
           class_name: a.students?.classes?.name || "",
           class_id: val.class_id,
           total_days: 0,
@@ -182,7 +183,7 @@ export function AttendanceReportClient({ classes, schoolFilter }: Props) {
     const supabase = createClient();
     let query = supabase
       .from("attendance_logs")
-      .select("student_id, status, lesson_no, students!inner(full_name, veli_telefon, class_id, classes!inner(name))")
+      .select("student_id, status, lesson_no, students!inner(full_name, veli_telefon, class_id, e_okul_no, classes!inner(name))")
       .eq("log_date", targetDate);
 
     if (selectedClassId !== "all") {
@@ -197,7 +198,7 @@ export function AttendanceReportClient({ classes, schoolFilter }: Props) {
     const { data } = await query;
     
     // Gün içindeki en güncel/kritik durumu belirle
-    const dailyRecords = new Map<string, { status: string; lesson: number; name: string; class: string; phone: string | null }[]>();
+    const dailyRecords = new Map<string, { status: string; lesson: number; name: string; class: string; phone: string | null; eOkulNo: string | null }[]>();
     (data || []).forEach((d: any) => {
       const sid = d.student_id;
       const list = dailyRecords.get(sid) || [];
@@ -206,12 +207,13 @@ export function AttendanceReportClient({ classes, schoolFilter }: Props) {
         lesson: d.lesson_no,
         name: d.students?.full_name || "",
         class: (d.students as any)?.classes?.name || "",
-        phone: d.students?.veli_telefon || null
+        phone: d.students?.veli_telefon || null,
+        eOkulNo: d.students?.e_okul_no || null
       });
       dailyRecords.set(sid, list);
     });
 
-    const dailyMap = new Map<string, { status: string; lessons: number[]; name: string; class: string; phone: string | null }>();
+    const dailyMap = new Map<string, { status: string; lessons: { lesson_no: number; status: string }[]; name: string; class: string; phone: string | null; eOkulNo: string | null }>();
     dailyRecords.forEach((records, sid) => {
       const hasAbsent = records.some(r => r.status === "absent");
       const hasPresent = records.some(r => r.status === "present");
@@ -229,10 +231,11 @@ export function AttendanceReportClient({ classes, schoolFilter }: Props) {
 
       dailyMap.set(sid, {
         status: finalStatus,
-        lessons: records.map(r => r.lesson),
+        lessons: records.map(r => ({ lesson_no: r.lesson, status: r.status })),
         name: first.name,
         class: first.class,
-        phone: first.phone
+        phone: first.phone,
+        eOkulNo: first.eOkulNo
       });
     });
 
@@ -251,6 +254,7 @@ export function AttendanceReportClient({ classes, schoolFilter }: Props) {
   function exportExcel() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(attendanceStats.map((a) => ({
+      No: a.student_no,
       Öğrenci: a.student_name, Sınıf: a.class_name,
       "Toplam Gün": a.total_days, "Devamsız Gün": a.absent_days,
       "Geldiği Gün": a.present_days, "Sonradan Geldiği Gün": a.corrected_days,
@@ -306,12 +310,29 @@ export function AttendanceReportClient({ classes, schoolFilter }: Props) {
                     <TableBody>
                       {dailyAbsents.map((s) => (
                         <TableRow key={s.student_id}>
-                          <TableCell className="font-medium">{s.name}</TableCell>
+                          <TableCell className="font-medium">
+                            <div>{s.name}</div>
+                            {s.eOkulNo && <span className="text-[10px] text-muted-foreground font-mono">No: {s.eOkulNo}</span>}
+                          </TableCell>
                           <TableCell><Badge variant="outline">{s.class}</Badge></TableCell>
                           <TableCell className="text-xs font-mono flex items-center gap-1">
                             <Phone className="h-3 w-3 text-muted-foreground" /> {s.phone || "Kayıt Yok"}
                           </TableCell>
-                          <TableCell className="text-center text-xs text-muted-foreground">{s.lessons.sort().join(", ")}. Ders</TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex justify-center gap-1 flex-wrap">
+                              {s.lessons.sort((a: any, b: any) => a.lesson_no - b.lesson_no).map((l: any) => (
+                                <span
+                                  key={l.lesson_no}
+                                  className={`inline-flex items-center justify-center w-5 h-5 rounded text-[10px] font-bold text-white shrink-0 ${
+                                    l.status === "absent" ? "bg-red-500" : l.status === "corrected_present" ? "bg-amber-500" : "bg-green-500"
+                                  }`}
+                                  title={`${l.lesson_no}. Ders: ${l.status === "absent" ? "Gelmedi" : l.status === "corrected_present" ? "Sonradan Geldi" : "Geldi"}`}
+                                >
+                                  {l.lesson_no}
+                                </span>
+                              ))}
+                            </div>
+                          </TableCell>
                         </TableRow>
                       ))}
                       {dailyAbsents.length === 0 && (
@@ -345,12 +366,29 @@ export function AttendanceReportClient({ classes, schoolFilter }: Props) {
                     <TableBody>
                       {dailyCorrected.map((s) => (
                         <TableRow key={s.student_id}>
-                          <TableCell className="font-medium">{s.name}</TableCell>
+                          <TableCell className="font-medium">
+                            <div>{s.name}</div>
+                            {s.eOkulNo && <span className="text-[10px] text-muted-foreground font-mono">No: {s.eOkulNo}</span>}
+                          </TableCell>
                           <TableCell><Badge variant="outline">{s.class}</Badge></TableCell>
                           <TableCell className="text-xs font-mono flex items-center gap-1">
                             <Phone className="h-3 w-3 text-muted-foreground" /> {s.phone || "Kayıt Yok"}
                           </TableCell>
-                          <TableCell className="text-center text-xs text-muted-foreground">{s.lessons.sort().join(", ")}. Ders</TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex justify-center gap-1 flex-wrap">
+                              {s.lessons.sort((a: any, b: any) => a.lesson_no - b.lesson_no).map((l: any) => (
+                                <span
+                                  key={l.lesson_no}
+                                  className={`inline-flex items-center justify-center w-5 h-5 rounded text-[10px] font-bold text-white shrink-0 ${
+                                    l.status === "absent" ? "bg-red-500" : l.status === "corrected_present" ? "bg-amber-500" : "bg-green-500"
+                                  }`}
+                                  title={`${l.lesson_no}. Ders: ${l.status === "absent" ? "Gelmedi" : l.status === "corrected_present" ? "Sonradan Geldi" : "Geldi"}`}
+                                >
+                                  {l.lesson_no}
+                                </span>
+                              ))}
+                            </div>
+                          </TableCell>
                         </TableRow>
                       ))}
                       {dailyCorrected.length === 0 && (
@@ -416,6 +454,7 @@ export function AttendanceReportClient({ classes, schoolFilter }: Props) {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead>No</TableHead>
                         <TableHead>Öğrenci</TableHead>
                         <TableHead>Sınıf</TableHead>
                         <TableHead className="text-center">Toplam Gün</TableHead>
@@ -427,6 +466,7 @@ export function AttendanceReportClient({ classes, schoolFilter }: Props) {
                     <TableBody>
                       {attendanceStats.map((row) => (
                         <TableRow key={row.student_id} className={row.absent_days >= 5 ? "bg-red-50/50" : ""}>
+                          <TableCell className="text-xs font-mono text-muted-foreground">{row.student_no || "—"}</TableCell>
                           <TableCell className="font-medium">{row.student_name}</TableCell>
                           <TableCell>{row.class_name}</TableCell>
                           <TableCell className="text-center">{row.total_days}</TableCell>
@@ -440,7 +480,7 @@ export function AttendanceReportClient({ classes, schoolFilter }: Props) {
                         </TableRow>
                       ))}
                       {attendanceStats.length === 0 && (
-                        <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Devamsızlık kaydı bulunamadı</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Devamsızlık kaydı bulunamadı</TableCell></TableRow>
                       )}
                     </TableBody>
                   </Table>

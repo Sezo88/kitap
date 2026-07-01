@@ -59,15 +59,27 @@ export default async function AttendancePage() {
     todayLogs = data || [];
   }
 
-  // Check SMS provider active status
+  // Check SMS provider active status and school total_lessons
   let smsActive = false;
+  let totalLessons = 8;
   if (profile.school_id) {
-    const { data: smsSettings } = await supabase
-      .from("sms_provider_settings")
-      .select("is_active")
-      .eq("school_id", profile.school_id)
-      .single();
+    const [
+      { data: smsSettings },
+      { data: school }
+    ] = await Promise.all([
+      supabase
+        .from("sms_provider_settings")
+        .select("is_active")
+        .eq("school_id", profile.school_id)
+        .maybeSingle(),
+      supabase
+        .from("schools")
+        .select("total_lessons")
+        .eq("id", profile.school_id)
+        .maybeSingle()
+    ]);
     smsActive = smsSettings?.is_active || false;
+    totalLessons = school?.total_lessons || 8;
   }
 
   // Dynamic import to avoid SSR issues
@@ -83,6 +95,7 @@ export default async function AttendancePage() {
         userId={user!.id}
         schoolId={profile.school_id || ""}
         smsActive={smsActive}
+        totalLessons={totalLessons}
       />
     </div>
   );

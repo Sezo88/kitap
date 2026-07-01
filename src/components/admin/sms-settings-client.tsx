@@ -16,6 +16,7 @@ import type { SmsProviderSettings, SmsProviderName } from "@/lib/types/database"
 interface Props {
   schoolId: string;
   existingSettings: SmsProviderSettings | null;
+  schoolTotalLessons: number;
 }
 
 const PROVIDERS: { value: SmsProviderName; label: string; description: string }[] = [
@@ -25,13 +26,14 @@ const PROVIDERS: { value: SmsProviderName; label: string; description: string }[
   { value: "custom", label: "Diğer / Özel API", description: "Kendi SMS sağlayıcınızı yapılandırın" },
 ];
 
-export function SmsSettingsClient({ schoolId, existingSettings }: Props) {
+export function SmsSettingsClient({ schoolId, existingSettings, schoolTotalLessons }: Props) {
   const [providerName, setProviderName] = useState<SmsProviderName>(existingSettings?.provider_name || "netgsm");
   const [apiKey, setApiKey] = useState(existingSettings?.api_key || "");
   const [apiSecret, setApiSecret] = useState(existingSettings?.api_secret || "");
   const [senderId, setSenderId] = useState(existingSettings?.sender_id || "");
   const [isActive, setIsActive] = useState(existingSettings?.is_active || false);
   const [smsUnitCost, setSmsUnitCost] = useState(existingSettings?.sms_unit_cost?.toString() || "");
+  const [totalLessons, setTotalLessons] = useState(schoolTotalLessons.toString());
 
   // Custom fields
   const [apiBaseUrl, setApiBaseUrl] = useState(existingSettings?.api_base_url || "");
@@ -89,6 +91,18 @@ export function SmsSettingsClient({ schoolId, existingSettings }: Props) {
       updated_at: new Date().toISOString(),
     };
 
+    // Update school settings (total lessons)
+    const { error: schoolErr } = await supabase
+      .from("schools")
+      .update({ total_lessons: parseInt(totalLessons) })
+      .eq("id", schoolId);
+
+    if (schoolErr) {
+      toast("Okul ayarları güncellenemedi: " + schoolErr.message, "error");
+      setSaving(false);
+      return;
+    }
+
     if (existingSettings) {
       const { error } = await supabase
         .from("sms_provider_settings")
@@ -97,7 +111,7 @@ export function SmsSettingsClient({ schoolId, existingSettings }: Props) {
       if (error) {
         toast("Güncelleme hatası: " + error.message, "error");
       } else {
-        toast("SMS ayarları güncellendi", "success");
+        toast("Ayarlar güncellendi", "success");
       }
     } else {
       const { error } = await supabase
@@ -106,7 +120,7 @@ export function SmsSettingsClient({ schoolId, existingSettings }: Props) {
       if (error) {
         toast("Kayıt hatası: " + error.message, "error");
       } else {
-        toast("SMS ayarları kaydedildi", "success");
+        toast("Ayarlar kaydedildi", "success");
       }
     }
 
@@ -146,6 +160,24 @@ export function SmsSettingsClient({ schoolId, existingSettings }: Props) {
         <Shield className="h-4 w-4 shrink-0 mt-0.5" />
         <p>API anahtarlarınız güvenli şekilde saklanır ve sadece sunucu tarafında kullanılır.</p>
       </div>
+
+      {/* Okul Genel Ayarları */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Okul Genel Ayarları</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="totalLessons">Günlük Toplam Yoklama/Ders Saati</Label>
+            <Select id="totalLessons" value={totalLessons} onChange={(e) => setTotalLessons(e.target.value)}>
+              {[4, 5, 6, 7, 8, 9, 10].map((num) => (
+                <option key={num} value={num.toString()}>{num} Ders Saati</option>
+              ))}
+            </Select>
+            <p className="text-xs text-muted-foreground">Öğretmenlerin günlük alabileceği toplam yoklama/ders saati sayısıdır.</p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Provider Selection */}
       <Card>
