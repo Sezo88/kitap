@@ -97,21 +97,35 @@ export function AttendanceReportClient({ classes, schoolFilter }: Props) {
 
     // ── GÜN BAZLI DOĞRU DEVAMSIZLIK HESAPLAMA ───────────────────────
     // Aynı öğrencinin aynı gün içindeki farklı ders kayıtlarını grupluyoruz.
-    // Öncelik: absent > corrected_present > present
-    const dayMap = new Map<string, { status: string; reason: string | null; class_id: string }>();
+    // Öncelik: hem absent hem present varsa corrected_present (sonradan geldi) kabul edilir
+    const dayRecords = new Map<string, { status: string; reason: string | null; class_id: string }[]>();
     (attendanceData || []).forEach((a: any) => {
       const key = `${a.student_id}_${a.log_date}`;
-      const existing = dayMap.get(key);
+      const list = dayRecords.get(key) || [];
+      list.push({ status: a.status, reason: a.reason, class_id: a.class_id });
+      dayRecords.set(key, list);
+    });
 
-      if (!existing) {
-        dayMap.set(key, { status: a.status, reason: a.reason, class_id: a.class_id });
-      } else {
-        if (a.status === "absent") {
-          dayMap.set(key, { status: "absent", reason: a.reason, class_id: a.class_id });
-        } else if (a.status === "corrected_present" && existing.status !== "absent") {
-          dayMap.set(key, { status: "corrected_present", reason: a.reason, class_id: a.class_id });
-        }
+    const dayMap = new Map<string, { status: string; reason: string | null; class_id: string }>();
+    dayRecords.forEach((records, key) => {
+      const hasAbsent = records.some(r => r.status === "absent");
+      const hasPresent = records.some(r => r.status === "present");
+      const hasCorrected = records.some(r => r.status === "corrected_present");
+      const firstRecord = records[0];
+
+      let finalStatus = "present";
+      if (hasAbsent && (hasPresent || hasCorrected)) {
+        finalStatus = "corrected_present";
+      } else if (hasAbsent) {
+        finalStatus = "absent";
+      } else if (hasCorrected) {
+        finalStatus = "corrected_present";
       }
+
+      const absentRecord = records.find(r => r.status === "absent");
+      const reason = absentRecord ? absentRecord.reason : (records.find(r => r.reason)?.reason || null);
+
+      dayMap.set(key, { status: finalStatus, reason, class_id: firstRecord.class_id });
     });
 
     const attMap = new Map<string, any>();
@@ -183,27 +197,43 @@ export function AttendanceReportClient({ classes, schoolFilter }: Props) {
     const { data } = await query;
     
     // Gün içindeki en güncel/kritik durumu belirle
-    const dailyMap = new Map<string, { status: string; lessons: number[]; name: string; class: string; phone: string | null }>();
+    const dailyRecords = new Map<string, { status: string; lesson: number; name: string; class: string; phone: string | null }[]>();
     (data || []).forEach((d: any) => {
       const sid = d.student_id;
-      const existing = dailyMap.get(sid);
+      const list = dailyRecords.get(sid) || [];
+      list.push({
+        status: d.status,
+        lesson: d.lesson_no,
+        name: d.students?.full_name || "",
+        class: (d.students as any)?.classes?.name || "",
+        phone: d.students?.veli_telefon || null
+      });
+      dailyRecords.set(sid, list);
+    });
 
-      if (!existing) {
-        dailyMap.set(sid, {
-          status: d.status,
-          lessons: [d.lesson_no],
-          name: d.students?.full_name || "",
-          class: (d.students as any)?.classes?.name || "",
-          phone: d.students?.veli_telefon || null
-        });
-      } else {
-        existing.lessons.push(d.lesson_no);
-        if (d.status === "absent") {
-          existing.status = "absent";
-        } else if (d.status === "corrected_present" && existing.status !== "absent") {
-          existing.status = "corrected_present";
-        }
+    const dailyMap = new Map<string, { status: string; lessons: number[]; name: string; class: string; phone: string | null }>();
+    dailyRecords.forEach((records, sid) => {
+      const hasAbsent = records.some(r => r.status === "absent");
+      const hasPresent = records.some(r => r.status === "present");
+      const hasCorrected = records.some(r => r.status === "corrected_present");
+      const first = records[0];
+
+      let finalStatus = "present";
+      if (hasAbsent && (hasPresent || hasCorrected)) {
+        finalStatus = "corrected_present";
+      } else if (hasAbsent) {
+        finalStatus = "absent";
+      } else if (hasCorrected) {
+        finalStatus = "corrected_present";
       }
+
+      dailyMap.set(sid, {
+        status: finalStatus,
+        lessons: records.map(r => r.lesson),
+        name: first.name,
+        class: first.class,
+        phone: first.phone
+      });
     });
 
     setDailyAttendance(Array.from(dailyMap.entries()).map(([id, info]) => ({
