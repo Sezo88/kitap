@@ -257,22 +257,14 @@ export function CleanlinessReportClient({ classes, criterias, schoolFilter }: Pr
       "Haftalık Birincilik Sayısı": b.wins
     }))), "Genel Liderlik");
 
-    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "binary" });
-    const buf = new ArrayBuffer(wbout.length);
-    const view = new Uint8Array(buf);
-    for (let i = 0; i < wbout.length; i++) {
-      view[i] = wbout.charCodeAt(i) & 0xFF;
-    }
-    
-    const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    const url = URL.createObjectURL(blob);
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "base64" });
+    const url = "data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64," + wbout;
     const a = document.createElement("a");
     a.href = url;
     a.download = `temiz-sinif-raporu-${monday}_${friday}.xlsx`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
   }
 
   return (
