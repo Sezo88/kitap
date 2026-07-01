@@ -3,8 +3,8 @@ import { ToastProvider } from "@/components/ui/toast";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Okuma Takip",
-  description: "Okul okuma takip uygulaması",
+  title: "Okul Asistanı",
+  description: "Okul kitap okuma, yoklama ve temizlik takip sistemi",
 };
 
 export default function RootLayout({

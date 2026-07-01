@@ -53,9 +53,9 @@ export function Sidebar({ role, schoolName, onClose }: SidebarProps) {
       {/* Header */}
       <div className="flex items-center justify-between h-16 px-5 border-b border-sidebar-accent">
         <div className="flex items-center gap-2">
-          <BookOpen className="h-5 w-5 shrink-0" />
+          <GraduationCap className="h-5 w-5 text-primary shrink-0" />
           <div className="min-w-0">
-            <h1 className="font-bold text-sm leading-tight">Okuma Takip</h1>
+            <h1 className="font-bold text-sm leading-tight">Okul Asistanı</h1>
             {schoolName && (
               <p className="text-xs text-sidebar-foreground/60 truncate max-w-[160px]">{schoolName}</p>
             )}

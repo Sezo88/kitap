@@ -57,7 +57,6 @@ export function CleanlinessForm({ classes, criterias, todayScores, userId }: Pro
   const scoredClassIds = new Set(localScores.map((s) => s.class_id));
 
   const handleScoreChange = (criteriaId: string, score: number) => {
-    if (isAlreadyScored) return; // Kilitliyse değiştirme
     setScores((prev) => ({ ...prev, [criteriaId]: score }));
   };
 
@@ -82,15 +81,20 @@ export function CleanlinessForm({ classes, criterias, todayScores, userId }: Pro
 
     const { data, error } = await supabase
       .from("cleanliness_scores")
-      .insert(payload)
+      .upsert(payload, { onConflict: "class_id, criteria_id, score_date" })
       .select();
 
     if (error) {
       toast("Puanlar kaydedilirken hata oluştu: " + error.message, "error");
     } else {
-      toast("Puanlar başarıyla kaydedildi", "success");
+      toast(isAlreadyScored ? "Puanlar başarıyla güncellendi" : "Puanlar başarıyla kaydedildi", "success");
       if (data) {
-        setLocalScores((prev) => [...prev, ...(data as CleanlinessScore[])]);
+        setLocalScores((prev) => {
+          const filtered = prev.filter(
+            (s) => !(s.class_id === selectedClassId && s.score_date === today)
+          );
+          return [...filtered, ...(data as CleanlinessScore[])];
+        });
       }
     }
     setSaving(false);
@@ -156,18 +160,18 @@ export function CleanlinessForm({ classes, criterias, todayScores, userId }: Pro
               </p>
             </div>
             {isAlreadyScored && (
-              <Badge variant="destructive" className="gap-1 bg-red-100 text-red-700 hover:bg-red-100 border-red-300">
-                <Lock className="h-3 w-3" /> Kilitli (Bugün Puanlandı)
+              <Badge variant="success" className="gap-1 bg-green-100 text-green-700 hover:bg-green-100 border-green-300">
+                <CheckCircle2 className="h-3 w-3" /> Puanlandı (Düzenlenebilir)
               </Badge>
             )}
           </CardHeader>
           <CardContent className="space-y-6">
             {isAlreadyScored && (
-              <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg p-3 text-sm flex items-start gap-2">
+              <div className="bg-green-50 border border-green-200 text-green-800 rounded-lg p-3 text-sm flex items-start gap-2">
                 <Info className="h-4 w-4 shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-semibold">Puanlama Tamamlanmış</p>
-                  <p className="text-xs mt-0.5 text-yellow-700">Bu sınıfın bugünkü puan girişi nöbetçi öğretmen tarafından yapılmıştır. Puanlar kilitlidir.</p>
+                  <p className="font-semibold">Bugünkü Puanlar Yüklendi</p>
+                  <p className="text-xs mt-0.5 text-green-700">Bu sınıfın bugünkü puanları daha önce girilmiştir. Puanlar üzerinde değişiklik yapıp tekrar kaydedebilirsiniz.</p>
                 </div>
               </div>
             )}
@@ -187,7 +191,6 @@ export function CleanlinessForm({ classes, criterias, todayScores, userId }: Pro
                         return (
                           <button
                             key={val}
-                            disabled={isAlreadyScored}
                             onClick={() => handleScoreChange(c.id, val)}
                             className={`w-9 h-9 rounded-full text-xs font-bold transition-all flex items-center justify-center border ${
                               isSelected
@@ -214,11 +217,9 @@ export function CleanlinessForm({ classes, criterias, todayScores, userId }: Pro
                 <div className="text-sm font-medium">
                   Toplam Puan: <span className="text-xl font-bold text-primary">{totalScore}</span> / 25
                 </div>
-                {!isAlreadyScored && (
-                  <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
-                    <Save className="h-4 w-4 mr-1" /> {saving ? "Kaydediliyor..." : "Puanları Kaydet"}
-                  </Button>
-                )}
+                <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
+                  <Save className="h-4 w-4 mr-1" /> {saving ? "Kaydediliyor..." : isAlreadyScored ? "Puanları Güncelle" : "Puanları Kaydet"}
+                </Button>
               </div>
             )}
           </CardContent>

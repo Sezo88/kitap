@@ -34,8 +34,7 @@ export function Header({ fullName, schoolName, onMenuClick }: HeaderProps) {
         </button>
         {/* App name on mobile only (hidden on desktop since sidebar shows it) */}
         <div className="flex items-center gap-1.5 lg:hidden min-w-0">
-          <BookOpen className="h-4 w-4 text-primary shrink-0" />
-          <span className="font-semibold text-sm truncate text-primary">Okuma Takip</span>
+          <span className="font-semibold text-sm truncate text-primary">Okul Asistanı</span>
           {schoolName && (
             <span className="text-xs text-muted-foreground truncate hidden sm:inline">· {schoolName}</span>
           )}
