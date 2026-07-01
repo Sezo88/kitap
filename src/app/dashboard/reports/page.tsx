@@ -1,40 +1,64 @@
-import { createClient } from "@/lib/supabase/server";
-import { ReportsClient } from "@/components/reports/reports-client";
+import Link from "next/link";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { BookOpen, ClipboardList, ArrowRight } from "lucide-react";
 import { getCachedUserAndProfile } from "@/lib/supabase/auth-cache";
 
-export default async function ReportsPage() {
-  const supabase = await createClient();
-  const { user, profile } = await getCachedUserAndProfile();
+export default async function ReportsPortalPage() {
+  const { profile } = await getCachedUserAndProfile();
 
-  if (!profile) return null;
+  if (!profile || (profile.role !== "super_admin" && profile.role !== "idareci")) {
+    return <div className="text-center py-8 text-muted-foreground">Bu sayfaya erişim yetkiniz yok.</div>;
+  }
 
-  const schoolFilter = profile.role === "super_admin" ? {} : { school_id: profile.school_id };
-
-  // Parallelize classes list and teachers list queries
-  const [
-    { data: classes },
-    { data: teachers }
-  ] = await Promise.all([
-    supabase
-      .from("classes")
-      .select("*")
-      .match(schoolFilter)
-      .order("name"),
-    supabase
-      .from("profiles")
-      .select("id, full_name")
-      .match({ ...schoolFilter, role: "ogretmen", status: "active" })
-      .order("full_name")
-  ]);
+  const reports = [
+    {
+      title: "Okuma & Kitap Raporları",
+      description: "Öğrencilerin okuma oranları, tamamlanan kitap süreleri, sınıf sıralamaları ve en çok/en az okuyan öğrenci listeleri.",
+      href: "/dashboard/reports/reading",
+      icon: BookOpen,
+      color: "text-blue-600 bg-blue-100",
+    },
+    {
+      title: "Yoklama & Devamsızlık Raporları",
+      description: "Günlük gelmeyen veya geç kalan öğrenciler, veli iletişim bilgileri, tekrarlayan devamsızlıklar ve SMS bildirim maliyet özetleri.",
+      href: "/dashboard/reports/attendance",
+      icon: ClipboardList,
+      color: "text-red-600 bg-red-100",
+    },
+  ];
 
   return (
-    <div>
-      <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">Detaylı Raporlar</h2>
-      <ReportsClient
-        classes={classes || []}
-        schoolFilter={schoolFilter}
-        teachers={teachers || []}
-      />
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl sm:text-2xl font-bold">Raporlar Portalı</h2>
+        <p className="text-sm text-muted-foreground mt-1">Okulunuza ait analiz ve rapor gruplarını seçin.</p>
+      </div>
+
+      <div className="grid gap-6 sm:grid-cols-2">
+        {reports.map((report) => {
+          const Icon = report.icon;
+          return (
+            <Card key={report.title} className="hover:shadow-md transition-shadow flex flex-col justify-between">
+              <CardHeader className="pb-4">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2.5 rounded-lg ${report.color}`}>
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <CardTitle className="text-lg">{report.title}</CardTitle>
+                </div>
+                <CardDescription className="mt-3 text-sm leading-relaxed">
+                  {report.description}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <Link href={report.href} className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline">
+                  Raporu Görüntüle <ArrowRight className="h-4 w-4" />
+                </Link>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 }
