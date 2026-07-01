@@ -216,7 +216,22 @@ export function StudentList({ students: initialStudents, classes, books, role, s
         XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
       });
 
-      XLSX.writeFile(wb, "veli_telefon_listesi.xlsx");
+      const wbout = XLSX.write(wb, { bookType: "xlsx", type: "binary" });
+      const buf = new ArrayBuffer(wbout.length);
+      const view = new Uint8Array(buf);
+      for (let i = 0; i < wbout.length; i++) {
+        view[i] = wbout.charCodeAt(i) & 0xFF;
+      }
+      
+      const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "veli_telefon_listesi.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
       toast("Veli telefon şablonu başarıyla indirildi", "success");
     } catch (err: any) {
       toast("Şablon oluşturulurken hata: " + err.message, "error");
