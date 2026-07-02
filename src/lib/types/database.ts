@@ -41,6 +41,8 @@ export interface Student {
   is_active: boolean;
   veli_telefon: string | null;
   veli_telefon_2: string | null;
+  veli_telefon_sahip: string | null;
+  veli_telefon_2_sahip: string | null;
   created_at: string;
 }
 

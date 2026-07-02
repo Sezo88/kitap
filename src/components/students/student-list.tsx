@@ -37,6 +37,8 @@ export function StudentList({ students: initialStudents, classes, books, role, s
   const [eOkulNo, setEOkulNo] = useState("");
   const [veliTelefon, setVeliTelefon] = useState("");
   const [veliTelefon2, setVeliTelefon2] = useState("");
+  const [veliSahip, setVeliSahip] = useState("");
+  const [veliSahip2, setVeliSahip2] = useState("");
   const [selectedBookId, setSelectedBookId] = useState("");
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
@@ -68,6 +70,8 @@ export function StudentList({ students: initialStudents, classes, books, role, s
     setEOkulNo("");
     setVeliTelefon("");
     setVeliTelefon2("");
+    setVeliSahip("");
+    setVeliSahip2("");
     setDialogOpen(true);
   }
 
@@ -78,6 +82,8 @@ export function StudentList({ students: initialStudents, classes, books, role, s
     setEOkulNo(s.e_okul_no || "");
     setVeliTelefon(s.veli_telefon || "");
     setVeliTelefon2(s.veli_telefon_2 || "");
+    setVeliSahip(s.veli_telefon_sahip || "");
+    setVeliSahip2(s.veli_telefon_2_sahip || "");
     setDialogOpen(true);
   }
 
@@ -100,7 +106,9 @@ export function StudentList({ students: initialStudents, classes, books, role, s
           class_id: classId,
           e_okul_no: eOkulNo || null,
           veli_telefon: veliTelefon || null,
-          veli_telefon_2: veliTelefon2 || null
+          veli_telefon_2: veliTelefon2 || null,
+          veli_telefon_sahip: veliSahip || null,
+          veli_telefon_2_sahip: veliSahip2 || null
         })
         .eq("id", editingStudent.id);
       setStudents((prev) =>
@@ -113,6 +121,8 @@ export function StudentList({ students: initialStudents, classes, books, role, s
                 e_okul_no: eOkulNo || null,
                 veli_telefon: veliTelefon || null,
                 veli_telefon_2: veliTelefon2 || null,
+                veli_telefon_sahip: veliSahip || null,
+                veli_telefon_2_sahip: veliSahip2 || null,
                 classes: classes.find((c) => c.id === classId) || s.classes
               }
             : s
@@ -128,7 +138,9 @@ export function StudentList({ students: initialStudents, classes, books, role, s
           school_id: schoolId,
           e_okul_no: eOkulNo || null,
           veli_telefon: veliTelefon || null,
-          veli_telefon_2: veliTelefon2 || null
+          veli_telefon_2: veliTelefon2 || null,
+          veli_telefon_sahip: veliSahip || null,
+          veli_telefon_2_sahip: veliSahip2 || null
         })
         .select("*, classes!inner(name)")
         .single();
@@ -207,16 +219,110 @@ export function StudentList({ students: initialStudents, classes, books, role, s
     try {
       const wb = XLSX.utils.book_new();
 
+      const headerStyle = {
+        font: { bold: true, color: { rgb: "FFFFFF" }, sz: 11 },
+        fill: { fgColor: { rgb: "2563EB" } },
+        alignment: { horizontal: "center", vertical: "center", wrapText: true },
+        border: {
+          top: { style: "thin", color: { rgb: "000000" } },
+          bottom: { style: "thin", color: { rgb: "000000" } },
+          left: { style: "thin", color: { rgb: "000000" } },
+          right: { style: "thin", color: { rgb: "000000" } }
+        }
+      };
+
+      const cellBorder = {
+        border: {
+          top: { style: "thin", color: { rgb: "D1D5DB" } },
+          bottom: { style: "thin", color: { rgb: "D1D5DB" } },
+          left: { style: "thin", color: { rgb: "D1D5DB" } },
+          right: { style: "thin", color: { rgb: "D1D5DB" } }
+        }
+      };
+
+      const headers = ["Sıra", "Öğrenci No", "Adı Soyadı", "1. Veli Telefonu", "1. Veli Yakınlık", "2. Veli Telefonu", "2. Veli Yakınlık"];
+
       classes.forEach((c) => {
         const classStudents = students.filter((s) => s.class_id === c.id);
-        const rows = classStudents.map((s) => ({
-          "Öğrenci No": s.e_okul_no || "",
-          "Adı Soyadı": s.full_name,
-          "1. Veli Telefonu": s.veli_telefon || "",
-          "2. Veli Telefonu": s.veli_telefon_2 || "",
-        }));
 
-        const ws = XLSX.utils.json_to_sheet(rows);
+        // Başlık satırı: Sınıf adı
+        const titleRow = [c.name + " - Veli Telefon Listesi", "", "", "", "", "", ""];
+        const emptyRow = ["", "", "", "", "", "", ""];
+
+        const dataRows = classStudents.map((s, idx) => [
+          idx + 1,
+          s.e_okul_no || "",
+          s.full_name,
+          s.veli_telefon || "",
+          s.veli_telefon_sahip || "",
+          s.veli_telefon_2 || "",
+          s.veli_telefon_2_sahip || ""
+        ]);
+
+        const sheetData = [titleRow, emptyRow, headers, ...dataRows];
+        const ws = XLSX.utils.aoa_to_sheet(sheetData);
+
+        // Sütun genişlikleri
+        ws["!cols"] = [
+          { wch: 6 },   // Sıra
+          { wch: 14 },  // Öğrenci No
+          { wch: 28 },  // Adı Soyadı
+          { wch: 18 },  // 1. Veli Telefonu
+          { wch: 16 },  // 1. Veli Yakınlık
+          { wch: 18 },  // 2. Veli Telefonu
+          { wch: 16 },  // 2. Veli Yakınlık
+        ];
+
+        // Satır yükseklikleri
+        ws["!rows"] = [
+          { hpt: 28 },  // Başlık
+          { hpt: 6 },   // Boş satır
+          { hpt: 22 },  // Header
+        ];
+
+        // Merge: başlık satırını birleştir
+        ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 6 } }];
+
+        // Başlık stili
+        const titleCell = ws["A1"];
+        if (titleCell) {
+          titleCell.s = {
+            font: { bold: true, sz: 14, color: { rgb: "1E3A5F" } },
+            alignment: { horizontal: "center", vertical: "center" },
+            fill: { fgColor: { rgb: "DBEAFE" } }
+          };
+        }
+
+        // Header satırı stili
+        const headerRow = 2; // 0-indexed: satır 3
+        headers.forEach((_, colIdx) => {
+          const cellRef = XLSX.utils.encode_cell({ r: headerRow, c: colIdx });
+          if (ws[cellRef]) {
+            ws[cellRef].s = headerStyle;
+          }
+        });
+
+        // Veri satırları stili
+        dataRows.forEach((_, rowIdx) => {
+          const actualRow = rowIdx + 3; // 0-indexed
+          headers.forEach((__, colIdx) => {
+            const cellRef = XLSX.utils.encode_cell({ r: actualRow, c: colIdx });
+            if (ws[cellRef]) {
+              ws[cellRef].s = {
+                ...cellBorder,
+                alignment: { vertical: "center" }
+              };
+              // Sıra numarası ortalanmış
+              if (colIdx === 0) {
+                ws[cellRef].s.alignment = { horizontal: "center", vertical: "center" };
+              }
+            }
+          });
+        });
+
+        // Yakınlık sütunları için data validation (Excel açıldığında dropdown görünsün)
+        // Not: xlsx kütüphanesi validation desteklemiyor, ama şablona açıklama ekleyebiliriz
+
         const safeSheetName = c.name.replace(/[\\\/\?\*\:\[\]]/g, "-").substring(0, 31);
         XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
       });
@@ -247,13 +353,22 @@ export function StudentList({ students: initialStudents, classes, books, role, s
 
         for (const sheetName of workbook.SheetNames) {
           const sheet = workbook.Sheets[sheetName];
-          const rows = XLSX.utils.sheet_to_json<any>(sheet);
+          
+          // Yeni şablon formatı: satır 1 = başlık, satır 2 = boş, satır 3 = header
+          // Eski format: satır 1 = header
+          // Otomatik algıla: A3 hücresi "Sıra" ise yeni format
+          const cellA3 = sheet["A3"];
+          const isNewFormat = cellA3 && cellA3.v === "Sıra";
+          
+          const rows = XLSX.utils.sheet_to_json<any>(sheet, isNewFormat ? { range: 2 } : {});
 
           for (const row of rows) {
             const ogrenciNo = row["Öğrenci No"]?.toString().trim();
             const adiSoyadi = row["Adı Soyadı"]?.toString().trim();
             const rawTel = row["1. Veli Telefonu"]?.toString().trim();
             const rawTel2 = row["2. Veli Telefonu"]?.toString().trim();
+            const sahip1 = row["1. Veli Yakınlık"]?.toString().trim() || undefined;
+            const sahip2 = row["2. Veli Yakınlık"]?.toString().trim() || undefined;
             // Excel basinda 0'i silebilir, otomatik ekle
             const veliTel = rawTel ? (rawTel.startsWith("+") || rawTel.startsWith("0") ? rawTel : "0" + rawTel) : undefined;
             const veliTel2 = rawTel2 ? (rawTel2.startsWith("+") || rawTel2.startsWith("0") ? rawTel2 : "0" + rawTel2) : undefined;
@@ -270,12 +385,16 @@ export function StudentList({ students: initialStudents, classes, books, role, s
               const matchedStudent = updatedStudentsList[matchedIndex];
               const hasChanges = 
                 (veliTel !== undefined && matchedStudent.veli_telefon !== (veliTel || null)) ||
-                (veliTel2 !== undefined && matchedStudent.veli_telefon_2 !== (veliTel2 || null));
+                (veliTel2 !== undefined && matchedStudent.veli_telefon_2 !== (veliTel2 || null)) ||
+                (sahip1 !== undefined && matchedStudent.veli_telefon_sahip !== (sahip1 || null)) ||
+                (sahip2 !== undefined && matchedStudent.veli_telefon_2_sahip !== (sahip2 || null));
 
               if (hasChanges) {
                 const updatePayload: any = {};
                 if (veliTel !== undefined) updatePayload.veli_telefon = veliTel || null;
                 if (veliTel2 !== undefined) updatePayload.veli_telefon_2 = veliTel2 || null;
+                if (sahip1 !== undefined) updatePayload.veli_telefon_sahip = sahip1 || null;
+                if (sahip2 !== undefined) updatePayload.veli_telefon_2_sahip = sahip2 || null;
 
                 const { error } = await supabase
                   .from("students")
@@ -382,8 +501,8 @@ export function StudentList({ students: initialStudents, classes, books, role, s
               </div>
               {/* Veli Telefonları */}
               <div className="space-y-1 bg-muted/60 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground">
-                <div>1. Veli: {s.veli_telefon ? <a href={`tel:${s.veli_telefon}`} className="text-primary hover:underline font-medium">{s.veli_telefon}</a> : "-"}</div>
-                <div>2. Veli: {s.veli_telefon_2 ? <a href={`tel:${s.veli_telefon_2}`} className="text-primary hover:underline font-medium">{s.veli_telefon_2}</a> : "-"}</div>
+                <div>1. Veli: {s.veli_telefon || "-"} {s.veli_telefon_sahip && <Badge variant="outline" className="text-[10px] ml-1 py-0 px-1">{s.veli_telefon_sahip}</Badge>}</div>
+                <div>2. Veli: {s.veli_telefon_2 || "-"} {s.veli_telefon_2_sahip && <Badge variant="outline" className="text-[10px] ml-1 py-0 px-1">{s.veli_telefon_2_sahip}</Badge>}</div>
               </div>
             </CardContent>
           </Card>
@@ -419,8 +538,8 @@ export function StudentList({ students: initialStudents, classes, books, role, s
                     <TableCell className="text-muted-foreground">{s.e_okul_no || "-"}</TableCell>
                     <TableCell>
                       <div className="text-sm space-y-0.5 text-muted-foreground">
-                        <div>1. Veli: {s.veli_telefon ? <a href={`tel:${s.veli_telefon}`} className="text-primary hover:underline font-medium">{s.veli_telefon}</a> : "-"}</div>
-                        <div>2. Veli: {s.veli_telefon_2 ? <a href={`tel:${s.veli_telefon_2}`} className="text-primary hover:underline font-medium">{s.veli_telefon_2}</a> : "-"}</div>
+                        <div>1. Veli: {s.veli_telefon || "-"} {s.veli_telefon_sahip && <span className="text-xs opacity-70">({s.veli_telefon_sahip})</span>}</div>
+                        <div>2. Veli: {s.veli_telefon_2 || "-"} {s.veli_telefon_2_sahip && <span className="text-xs opacity-70">({s.veli_telefon_2_sahip})</span>}</div>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -474,12 +593,28 @@ export function StudentList({ students: initialStudents, classes, books, role, s
             <Input id="enumber" value={eOkulNo} onChange={(e) => setEOkulNo(e.target.value)} placeholder="opsiyonel" />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="vphone">Veli Telefon Numarası</Label>
-            <Input id="vphone" value={veliTelefon} onChange={(e) => setVeliTelefon(e.target.value)} placeholder="+905XXXXXXXXX" />
+            <Label htmlFor="vphone">1. Veli Telefon Numarası</Label>
+            <div className="flex gap-2">
+              <Input id="vphone" value={veliTelefon} onChange={(e) => setVeliTelefon(e.target.value)} placeholder="+905XXXXXXXXX" className="flex-1" />
+              <Select value={veliSahip} onChange={(e) => setVeliSahip(e.target.value)} className="w-28 shrink-0">
+                <option value="">Yakınlık</option>
+                <option value="Anne">Anne</option>
+                <option value="Baba">Baba</option>
+                <option value="Diğer">Diğer</option>
+              </Select>
+            </div>
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="vphone2">2. Veli Telefon Numarası</Label>
-            <Input id="vphone2" value={veliTelefon2} onChange={(e) => setVeliTelefon2(e.target.value)} placeholder="+905XXXXXXXXX (opsiyonel)" />
+            <div className="flex gap-2">
+              <Input id="vphone2" value={veliTelefon2} onChange={(e) => setVeliTelefon2(e.target.value)} placeholder="+905XXXXXXXXX (opsiyonel)" className="flex-1" />
+              <Select value={veliSahip2} onChange={(e) => setVeliSahip2(e.target.value)} className="w-28 shrink-0">
+                <option value="">Yakınlık</option>
+                <option value="Anne">Anne</option>
+                <option value="Baba">Baba</option>
+                <option value="Diğer">Diğer</option>
+              </Select>
+            </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setDialogOpen(false)}>İptal</Button>
