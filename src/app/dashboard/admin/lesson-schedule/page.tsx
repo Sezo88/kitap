@@ -39,8 +39,8 @@ export default async function LessonSchedulePage() {
       <h2 className="text-2xl font-bold mb-6">Ders Programı</h2>
       {(!bellSchedule || bellSchedule.length === 0) ? (
         <div className="text-center py-12 text-muted-foreground">
-          <p className="mb-2">Ders programı oluşturabilmek için önce <strong>Zil Saatleri</strong> tanımlanmalıdır.</p>
-          <a href="/dashboard/admin/bell-schedule" className="text-primary underline">Zil Saatleri sayfasına git →</a>
+          <p className="mb-2">Ders programı oluşturabilmek için önce <strong>Ders Saatleri</strong> tanımlanmalıdır.</p>
+          <a href="/dashboard/admin/bell-schedule" className="text-primary underline">Ders Saatleri sayfasına git →</a>
         </div>
       ) : (
         <LessonScheduleEditor

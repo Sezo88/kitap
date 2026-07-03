@@ -95,7 +95,7 @@ export function BellScheduleEditor({ initialSchedule, schoolId }: Props) {
     } else {
       // Update period_no in local state
       setRows(rows.map((r, i) => ({ ...r, period_no: i + 1 })));
-      toast("Zil saatleri başarıyla kaydedildi", "success");
+      toast("Ders saatleri başarıyla kaydedildi", "success");
     }
     setSaving(false);
   }

@@ -18,7 +18,7 @@ export default async function BellSchedulePage() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-6">Zil Saatleri</h2>
+      <h2 className="text-2xl font-bold mb-6">Ders Saatleri</h2>
       <BellScheduleEditor
         initialSchedule={bellSchedule || []}
         schoolId={profile.school_id}

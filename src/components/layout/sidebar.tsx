@@ -47,7 +47,7 @@ const menuItems = [
   { href: "/dashboard/projects/list", label: "Proje Listesi", icon: FileSearch, roles: ["super_admin", "idareci", "ogretmen"] },
   { href: "/dashboard/reports", label: "Raporlar", icon: BarChart3, roles: ["super_admin", "idareci", "ogretmen"] },
   { href: "/dashboard/subjects", label: "Ders Yönetimi", icon: BookMarked, roles: ["super_admin", "idareci"] },
-  { href: "/dashboard/admin/bell-schedule", label: "Zil Saatleri", icon: Bell, roles: ["super_admin", "idareci"] },
+  { href: "/dashboard/admin/bell-schedule", label: "Ders Saatleri", icon: Bell, roles: ["super_admin", "idareci"] },
   { href: "/dashboard/admin/bell-control", label: "Zil Kontrol", icon: Bell, roles: ["super_admin", "idareci"] },
   { href: "/dashboard/admin/lesson-schedule", label: "Ders Programı", icon: CalendarDays, roles: ["super_admin", "idareci"] },
   { href: "/dashboard/admin/duty-schedule", label: "Nöbet Programı", icon: Shield, roles: ["super_admin", "idareci"] },
