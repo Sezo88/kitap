@@ -31,6 +31,7 @@ export default async function ReadingReportsPage() {
       .select("*")
       .match(schoolFilter)
       .order("archived_at", { ascending: false })
+      .then((r) => (r.error ? { data: [] } : r))
   ]);
 
   return (

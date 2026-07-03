@@ -12,7 +12,8 @@ export default async function CleanlinessReportsPage() {
 
   const [
     { data: classes },
-    { data: criterias }
+    { data: criterias },
+    { data: seasons }
   ] = await Promise.all([
     supabase
       .from("classes")
@@ -23,7 +24,13 @@ export default async function CleanlinessReportsPage() {
       .from("cleanliness_criterias")
       .select("*")
       .match(schoolFilter)
-      .order("name")
+      .order("name"),
+    supabase
+      .from("archive_seasons")
+      .select("*")
+      .match(schoolFilter)
+      .order("archived_at", { ascending: false })
+      .then((r) => (r.error ? { data: [] } : r))
   ]);
 
   return (
@@ -33,6 +40,7 @@ export default async function CleanlinessReportsPage() {
         classes={classes || []}
         criterias={criterias || []}
         schoolFilter={schoolFilter}
+        seasons={seasons || []}
       />
     </div>
   );

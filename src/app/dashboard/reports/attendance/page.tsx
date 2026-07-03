@@ -10,11 +10,22 @@ export default async function AttendanceReportsPage() {
 
   const schoolFilter = profile.role === "super_admin" ? {} : { school_id: profile.school_id };
 
-  const { data: classes } = await supabase
-    .from("classes")
-    .select("*")
-    .match(schoolFilter)
-    .order("name");
+  const [
+    { data: classes },
+    { data: seasons }
+  ] = await Promise.all([
+    supabase
+      .from("classes")
+      .select("*")
+      .match(schoolFilter)
+      .order("name"),
+    supabase
+      .from("archive_seasons")
+      .select("*")
+      .match(schoolFilter)
+      .order("archived_at", { ascending: false })
+      .then((r) => (r.error ? { data: [] } : r))
+  ]);
 
   return (
     <div>
@@ -22,6 +33,7 @@ export default async function AttendanceReportsPage() {
       <AttendanceReportClient
         classes={classes || []}
         schoolFilter={schoolFilter}
+        seasons={seasons || []}
       />
     </div>
   );

@@ -265,12 +265,10 @@ export function ReadingReportClient({ classes, schoolFilter, teachers, hideTeach
           <option value="all">Tüm Sınıflar</option>
           {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </Select>
-        {seasons.length > 0 && (
-          <Select value={selectedSeason} onChange={(e) => setSelectedSeason(e.target.value)} className="w-auto">
-            <option value="">Aktif Sezon</option>
-            {seasons.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
-          </Select>
-        )}
+        <Select value={selectedSeason} onChange={(e) => setSelectedSeason(e.target.value)} className="w-auto">
+          <option value="">Aktif Sezon</option>
+          {seasons.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
+        </Select>
         <Button variant="outline" size="sm" onClick={exportExcel} className="sm:ml-auto">
           <Download className="h-4 w-4 mr-1" /> Excel İndir
         </Button>

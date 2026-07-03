@@ -13,9 +13,16 @@ import { Download, Users, ClipboardList, AlertTriangle, MessageSquare, Calendar,
 import * as XLSX from "xlsx";
 
 interface Class { id: string; name: string; school_id: string; }
+interface Season {
+  id: string;
+  name: string;
+  archived_at: string;
+}
+
 interface Props {
   classes: Class[];
   schoolFilter: { school_id?: string };
+  seasons: Season[];
 }
 
 function RateBadge({ rate }: { rate: number }) {
@@ -23,12 +30,13 @@ function RateBadge({ rate }: { rate: number }) {
   return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${color}`}>%{rate}</span>;
 }
 
-export function AttendanceReportClient({ classes, schoolFilter }: Props) {
+export function AttendanceReportClient({ classes, schoolFilter, seasons }: Props) {
   const [startDate, setStartDate] = useState(() => {
     const d = new Date(); d.setMonth(d.getMonth() - 1); return d.toISOString().split("T")[0];
   });
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [selectedClassId, setSelectedClassId] = useState("all");
+  const [selectedSeason, setSelectedSeason] = useState(""); // "" = aktif
   const [loading, setLoading] = useState(true);
 
   // Tab 1: Genel Devamsızlık Listesi & İstatistikler
@@ -41,11 +49,11 @@ export function AttendanceReportClient({ classes, schoolFilter }: Props) {
 
   useEffect(() => {
     fetchGeneralData();
-  }, [startDate, endDate, selectedClassId]);
+  }, [startDate, endDate, selectedClassId, selectedSeason]);
 
   useEffect(() => {
     fetchDailyData();
-  }, [targetDate, selectedClassId]);
+  }, [targetDate, selectedClassId, selectedSeason]);
 
   async function fetchGeneralData() {
     setLoading(true);
@@ -63,6 +71,11 @@ export function AttendanceReportClient({ classes, schoolFilter }: Props) {
       const ids = schoolClassIds?.map((c: any) => c.id) || [];
       if (ids.length > 0) attendanceQuery = attendanceQuery.in("class_id", ids);
     }
+    if (selectedSeason) {
+      attendanceQuery = attendanceQuery.eq("season_name", selectedSeason);
+    } else {
+      attendanceQuery = attendanceQuery.is("season_name", null);
+    }
 
     // ── 2. SMS logs query ────────────────────────────────────────
     let smsQuery = supabase
@@ -75,6 +88,11 @@ export function AttendanceReportClient({ classes, schoolFilter }: Props) {
       const { data: schoolClassIds } = await supabase.from("classes").select("id").eq("school_id", schoolFilter.school_id);
       const ids = schoolClassIds?.map((c: any) => c.id) || [];
       if (ids.length > 0) smsQuery = smsQuery.in("students.class_id", ids);
+    }
+    if (selectedSeason) {
+      smsQuery = smsQuery.eq("season_name", selectedSeason);
+    } else {
+      smsQuery = smsQuery.is("season_name", null);
     }
 
     // ── 3. SMS Cost Settings ─────────────────────────────────────
@@ -194,9 +212,14 @@ export function AttendanceReportClient({ classes, schoolFilter }: Props) {
       const ids = schoolClassIds?.map((c: any) => c.id) || [];
       if (ids.length > 0) query = query.in("class_id", ids);
     }
+    if (selectedSeason) {
+      query = query.eq("season_name", selectedSeason);
+    } else {
+      query = query.is("season_name", null);
+    }
 
     const { data } = await query;
-    
+
     // Gün içindeki en güncel/kritik durumu belirle
     const dailyRecords = new Map<string, { status: string; lesson: number; name: string; class: string; phone: string | null; eOkulNo: string | null }[]>();
     (data || []).forEach((d: any) => {
@@ -270,6 +293,10 @@ export function AttendanceReportClient({ classes, schoolFilter }: Props) {
         <Select value={selectedClassId} onChange={(e) => setSelectedClassId(e.target.value)} className="w-auto">
           <option value="all">Tüm Sınıflar</option>
           {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </Select>
+        <Select value={selectedSeason} onChange={(e) => setSelectedSeason(e.target.value)} className="w-auto">
+          <option value="">Aktif Sezon</option>
+          {seasons.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
         </Select>
       </div>
 

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Download, Calendar, Sparkles, Trophy, ListOrdered, BarChart2, Star } from "lucide-react";
@@ -13,10 +14,17 @@ import * as XLSX from "xlsx";
 
 interface ClassRow { id: string; name: string; school_id: string; }
 interface CriteriaRow { id: string; name: string; school_id: string; }
+interface Season {
+  id: string;
+  name: string;
+  archived_at: string;
+}
+
 interface Props {
   classes: ClassRow[];
   criterias: CriteriaRow[];
   schoolFilter: { school_id?: string };
+  seasons: Season[];
 }
 
 // Tarihin ISO Hafta ve Yıl bilgisini döndüren yardımcı fonksiyon
@@ -43,11 +51,12 @@ function getWeekRange(date: Date) {
   };
 }
 
-export function CleanlinessReportClient({ classes, criterias, schoolFilter }: Props) {
+export function CleanlinessReportClient({ classes, criterias, schoolFilter, seasons }: Props) {
   // Varsayılan olarak içinde bulunduğumuz haftayı seçelim
   const [selectedWeekDate, setSelectedWeekDate] = useState(() => {
     return new Date().toISOString().split("T")[0];
   });
+  const [selectedSeason, setSelectedSeason] = useState(""); // "" = aktif
   
   const [loading, setLoading] = useState(true);
   const [scoresData, setScoresData] = useState<any[]>([]);
@@ -59,7 +68,7 @@ export function CleanlinessReportClient({ classes, criterias, schoolFilter }: Pr
 
   useEffect(() => {
     fetchScores();
-  }, [schoolFilter.school_id]);
+  }, [schoolFilter.school_id, selectedSeason]);
 
   async function fetchScores() {
     setLoading(true);
@@ -72,6 +81,11 @@ export function CleanlinessReportClient({ classes, criterias, schoolFilter }: Pr
 
     if (schoolFilter.school_id) {
       query = query.eq("classes.school_id", schoolFilter.school_id);
+    }
+    if (selectedSeason) {
+      query = query.eq("season_name", selectedSeason);
+    } else {
+      query = query.is("season_name", null);
     }
 
     const { data, error } = await query;
@@ -278,6 +292,13 @@ export function CleanlinessReportClient({ classes, criterias, schoolFilter }: Pr
         </div>
         <div className="text-xs text-muted-foreground bg-muted p-2 rounded-lg">
           Seçilen Hafta Aralığı: <span className="font-semibold text-foreground">{new Date(monday).toLocaleDateString("tr-TR")}</span> - <span className="font-semibold text-foreground">{new Date(friday).toLocaleDateString("tr-TR")}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Sezon:</span>
+          <Select value={selectedSeason} onChange={(e) => setSelectedSeason(e.target.value)} className="w-auto">
+            <option value="">Aktif Sezon</option>
+            {seasons.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
+          </Select>
         </div>
         <Button variant="outline" size="sm" onClick={exportExcel} disabled={loading} className="sm:ml-auto">
           <Download className="h-4 w-4 mr-1" /> Excel İndir
