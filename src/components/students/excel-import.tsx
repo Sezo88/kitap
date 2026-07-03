@@ -136,30 +136,101 @@ export function ExcelImport({ classes, schoolId }: Props) {
       }
     }
 
-    // Prepare student inserts
-    const toInsert = parsed.map((p) => ({
-      full_name: p.fullName,
-      e_okul_no: p.eOkulNo || null,
-      class_id: p.classId || newClassIds[p.className] || classes[0]?.id,
-      school_id: schoolId,
-      veli_telefon: p.veliTelefon || null,
-      veli_telefon_2: p.veliTelefon2 || null,
-    }));
+    // Akilli eslestirme: okul no + isme gore guncelle, degilse ekle
+    let updated = 0;
+    let created = 0;
+    const updatedStudentIds: string[] = [];
 
-    // Batch insert in chunks of 50
-    const chunkSize = 50;
-    let inserted = 0;
-    for (let i = 0; i < toInsert.length; i += chunkSize) {
-      const chunk = toInsert.slice(i, i + chunkSize);
-      const { error } = await supabase.from("students").insert(chunk);
-      if (error) {
-        toast(`Hata: ${error.message}`, "error");
+    for (const p of parsed) {
+      const targetClassId = p.classId || newClassIds[p.className] || classes[0]?.id;
+      const payload = {
+        full_name: p.fullName,
+        class_id: targetClassId,
+        school_id: schoolId,
+        is_active: true,
+        veli_telefon: p.veliTelefon || null,
+        veli_telefon_2: p.veliTelefon2 || null,
+      };
+
+      if (p.eOkulNo) {
+        // Okul numarasina gore mevcut ogrenciyi bul
+        const { data: existing } = await supabase
+          .from("students")
+          .select("id, full_name, is_active, class_id")
+          .eq("school_id", schoolId)
+          .eq("e_okul_no", p.eOkulNo)
+          .maybeSingle();
+
+        if (existing) {
+          // Ayni okul no - isim eslesiyor mu kontrol et
+          const nameMatch = existing.full_name.toLowerCase().trim() === p.fullName.toLowerCase().trim();
+          if (nameMatch) {
+            // Ayni ogrenci → guncelle (sinif yukseltme, aktif yap)
+            await supabase.from("students").update(payload).eq("id", existing.id);
+            updatedStudentIds.push(existing.id);
+            updated++;
+            continue;
+          }
+          // Okul no ayni ama isim farkli → numara baskasiya verilmis
+          // Bu yeni ogrenci, eski ogrenciyi pasife alip yeni ekleyelim
+          await supabase.from("students").update({ is_active: false }).eq("id", existing.id);
+          const { data: newStudent } = await supabase
+            .from("students")
+            .insert(payload)
+            .select("id")
+            .single();
+          if (newStudent) updatedStudentIds.push(newStudent.id);
+          created++;
+          continue;
+        }
+      }
+
+      // Isim eslesmesine gore dene (okul no yoksa veya eslesmediyse)
+      const { data: nameMatch } = await supabase
+        .from("students")
+        .select("id, is_active")
+        .eq("school_id", schoolId)
+        .eq("full_name", p.fullName)
+        .maybeSingle();
+
+      if (nameMatch) {
+        // Ayni isimde var → guncelle (okul no yeni atanmis olabilir)
+        await supabase.from("students").update({ ...payload, e_okul_no: p.eOkulNo || null }).eq("id", nameMatch.id);
+        updatedStudentIds.push(nameMatch.id);
+        updated++;
       } else {
-        inserted += chunk.length;
+        // Tamamen yeni ogrenci
+        const { data: newStudent } = await supabase
+          .from("students")
+          .insert({ ...payload, e_okul_no: p.eOkulNo || null })
+          .select("id")
+          .single();
+        if (newStudent) updatedStudentIds.push(newStudent.id);
+        created++;
       }
     }
 
-    toast(`${inserted} öğrenci içe aktarıldı!`, "success");
+    // Import listesinde OLMAYAN aktif ogrencileri pasife al (mezun/ayrilan)
+    const { data: activeStudents } = await supabase
+      .from("students")
+      .select("id")
+      .eq("school_id", schoolId)
+      .eq("is_active", true);
+
+    if (activeStudents) {
+      const activeIds = activeStudents.map((s) => s.id);
+      const toDeactivate = activeIds.filter((id) => !updatedStudentIds.includes(id));
+      if (toDeactivate.length > 0) {
+        await supabase
+          .from("students")
+          .update({ is_active: false })
+          .in("id", toDeactivate);
+      }
+      toast(`${updated} ogrenci guncellendi, ${created} ogrenci eklendi, ${toDeactivate.length} ogrenci pasife alindi!`, "success");
+    } else {
+      toast(`${updated} ogrenci guncellendi, ${created} ogrenci eklendi!`, "success");
+    }
+
     setImporting(false);
     setStep("done");
   }
