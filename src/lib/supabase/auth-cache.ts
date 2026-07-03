@@ -8,7 +8,7 @@ export const getCachedUserAndProfile = cache(async () => {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("*, schools(name, code, feature_attendance, feature_library, feature_cleanliness, feature_lesson_schedule, feature_bell)")
+    .select("*, schools(name, code, feature_attendance, feature_library, feature_cleanliness, feature_lesson_schedule, feature_bell, license_expires_at)")
     .eq("id", user.id)
     .single();
 

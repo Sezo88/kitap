@@ -77,6 +77,8 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, books
   const [stateMap, setStateMap] = useState(initialState);
   const [, setTick] = useState(0);
 
+  const unsavedCount = Array.from(stateMap.values()).filter((st) => !st.saved).length;
+
   const filteredStudents = useMemo(() => {
     if (selectedClassId === "all") return students;
     return students.filter((s) => s.class_id === selectedClassId);
@@ -141,37 +143,16 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, books
   }
 
   // ── Update reading field ────────────────────────────────────────
-  async function updateField(studentId: string, classId: string, field: "broughtBook" | "didRead", value: boolean) {
+  function updateField(studentId: string, classId: string, field: "broughtBook" | "didRead", value: boolean) {
     if (isWeekend) { toast("Hafta sonu takip kaydı girilemez.", "error"); return; }
     const current = stateMap.get(studentId)!;
-    const updated = { ...current, [field]: value };
+    const updated = { ...current, [field]: value, saved: false };
     setStateMap(new Map(stateMap.set(studentId, updated)));
     setTick((t) => t + 1);
-
-    setSaving(`${studentId}-${field}`);
-    const supabase = createClient();
-    const today = new Date().toISOString().split("T")[0];
-
-    const { error } = await supabase.from("reading_logs").upsert(
-      {
-        student_id: studentId,
-        class_id: classId,
-        log_date: today,
-        brought_book: updated.broughtBook,
-        did_read: updated.didRead,
-        marked_by: userId,
-      },
-      { onConflict: "student_id, log_date" }
-    );
-
-    if (!error) {
-      setStateMap(new Map(stateMap.set(studentId, { ...stateMap.get(studentId)!, saved: true })));
-    }
-    setSaving(null);
   }
 
   // ── Mark all ───────────────────────────────────────────────────
-  async function markAll() {
+  function markAll() {
     if (isWeekend) { toast("Hafta sonu toplu işaretleme yapılamaz.", "error"); return; }
     const toUpdate = filteredStudents.filter((s) => {
       const st = stateMap.get(s.id);
@@ -179,28 +160,70 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, books
     });
     if (toUpdate.length === 0) { toast("Tüm öğrenciler zaten işaretlenmiş", "info"); return; }
 
+    const newMap = new Map(stateMap);
+    toUpdate.forEach((s) => {
+      newMap.set(s.id, {
+        ...stateMap.get(s.id)!,
+        broughtBook: true,
+        didRead: true,
+        saved: false,
+      });
+    });
+    setStateMap(newMap);
+    setTick((t) => t + 1);
+    toast(`${toUpdate.length} öğrenci yerel olarak işaretlendi. Kaydetmek için aşağıdaki butona basın.`, "info");
+  }
+
+  // ── Batch save changes ─────────────────────────────────────────
+  const [savingBatch, setSavingBatch] = useState(false);
+
+  async function saveBatchChanges() {
+    if (isWeekend) { toast("Hafta sonu takip kaydı girilemez.", "error"); return; }
+    
+    const unsavedList: StudentRowState[] = [];
+    stateMap.forEach((st) => {
+      if (!st.saved) {
+        unsavedList.push(st);
+      }
+    });
+
+    if (unsavedList.length === 0) {
+      toast("Kaydedilecek değişiklik yok.", "info");
+      return;
+    }
+
+    setSavingBatch(true);
     const supabase = createClient();
     const today = new Date().toISOString().split("T")[0];
-    const upserts = toUpdate.map((s) => ({
-      student_id: s.id, class_id: s.class_id, log_date: today,
-      brought_book: true, did_read: true, marked_by: userId,
+
+    const upserts = unsavedList.map((st) => ({
+      student_id: st.studentId,
+      class_id: st.classId,
+      log_date: today,
+      brought_book: st.broughtBook,
+      did_read: st.didRead,
+      marked_by: userId,
     }));
 
-    const { error } = await supabase.from("reading_logs").upsert(upserts, { onConflict: "student_id, log_date" });
-    if (!error) {
+    const { error } = await supabase
+      .from("reading_logs")
+      .upsert(upserts, { onConflict: "student_id, log_date" });
+
+    if (error) {
+      toast("Kaydetme hatası: " + error.message, "error");
+    } else {
       const newMap = new Map(stateMap);
-      toUpdate.forEach((s) => {
-        newMap.set(s.id, {
-          ...stateMap.get(s.id)!,
-          broughtBook: true, didRead: true, saved: true,
+      unsavedList.forEach((st) => {
+        newMap.set(st.studentId, {
+          ...st,
+          saved: true,
         });
       });
       setStateMap(newMap);
       setTick((t) => t + 1);
-      toast(`${toUpdate.length} öğrenci işaretlendi`, "success");
-    } else {
-      toast("Hata: " + error.message, "error");
+      toast(`${unsavedList.length} kayıt başarıyla kaydedildi.`, "success");
     }
+    setSavingBatch(false);
   }
 
   // ── Finish book ─────────────────────────────────────────────────
@@ -353,7 +376,7 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, books
           const st = stateMap.get(s.id);
           if (!st) return null;
           return (
-            <Card key={s.id} className={st.saved ? "border-green-200 bg-green-50/30" : ""}>
+            <Card key={s.id} className={st.saved ? "border-green-200 bg-green-50/10" : "border-amber-200 bg-amber-50/20 border-l-4 border-l-amber-500 shadow-sm"}>
               <CardContent className="p-3 space-y-2.5">
                 {/* Name + class + save indicator */}
                 <div className="flex items-start justify-between gap-2">
@@ -361,7 +384,11 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, books
                     <p className="font-semibold text-sm">{s.full_name}</p>
                     <Badge variant="outline" className="text-xs mt-0.5">{getClassName(s)}</Badge>
                   </div>
-                  {st.saved && <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />}
+                  {st.saved ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                  ) : (
+                    <span className="text-[10px] text-amber-600 font-bold bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200 shrink-0">KAYDEDİLMEDİ</span>
+                  )}
                 </div>
 
                 {/* Book info (always visible, with inline assign) */}
@@ -418,8 +445,15 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, books
                   const st = stateMap.get(s.id);
                   if (!st) return null;
                   return (
-                    <TableRow key={s.id} className={st.saved ? "bg-green-50/50" : ""}>
-                      <TableCell className="font-medium">{s.full_name}</TableCell>
+                    <TableRow key={s.id} className={st.saved ? "bg-green-50/20" : "bg-amber-50/40 border-l-2 border-l-amber-500 font-medium"}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <span>{s.full_name}</span>
+                          {!st.saved && (
+                            <span className="text-[9px] text-amber-600 font-extrabold bg-amber-100 px-1 py-0.2 rounded border border-amber-200">KAYDEDİLMEDİ</span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell><Badge variant="outline">{getClassName(s)}</Badge></TableCell>
                       <TableCell>
                         <BookCell st={st} compact={false} />
@@ -450,6 +484,19 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, books
           </CardContent>
         </Card>
       </div>
+
+      {/* Kaydet Butonu */}
+      {unsavedCount > 0 && (
+        <div className="flex justify-end pt-4">
+          <Button
+            onClick={saveBatchChanges}
+            disabled={savingBatch}
+            className="w-full sm:w-auto font-bold bg-primary hover:bg-primary/95 text-primary-foreground py-2.5 px-6 shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+          >
+            {savingBatch ? "Kaydediliyor..." : `Değişiklikleri Kaydet (${unsavedCount} Kayıt)`}
+          </Button>
+        </div>
+      )}
 
       {/* ── Book Assignment Dialog ─────────────────────────── */}
       <Dialog open={!!bookDialogStudent} onOpenChange={(open) => !open && setBookDialogStudent(null)}>

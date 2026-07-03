@@ -1,12 +1,21 @@
 import { createClient } from "@/lib/supabase/server";
 import { AttendanceReportClient } from "@/components/reports/attendance-report-client";
 import { getCachedUserAndProfile } from "@/lib/supabase/auth-cache";
+import { LicenseExpiredBlock } from "@/components/admin/license-expired-block";
 
 export default async function AttendanceReportsPage() {
   const supabase = await createClient();
   const { profile } = await getCachedUserAndProfile();
 
   if (!profile) return null;
+
+  const schoolData = (profile as any)?.schools;
+  const school = Array.isArray(schoolData) ? schoolData[0] : schoolData;
+  const isLicenseExpired = school?.license_expires_at && new Date(school.license_expires_at).getTime() < Date.now();
+
+  if (isLicenseExpired && profile.role !== "super_admin") {
+    return <LicenseExpiredBlock />;
+  }
 
   const schoolFilter = profile.role === "super_admin" ? {} : { school_id: profile.school_id };
 

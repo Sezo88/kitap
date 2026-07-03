@@ -1,11 +1,24 @@
 import { createClient } from "@/lib/supabase/server";
+import { LicenseExpiredBlock } from "@/components/admin/license-expired-block";
 
 export default async function AttendancePage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user!.id).single();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("*, schools(license_expires_at)")
+    .eq("id", user!.id)
+    .single();
 
   if (!profile) return null;
+
+  const schoolData = (profile as any)?.schools;
+  const school = Array.isArray(schoolData) ? schoolData[0] : schoolData;
+  const isLicenseExpired = school?.license_expires_at && new Date(school.license_expires_at).getTime() < Date.now();
+
+  if (isLicenseExpired && profile.role !== "super_admin") {
+    return <LicenseExpiredBlock />;
+  }
 
   const today = new Date().toISOString().split("T")[0];
 

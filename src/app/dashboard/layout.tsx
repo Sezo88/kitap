@@ -53,32 +53,14 @@ export default async function DashboardLayout({
     feature_bell: school?.feature_bell !== false,
   };
 
-  const activeFeatures = (isLicenseExpired && profile?.role !== "super_admin") ? {
-    feature_attendance: false,
-    feature_library: false,
-    feature_cleanliness: false,
-    feature_lesson_schedule: false,
-    feature_bell: false,
-  } : schoolFeatures;
-
   return (
     <DashboardLayoutClient
       role={profile?.role || "ogretmen"}
       fullName={profile?.full_name}
       schoolName={school?.name || null}
-      schoolFeatures={activeFeatures}
+      schoolFeatures={schoolFeatures}
     >
-      {(isLicenseExpired && profile?.role !== "super_admin") ? (
-        <div className="flex items-center justify-center min-h-[60vh] p-4">
-          <div className="bg-red-50 border border-red-200 text-red-900 rounded-2xl p-6 sm:p-8 max-w-lg text-center shadow-lg space-y-4">
-            <div className="text-5xl">⚠️</div>
-            <h1 className="text-xl sm:text-2xl font-bold text-red-700">Okul Lisans Süresi Dolmuştur</h1>
-            <p className="text-sm text-red-600 leading-relaxed">
-              Okulunuzun sistem kullanım lisansı sonlanmıştır. Özellikleri tekrar aktif edebilmek için lütfen sistem yöneticiniz <strong>Sezai KAYA</strong> ile iletişime geçiniz.
-            </p>
-          </div>
-        </div>
-      ) : children}
+      {children}
     </DashboardLayoutClient>
   );
 }
