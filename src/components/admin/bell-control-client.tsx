@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
-import { Bell, Flag, Megaphone, History, Trash2 } from "lucide-react";
+import { Bell, Flag, Megaphone, History, Trash2, Square } from "lucide-react";
 
 interface Props {
   schoolId: string;
@@ -19,6 +19,7 @@ const COMMAND_LABELS: Record<string, { label: string; icon: typeof Bell; color: 
   play_bell: { label: "Teneffüs Zili", icon: Bell, color: "text-blue-600 bg-blue-100" },
   play_anthem: { label: "İstiklal Marşı", icon: Flag, color: "text-red-600 bg-red-100" },
   custom_announcement: { label: "Özel Anons", icon: Megaphone, color: "text-purple-600 bg-purple-100" },
+  stop_sound: { label: "Sesi Durdur", icon: Square, color: "text-rose-600 bg-rose-100 hover:bg-rose-200" },
 };
 
 export function BellControlClient({ schoolId, userId, initialCommands }: Props) {
@@ -108,7 +109,7 @@ export function BellControlClient({ schoolId, userId, initialCommands }: Props) 
           </Badge>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-4">
             {Object.entries(COMMAND_LABELS).map(([type, config]) => {
               const Icon = config.icon;
               return (
