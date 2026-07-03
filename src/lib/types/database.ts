@@ -43,6 +43,7 @@ export interface Student {
   veli_telefon_2: string | null;
   veli_telefon_sahip: string | null;
   veli_telefon_2_sahip: string | null;
+  dogum_tarihi: string | null;
   created_at: string;
 }
 
@@ -214,4 +215,66 @@ export interface StudentProjectWithDetails extends StudentProject {
   subjects?: { name: string } | null;
   classes?: { name: string } | null;
 }
+
+// ── Zil / Ders Programı / Nöbet Tipleri ──────────────────────
+
+export interface BellSchedule {
+  id: string;
+  school_id: string;
+  period_no: number;
+  start_time: string;
+  end_time: string;
+  label: string;
+  created_at: string;
+}
+
+export interface LessonSchedule {
+  id: string;
+  school_id: string;
+  class_id: string;
+  teacher_id: string;
+  subject_id: string;
+  day_of_week: number;
+  period_no: number;
+  created_at: string;
+}
+
+export interface LessonScheduleWithDetails extends LessonSchedule {
+  classes?: { name: string } | null;
+  profiles?: { full_name: string } | null;
+  subjects?: { name: string } | null;
+}
+
+export interface DutySchedule {
+  id: string;
+  school_id: string;
+  teacher_id: string;
+  day_of_week: number;
+  time_slot: string;
+  location: string | null;
+  created_at: string;
+}
+
+export interface DutyScheduleWithTeacher extends DutySchedule {
+  profiles?: { full_name: string } | null;
+}
+
+export interface PanelSettings {
+  id: string;
+  school_id: string;
+  active_slides: string[];
+  slide_duration: number;
+  created_at: string;
+}
+
+export interface PanelAnnouncement {
+  id: string;
+  school_id: string;
+  title: string;
+  content: string;
+  expires_at: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
 

@@ -22,6 +22,10 @@ import {
   BookMarked,
   FolderKanban,
   FileSearch,
+  Bell,
+  CalendarDays,
+  Shield,
+  Monitor,
 } from "lucide-react";
 import type { Role } from "@/lib/types/database";
 
@@ -43,6 +47,11 @@ const menuItems = [
   { href: "/dashboard/projects/list", label: "Proje Listesi", icon: FileSearch, roles: ["super_admin", "idareci", "ogretmen"] },
   { href: "/dashboard/reports", label: "Raporlar", icon: BarChart3, roles: ["super_admin", "idareci", "ogretmen"] },
   { href: "/dashboard/subjects", label: "Ders Yönetimi", icon: BookMarked, roles: ["super_admin", "idareci"] },
+  { href: "/dashboard/admin/bell-schedule", label: "Zil Saatleri", icon: Bell, roles: ["super_admin", "idareci"] },
+  { href: "/dashboard/admin/bell-control", label: "Zil Kontrol", icon: Bell, roles: ["super_admin", "idareci"] },
+  { href: "/dashboard/admin/lesson-schedule", label: "Ders Programı", icon: CalendarDays, roles: ["super_admin", "idareci"] },
+  { href: "/dashboard/admin/duty-schedule", label: "Nöbet Programı", icon: Shield, roles: ["super_admin", "idareci"] },
+  { href: "/dashboard/admin/panel-settings", label: "Pano Ayarları", icon: Monitor, roles: ["super_admin", "idareci"] },
   { href: "/dashboard/admin/approvals", label: "Bekleyen Onaylar", icon: Clock, roles: ["super_admin", "idareci"] },
   { href: "/dashboard/admin/users", label: "Kullanıcılar", icon: Settings, roles: ["super_admin", "idareci"] },
   { href: "/dashboard/admin/invite", label: "Davet Gönder", icon: Send, roles: ["super_admin", "idareci"] },

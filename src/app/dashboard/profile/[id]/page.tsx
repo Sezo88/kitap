@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { BookOpen, CalendarCheck, TrendingUp } from "lucide-react";
 import { notFound } from "next/navigation";
 import { getCachedUserAndProfile } from "@/lib/supabase/auth-cache";
+import { StudentReportCard } from "@/components/profile/student-report-card";
 
 function getAcademicYear(dateStrOrObj: string | Date | null): string {
   if (!dateStrOrObj) return "Bilinmeyen";
@@ -128,6 +129,12 @@ export default async function StudentProfilePage({
                 <span className="text-sm">{student.e_okul_no}</span>
               </div>
             )}
+            {student.dogum_tarihi && (
+              <div>
+                <span className="text-sm text-muted-foreground">Doğum Tarihi: </span>
+                <span className="text-sm">{new Date(student.dogum_tarihi).toLocaleDateString("tr-TR")}</span>
+              </div>
+            )}
             <div className="pt-4 border-t space-y-2">
               <div className="flex justify-between">
                 <span className="text-sm text-muted-foreground">Toplam Takip Günü</span>
@@ -240,6 +247,18 @@ export default async function StudentProfilePage({
                 ))}
               </TableBody>
             </Table>
+          </CardContent>
+        </Card>
+
+        {/* Karne Bölümü */}
+        <Card className="lg:col-span-3">
+          <CardContent className="pt-6">
+            <StudentReportCard
+              studentId={studentId}
+              studentName={student.full_name}
+              className={student.classes?.name || ""}
+              selectedYear={selectedYear}
+            />
           </CardContent>
         </Card>
       </div>

@@ -39,6 +39,7 @@ export function StudentList({ students: initialStudents, classes, books, role, s
   const [veliTelefon2, setVeliTelefon2] = useState("");
   const [veliSahip, setVeliSahip] = useState("");
   const [veliSahip2, setVeliSahip2] = useState("");
+  const [dogumTarihi, setDogumTarihi] = useState("");
   const [selectedBookId, setSelectedBookId] = useState("");
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
@@ -72,6 +73,7 @@ export function StudentList({ students: initialStudents, classes, books, role, s
     setVeliTelefon2("");
     setVeliSahip("");
     setVeliSahip2("");
+    setDogumTarihi("");
     setDialogOpen(true);
   }
 
@@ -84,6 +86,7 @@ export function StudentList({ students: initialStudents, classes, books, role, s
     setVeliTelefon2(s.veli_telefon_2 || "");
     setVeliSahip(s.veli_telefon_sahip || "");
     setVeliSahip2(s.veli_telefon_2_sahip || "");
+    setDogumTarihi(s.dogum_tarihi || "");
     setDialogOpen(true);
   }
 
@@ -108,7 +111,8 @@ export function StudentList({ students: initialStudents, classes, books, role, s
           veli_telefon: veliTelefon || null,
           veli_telefon_2: veliTelefon2 || null,
           veli_telefon_sahip: veliSahip || null,
-          veli_telefon_2_sahip: veliSahip2 || null
+          veli_telefon_2_sahip: veliSahip2 || null,
+          dogum_tarihi: dogumTarihi || null
         })
         .eq("id", editingStudent.id);
       setStudents((prev) =>
@@ -123,6 +127,7 @@ export function StudentList({ students: initialStudents, classes, books, role, s
                 veli_telefon_2: veliTelefon2 || null,
                 veli_telefon_sahip: veliSahip || null,
                 veli_telefon_2_sahip: veliSahip2 || null,
+                dogum_tarihi: dogumTarihi || null,
                 classes: classes.find((c) => c.id === classId) || s.classes
               }
             : s
@@ -140,7 +145,8 @@ export function StudentList({ students: initialStudents, classes, books, role, s
           veli_telefon: veliTelefon || null,
           veli_telefon_2: veliTelefon2 || null,
           veli_telefon_sahip: veliSahip || null,
-          veli_telefon_2_sahip: veliSahip2 || null
+          veli_telefon_2_sahip: veliSahip2 || null,
+          dogum_tarihi: dogumTarihi || null
         })
         .select("*, classes!inner(name)")
         .single();
@@ -615,6 +621,10 @@ export function StudentList({ students: initialStudents, classes, books, role, s
                 <option value="Diğer">Diğer</option>
               </Select>
             </div>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="dogumtarihi">Doğum Tarihi</Label>
+            <Input id="dogumtarihi" type="date" value={dogumTarihi} onChange={(e) => setDogumTarihi(e.target.value)} />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setDialogOpen(false)}>İptal</Button>
