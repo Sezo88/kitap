@@ -10,6 +10,13 @@ export default async function ReportsPortalPage() {
     return <div className="text-center py-8 text-muted-foreground">Bu sayfaya erişim yetkiniz yok.</div>;
   }
 
+  const schoolData = (profile as any)?.schools;
+  const school = Array.isArray(schoolData) ? schoolData[0] : schoolData;
+
+  const showLibrary = school?.feature_library !== false;
+  const showAttendance = school?.feature_attendance !== false;
+  const showCleanliness = school?.feature_cleanliness !== false;
+
   const reports = [
     {
       title: "Okuma & Kitap Raporları",
@@ -17,6 +24,7 @@ export default async function ReportsPortalPage() {
       href: "/dashboard/reports/reading",
       icon: BookOpen,
       color: "text-blue-600 bg-blue-100",
+      show: showLibrary,
     },
     {
       title: "Yoklama & Devamsızlık Raporları",
@@ -24,6 +32,7 @@ export default async function ReportsPortalPage() {
       href: "/dashboard/reports/attendance",
       icon: ClipboardList,
       color: "text-red-600 bg-red-100",
+      show: showAttendance,
     },
     {
       title: "Temiz Sınıf Raporları",
@@ -31,8 +40,9 @@ export default async function ReportsPortalPage() {
       href: "/dashboard/reports/cleanliness",
       icon: Sparkles,
       color: "text-amber-600 bg-amber-100",
+      show: showCleanliness,
     },
-  ];
+  ].filter(r => r.show || profile.role === "super_admin");
 
   return (
     <div className="space-y-6">
@@ -40,8 +50,8 @@ export default async function ReportsPortalPage() {
         <h2 className="text-xl sm:text-2xl font-bold">Raporlar Portalı</h2>
         <p className="text-sm text-muted-foreground mt-1">Okulunuza ait analiz ve rapor gruplarını seçin.</p>
       </div>
-
-      <div className="grid gap-6 sm:grid-cols-3">
+ 
+      <div className={`grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-${Math.min(3, reports.length)}`}>
         {reports.map((report) => {
           const Icon = report.icon;
           return (

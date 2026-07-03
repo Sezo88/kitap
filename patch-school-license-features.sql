@@ -7,6 +7,7 @@ ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS feature_library boolean NOT 
 ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS feature_cleanliness boolean NOT NULL DEFAULT true;
 ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS feature_lesson_schedule boolean NOT NULL DEFAULT true;
 ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS feature_bell boolean NOT NULL DEFAULT true;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS license_expires_at timestamptz DEFAULT NULL;
 
 -- Süper adminler için tüm okulları görme ve güncelleme RLS politikası
 DROP POLICY IF EXISTS "schools_select_super_admin" ON public.schools;
