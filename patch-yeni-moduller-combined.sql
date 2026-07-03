@@ -118,7 +118,7 @@ CREATE INDEX IF NOT EXISTS idx_duty_schedule_teacher ON public.duty_schedule(tea
 CREATE TABLE IF NOT EXISTS public.bell_commands (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   school_id uuid NOT NULL REFERENCES public.schools(id) ON DELETE CASCADE,
-  command_type text NOT NULL CHECK (command_type IN ('play_bell', 'play_anthem', 'custom_announcement', 'stop_sound', 'play_ceremony')),
+  command_type text NOT NULL CHECK (command_type IN ('play_bell', 'play_anthem', 'custom_announcement', 'stop_sound', 'play_ceremony', 'mute_bell', 'unmute_bell')),
   triggered_by uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   triggered_at timestamptz DEFAULT now(),
   status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'acknowledged')),
@@ -205,10 +205,11 @@ CREATE INDEX IF NOT EXISTS idx_panel_announcements_school ON public.panel_announ
 -- ============================================================
 
 -- schools tablosuna son görülme alanı ekle
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS bell_active boolean NOT NULL DEFAULT true;
 ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS last_bell_heartbeat timestamptz DEFAULT NULL;
 
 -- Heartbeat tetikleyen RPC fonksiyonu (RLS bypass eder, güvenlidir)
-CREATE OR REPLACE FUNCTION public.bell_heartbeat(p_school_id uuid)
+CREATE OR REPLACE FUNCTION public.bell_heartbeat(p_school_id uuid, p_bell_active boolean)
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -216,7 +217,8 @@ SET search_path = ''
 AS $$
 BEGIN
   UPDATE public.schools
-  SET last_bell_heartbeat = now()
+  SET last_bell_heartbeat = now(),
+      bell_active = p_bell_active
   WHERE id = p_school_id;
 END;
 $$;

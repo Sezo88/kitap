@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
-import { Bell, Flag, Megaphone, History, Trash2, Square } from "lucide-react";
+import { Bell, Flag, Megaphone, History, Trash2, Square, BellOff } from "lucide-react";
 
 interface Props {
   schoolId: string;
@@ -21,6 +21,8 @@ const COMMAND_LABELS: Record<string, { label: string; icon: typeof Bell; color: 
   custom_announcement: { label: "Siren Çal", icon: Megaphone, color: "text-purple-600 bg-purple-100" },
   play_ceremony: { label: "Tören (Saygı Duruşu + İstiklal Marşı)", icon: Flag, color: "text-amber-600 bg-amber-100" },
   stop_sound: { label: "Tüm Sesleri Durdur", icon: Square, color: "text-rose-600 bg-rose-100 hover:bg-rose-200" },
+  mute_bell: { label: "Uzaktan Zilleri Kapat", icon: BellOff, color: "text-amber-600 bg-amber-100" },
+  unmute_bell: { label: "Uzaktan Zilleri Aç", icon: Bell, color: "text-emerald-600 bg-emerald-100" },
 };
 
 export function BellControlClient({ schoolId, userId, initialCommands }: Props) {
@@ -28,6 +30,7 @@ export function BellControlClient({ schoolId, userId, initialCommands }: Props) 
   const [sending, setSending] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
   const [onlineStatus, setOnlineStatus] = useState<boolean>(false);
+  const [bellActive, setBellActive] = useState<boolean>(true);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -41,15 +44,18 @@ export function BellControlClient({ schoolId, userId, initialCommands }: Props) 
     const supabase = createClient();
     const { data } = await supabase
       .from("schools")
-      .select("last_bell_heartbeat")
+      .select("last_bell_heartbeat, bell_active")
       .eq("id", schoolId)
       .single();
 
-    if (data?.last_bell_heartbeat) {
-      const diff = Date.now() - new Date(data.last_bell_heartbeat).getTime();
-      setOnlineStatus(diff < 60000); // Son 60 saniyede sinyal geldiyse aktiftir
-    } else {
-      setOnlineStatus(false);
+    if (data) {
+      if (data.last_bell_heartbeat) {
+        const diff = Date.now() - new Date(data.last_bell_heartbeat).getTime();
+        setOnlineStatus(diff < 60000);
+      } else {
+        setOnlineStatus(false);
+      }
+      setBellActive(data.bell_active !== false);
     }
   }
 
@@ -100,18 +106,43 @@ export function BellControlClient({ schoolId, userId, initialCommands }: Props) 
     <div className="space-y-6">
       {/* Komut Butonları */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3">
           <CardTitle className="text-base">Uzaktan Zil / Anons Tetikle</CardTitle>
-          <Badge
-            variant={onlineStatus ? "success" : "outline"}
-            className={onlineStatus ? "bg-emerald-100 text-emerald-800 border-emerald-300" : "bg-slate-100 text-slate-500 border-slate-300"}
-          >
-            {onlineStatus ? "🟢 Zil Programı Aktif" : "🔴 Zil Programı Çevrimdışı"}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge
+              variant={onlineStatus ? "success" : "outline"}
+              className={onlineStatus ? "bg-emerald-100 text-emerald-800 border-emerald-300" : "bg-slate-100 text-slate-500 border-slate-300"}
+            >
+              {onlineStatus ? "🟢 Zil Programı Aktif" : "🔴 Zil Programı Çevrimdışı"}
+            </Badge>
+            {onlineStatus && (
+              <Button
+                variant={bellActive ? "destructive" : "default"}
+                size="sm"
+                className={`h-7 text-xs font-bold px-3 flex items-center gap-1 active:scale-95 transition-all shrink-0 ${
+                  !bellActive ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""
+                }`}
+                onClick={() => triggerCommand(bellActive ? "mute_bell" : "unmute_bell")}
+                disabled={sending !== null}
+              >
+                {bellActive ? (
+                  <>
+                    <BellOff className="h-3.5 w-3.5" /> Zilleri Sustur (Mute)
+                  </>
+                ) : (
+                  <>
+                    <Bell className="h-3.5 w-3.5" /> Zilleri Etkinleştir
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
-            {Object.entries(COMMAND_LABELS).map(([type, config]) => {
+            {Object.entries(COMMAND_LABELS)
+              .filter(([type]) => type !== "mute_bell" && type !== "unmute_bell")
+              .map(([type, config]) => {
               const Icon = config.icon;
               return (
                 <Button
