@@ -43,11 +43,20 @@ export default async function DashboardLayout({
   const schoolData = (profile as any)?.schools;
   const school = Array.isArray(schoolData) ? schoolData[0] : schoolData;
 
+  const schoolFeatures = {
+    feature_attendance: school?.feature_attendance !== false,
+    feature_library: school?.feature_library !== false,
+    feature_cleanliness: school?.feature_cleanliness !== false,
+    feature_lesson_schedule: school?.feature_lesson_schedule !== false,
+    feature_bell: school?.feature_bell !== false,
+  };
+
   return (
     <DashboardLayoutClient
       role={profile?.role || "ogretmen"}
       fullName={profile?.full_name}
       schoolName={school?.name || null}
+      schoolFeatures={schoolFeatures}
     >
       {children}
     </DashboardLayoutClient>

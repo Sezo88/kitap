@@ -26,31 +26,40 @@ import {
   CalendarDays,
   Shield,
   Monitor,
+  Building,
 } from "lucide-react";
 import type { Role } from "@/lib/types/database";
 
 interface SidebarProps {
   role: Role;
   schoolName?: string | null;
+  schoolFeatures?: {
+    feature_attendance: boolean;
+    feature_library: boolean;
+    feature_cleanliness: boolean;
+    feature_lesson_schedule: boolean;
+    feature_bell: boolean;
+  };
   onClose?: () => void;
 }
 
 const menuItems = [
   { href: "/dashboard", label: "Ana Sayfa", icon: BookOpen, roles: ["super_admin", "idareci", "ogretmen"] },
+  { href: "/dashboard/admin/schools", label: "Okul Lisansları", icon: Building, roles: ["super_admin"] },
   { href: "/dashboard/classes", label: "Sınıflar", icon: GraduationCap, roles: ["super_admin", "idareci"] },
   { href: "/dashboard/students", label: "Öğrenciler", icon: Users, roles: ["super_admin", "idareci", "ogretmen"] },
-  { href: "/dashboard/library", label: "Kütüphane", icon: Library, roles: ["super_admin", "idareci", "ogretmen"] },
-  { href: "/dashboard/tracking", label: "Okuma Takip", icon: ClipboardCheck, roles: ["super_admin", "idareci", "ogretmen"] },
-  { href: "/dashboard/attendance", label: "Yoklama", icon: ClipboardList, roles: ["super_admin", "idareci", "ogretmen"] },
-  { href: "/dashboard/cleanliness", label: "Temiz Sınıf Puanlama", icon: Sparkles, roles: ["super_admin", "idareci", "ogretmen"] },
+  { href: "/dashboard/library", label: "Kütüphane", icon: Library, roles: ["super_admin", "idareci", "ogretmen"], feature: "feature_library" },
+  { href: "/dashboard/tracking", label: "Okuma Takip", icon: ClipboardCheck, roles: ["super_admin", "idareci", "ogretmen"], feature: "feature_library" },
+  { href: "/dashboard/attendance", label: "Yoklama", icon: ClipboardList, roles: ["super_admin", "idareci", "ogretmen"], feature: "feature_attendance" },
+  { href: "/dashboard/cleanliness", label: "Temiz Sınıf Puanlama", icon: Sparkles, roles: ["super_admin", "idareci", "ogretmen"], feature: "feature_cleanliness" },
   { href: "/dashboard/projects", label: "Proje Belirleme", icon: FolderKanban, roles: ["super_admin", "idareci", "ogretmen"] },
   { href: "/dashboard/projects/list", label: "Proje Listesi", icon: FileSearch, roles: ["super_admin", "idareci", "ogretmen"] },
   { href: "/dashboard/reports", label: "Raporlar", icon: BarChart3, roles: ["super_admin", "idareci", "ogretmen"] },
   { href: "/dashboard/subjects", label: "Ders Yönetimi", icon: BookMarked, roles: ["super_admin", "idareci"] },
-  { href: "/dashboard/admin/bell-schedule", label: "Ders Saatleri", icon: Bell, roles: ["super_admin", "idareci"] },
-  { href: "/dashboard/admin/bell-control", label: "Zil Kontrol", icon: Bell, roles: ["super_admin", "idareci"] },
-  { href: "/dashboard/admin/lesson-schedule", label: "Ders Programı", icon: CalendarDays, roles: ["super_admin", "idareci"] },
-  { href: "/dashboard/admin/duty-schedule", label: "Nöbet Programı", icon: Shield, roles: ["super_admin", "idareci"] },
+  { href: "/dashboard/admin/bell-schedule", label: "Ders Saatleri", icon: Bell, roles: ["super_admin", "idareci"], feature: "feature_bell" },
+  { href: "/dashboard/admin/bell-control", label: "Zil Kontrol", icon: Bell, roles: ["super_admin", "idareci"], feature: "feature_bell" },
+  { href: "/dashboard/admin/lesson-schedule", label: "Ders Programı", icon: CalendarDays, roles: ["super_admin", "idareci"], feature: "feature_lesson_schedule" },
+  { href: "/dashboard/admin/duty-schedule", label: "Nöbet Programı", icon: Shield, roles: ["super_admin", "idareci"], feature: "feature_lesson_schedule" },
   { href: "/dashboard/admin/panel-settings", label: "Pano Ayarları", icon: Monitor, roles: ["super_admin", "idareci"] },
   { href: "/dashboard/admin/approvals", label: "Bekleyen Onaylar", icon: Clock, roles: ["super_admin", "idareci"] },
   { href: "/dashboard/admin/users", label: "Kullanıcılar", icon: Settings, roles: ["super_admin", "idareci"] },
@@ -59,9 +68,20 @@ const menuItems = [
   { href: "/dashboard/admin/sms-logs", label: "SMS Geçmişi", icon: FileText, roles: ["super_admin", "idareci"] },
 ];
 
-export function Sidebar({ role, schoolName, onClose }: SidebarProps) {
+export function Sidebar({ role, schoolName, schoolFeatures, onClose }: SidebarProps) {
   const pathname = usePathname();
-  const filteredItems = menuItems.filter((item) => item.roles.includes(role));
+  const filteredItems = menuItems.filter((item) => {
+    if (!item.roles.includes(role)) return false;
+    
+    // Süper admin her özelliği görebilir
+    if (role === "super_admin") return true;
+
+    // Lisans kısıtlamalarını kontrol et
+    if (schoolFeatures && item.feature) {
+      return (schoolFeatures as any)[item.feature] !== false;
+    }
+    return true;
+  });
 
   return (
     <aside className="h-full w-64 bg-sidebar text-sidebar-foreground flex flex-col">
