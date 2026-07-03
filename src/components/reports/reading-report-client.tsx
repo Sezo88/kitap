@@ -13,11 +13,18 @@ import { Download, Trophy, Users, BookOpen, TrendingUp, Activity, Star } from "l
 import * as XLSX from "xlsx";
 
 interface Class { id: string; name: string; school_id: string; }
+interface Season {
+  id: string;
+  name: string;
+  archived_at: string;
+}
+
 interface Props {
   classes: Class[];
   schoolFilter: { school_id?: string };
   teachers: { id: string; full_name: string }[];
   hideTeacherActivity?: boolean;
+  seasons: Season[];
 }
 
 // ── Mini bar chart (SVG-free, pure CSS) ─────────────────────────
@@ -50,12 +57,13 @@ function RateBadge({ rate }: { rate: number }) {
   return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${color}`}>%{rate}</span>;
 }
 
-export function ReadingReportClient({ classes, schoolFilter, teachers, hideTeacherActivity }: Props) {
+export function ReadingReportClient({ classes, schoolFilter, teachers, hideTeacherActivity, seasons }: Props) {
   const [startDate, setStartDate] = useState(() => {
     const d = new Date(); d.setMonth(d.getMonth() - 1); return d.toISOString().split("T")[0];
   });
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [selectedClassId, setSelectedClassId] = useState("all");
+  const [selectedSeason, setSelectedSeason] = useState(""); // "" = current season
   const [loading, setLoading] = useState(true);
 
   // Data
@@ -66,7 +74,7 @@ export function ReadingReportClient({ classes, schoolFilter, teachers, hideTeach
 
   useEffect(() => {
     fetchAll();
-  }, [startDate, endDate, selectedClassId]);
+  }, [startDate, endDate, selectedClassId, selectedSeason]);
 
   async function fetchAll() {
     setLoading(true);
@@ -78,6 +86,11 @@ export function ReadingReportClient({ classes, schoolFilter, teachers, hideTeach
       .select("student_id, class_id, brought_book, did_read, marked_by, students!inner(full_name, e_okul_no, classes!inner(name))")
       .gte("log_date", startDate)
       .lte("log_date", endDate);
+    if (selectedSeason) {
+      logsQuery = logsQuery.eq("season_name", selectedSeason);
+    } else {
+      logsQuery = logsQuery.is("season_name", null);
+    }
     if (selectedClassId !== "all") logsQuery = logsQuery.eq("class_id", selectedClassId);
     if (schoolFilter.school_id) {
       const { data: schoolClassIds } = await supabase.from("classes").select("id").eq("school_id", schoolFilter.school_id);
@@ -252,6 +265,12 @@ export function ReadingReportClient({ classes, schoolFilter, teachers, hideTeach
           <option value="all">Tüm Sınıflar</option>
           {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </Select>
+        {seasons.length > 0 && (
+          <Select value={selectedSeason} onChange={(e) => setSelectedSeason(e.target.value)} className="w-auto">
+            <option value="">Aktif Sezon</option>
+            {seasons.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
+          </Select>
+        )}
         <Button variant="outline" size="sm" onClick={exportExcel} className="sm:ml-auto">
           <Download className="h-4 w-4 mr-1" /> Excel İndir
         </Button>

@@ -13,7 +13,8 @@ export default async function ReadingReportsPage() {
 
   const [
     { data: classes },
-    { data: teachers }
+    { data: teachers },
+    { data: seasons }
   ] = await Promise.all([
     supabase
       .from("classes")
@@ -24,7 +25,12 @@ export default async function ReadingReportsPage() {
       .from("profiles")
       .select("id, full_name")
       .match({ ...schoolFilter, role: "ogretmen" })
-      .order("full_name")
+      .order("full_name"),
+    supabase
+      .from("archive_seasons")
+      .select("*")
+      .match(schoolFilter)
+      .order("archived_at", { ascending: false })
   ]);
 
   return (
@@ -35,6 +41,7 @@ export default async function ReadingReportsPage() {
         schoolFilter={schoolFilter}
         teachers={teachers || []}
         hideTeacherActivity={isOgretmen}
+        seasons={seasons || []}
       />
     </div>
   );
