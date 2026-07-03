@@ -39,6 +39,7 @@ interface StudentRowState {
   activeBookTitle: string | null;
   activeBookStartedAt: string | null;
   saved: boolean;
+  hasLog: boolean;
 }
 
 export function DailyTracking({ students, classes, todayLogs, activeBooks, books: initialBooks, userId, role }: Props) {
@@ -70,7 +71,8 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, books
       didRead: log?.did_read || false,
       activeBookTitle: getBookTitle(book),
       activeBookStartedAt: book?.started_at || null,
-      saved: !!log,
+      saved: true,
+      hasLog: !!log,
     });
   });
 
@@ -217,6 +219,7 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, books
         newMap.set(st.studentId, {
           ...st,
           saved: true,
+          hasLog: true,
         });
       });
       setStateMap(newMap);
@@ -376,7 +379,7 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, books
           const st = stateMap.get(s.id);
           if (!st) return null;
           return (
-            <Card key={s.id} className={st.saved ? "border-green-200 bg-green-50/10" : "border-amber-200 bg-amber-50/20 border-l-4 border-l-amber-500 shadow-sm"}>
+            <Card key={s.id} className={!st.saved ? "border-amber-200 bg-amber-50/20 border-l-4 border-l-amber-500 shadow-sm" : st.hasLog ? "border-green-200 bg-green-50/10" : ""}>
               <CardContent className="p-3 space-y-2.5">
                 {/* Name + class + save indicator */}
                 <div className="flex items-start justify-between gap-2">
@@ -384,11 +387,11 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, books
                     <p className="font-semibold text-sm">{s.full_name}</p>
                     <Badge variant="outline" className="text-xs mt-0.5">{getClassName(s)}</Badge>
                   </div>
-                  {st.saved ? (
-                    <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
-                  ) : (
+                  {!st.saved ? (
                     <span className="text-[10px] text-amber-600 font-bold bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200 shrink-0">KAYDEDİLMEDİ</span>
-                  )}
+                  ) : st.hasLog ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                  ) : null}
                 </div>
 
                 {/* Book info (always visible, with inline assign) */}
@@ -445,13 +448,15 @@ export function DailyTracking({ students, classes, todayLogs, activeBooks, books
                   const st = stateMap.get(s.id);
                   if (!st) return null;
                   return (
-                    <TableRow key={s.id} className={st.saved ? "bg-green-50/20" : "bg-amber-50/40 border-l-2 border-l-amber-500 font-medium"}>
+                    <TableRow key={s.id} className={!st.saved ? "bg-amber-50/40 border-l-2 border-l-amber-500 font-medium" : st.hasLog ? "bg-green-50/20" : ""}>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
                           <span>{s.full_name}</span>
-                          {!st.saved && (
+                          {!st.saved ? (
                             <span className="text-[9px] text-amber-600 font-extrabold bg-amber-100 px-1 py-0.2 rounded border border-amber-200">KAYDEDİLMEDİ</span>
-                          )}
+                          ) : st.hasLog ? (
+                            <span className="text-[9px] text-green-600 font-extrabold bg-green-100 px-1 py-0.2 rounded border border-green-200">KAYDEDİLDİ</span>
+                          ) : null}
                         </div>
                       </TableCell>
                       <TableCell><Badge variant="outline">{getClassName(s)}</Badge></TableCell>
