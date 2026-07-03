@@ -34,6 +34,7 @@ interface Props {
   schoolId: string;
   smsActive: boolean;
   totalLessons: number;
+  activeLesson: number;
 }
 
 function getClassName(s: StudentRow): string {
@@ -52,10 +53,10 @@ interface RowState {
   smsFailed: boolean;
 }
 
-export function AttendanceForm({ students, classes, todayLogs, userId, schoolId, smsActive, totalLessons }: Props) {
+export function AttendanceForm({ students, classes, todayLogs, userId, schoolId, smsActive, totalLessons, activeLesson }: Props) {
   const [localStudents, setLocalStudents] = useState<StudentRow[]>(students);
   const [selectedClassId, setSelectedClassId] = useState(classes[0]?.id || "all");
-  const [lessonNo, setLessonNo] = useState(1);
+  const [lessonNo, setLessonNo] = useState(activeLesson);
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
