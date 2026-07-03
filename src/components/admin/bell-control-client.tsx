@@ -18,8 +18,9 @@ interface Props {
 const COMMAND_LABELS: Record<string, { label: string; icon: typeof Bell; color: string }> = {
   play_bell: { label: "Teneffüs Zili", icon: Bell, color: "text-blue-600 bg-blue-100" },
   play_anthem: { label: "İstiklal Marşı", icon: Flag, color: "text-red-600 bg-red-100" },
-  custom_announcement: { label: "Özel Anons", icon: Megaphone, color: "text-purple-600 bg-purple-100" },
-  stop_sound: { label: "Sesi Durdur", icon: Square, color: "text-rose-600 bg-rose-100 hover:bg-rose-200" },
+  custom_announcement: { label: "Siren Çal", icon: Megaphone, color: "text-purple-600 bg-purple-100" },
+  play_ceremony: { label: "Tören (Saygı Duruşu + İstiklal Marşı)", icon: Flag, color: "text-amber-600 bg-amber-100" },
+  stop_sound: { label: "Tüm Sesleri Durdur", icon: Square, color: "text-rose-600 bg-rose-100 hover:bg-rose-200" },
 };
 
 export function BellControlClient({ schoolId, userId, initialCommands }: Props) {
@@ -109,7 +110,7 @@ export function BellControlClient({ schoolId, userId, initialCommands }: Props) 
           </Badge>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-3 sm:grid-cols-4">
+          <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
             {Object.entries(COMMAND_LABELS).map(([type, config]) => {
               const Icon = config.icon;
               return (

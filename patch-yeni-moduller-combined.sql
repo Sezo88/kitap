@@ -118,7 +118,7 @@ CREATE INDEX IF NOT EXISTS idx_duty_schedule_teacher ON public.duty_schedule(tea
 CREATE TABLE IF NOT EXISTS public.bell_commands (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   school_id uuid NOT NULL REFERENCES public.schools(id) ON DELETE CASCADE,
-  command_type text NOT NULL CHECK (command_type IN ('play_bell', 'play_anthem', 'custom_announcement', 'stop_sound')),
+  command_type text NOT NULL CHECK (command_type IN ('play_bell', 'play_anthem', 'custom_announcement', 'stop_sound', 'play_ceremony')),
   triggered_by uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   triggered_at timestamptz DEFAULT now(),
   status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'acknowledged')),
