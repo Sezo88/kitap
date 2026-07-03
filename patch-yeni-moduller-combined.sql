@@ -129,7 +129,7 @@ ALTER TABLE public.bell_commands ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "bell_commands_select" ON public.bell_commands;
 CREATE POLICY "bell_commands_select" ON public.bell_commands
-  FOR SELECT USING (school_id = public.get_my_school_id() OR public.get_my_role() = 'super_admin');
+  FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "bell_commands_insert" ON public.bell_commands;
 CREATE POLICY "bell_commands_insert" ON public.bell_commands
@@ -199,3 +199,25 @@ CREATE POLICY "panel_announcements_all" ON public.panel_announcements
   FOR ALL USING (public.get_my_role() IN ('super_admin', 'idareci'));
 
 CREATE INDEX IF NOT EXISTS idx_panel_announcements_school ON public.panel_announcements(school_id);
+
+-- ============================================================
+-- YENİ: ZİL PROGRAMI HEARTBEAT & UZAKTAN KONTROL İLAVELERİ
+-- ============================================================
+
+-- schools tablosuna son görülme alanı ekle
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS last_bell_heartbeat timestamptz DEFAULT NULL;
+
+-- Heartbeat tetikleyen RPC fonksiyonu (RLS bypass eder, güvenlidir)
+CREATE OR REPLACE FUNCTION public.bell_heartbeat(p_school_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  UPDATE public.schools
+  SET last_bell_heartbeat = now()
+  WHERE id = p_school_id;
+END;
+$$;
+

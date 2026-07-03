@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
-import { Bell, Flag, Megaphone, History } from "lucide-react";
+import { Bell, Flag, Megaphone, History, Trash2 } from "lucide-react";
 
 interface Props {
   schoolId: string;
@@ -24,7 +24,32 @@ const COMMAND_LABELS: Record<string, { label: string; icon: typeof Bell; color: 
 export function BellControlClient({ schoolId, userId, initialCommands }: Props) {
   const [commands, setCommands] = useState(initialCommands);
   const [sending, setSending] = useState<string | null>(null);
+  const [clearing, setClearing] = useState(false);
+  const [onlineStatus, setOnlineStatus] = useState<boolean>(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    checkOnlineStatus();
+    // 15 saniyede bir kontrol et
+    const interval = setInterval(checkOnlineStatus, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  async function checkOnlineStatus() {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("schools")
+      .select("last_bell_heartbeat")
+      .eq("id", schoolId)
+      .single();
+
+    if (data?.last_bell_heartbeat) {
+      const diff = Date.now() - new Date(data.last_bell_heartbeat).getTime();
+      setOnlineStatus(diff < 60000); // Son 60 saniyede sinyal geldiyse aktiftir
+    } else {
+      setOnlineStatus(false);
+    }
+  }
 
   async function triggerCommand(commandType: string) {
     setSending(commandType);
@@ -50,12 +75,37 @@ export function BellControlClient({ schoolId, userId, initialCommands }: Props) 
     setSending(null);
   }
 
+  async function clearHistory() {
+    if (!confirm("Tüm uzaktan zil tetikleme geçmişini silmek istediğinize emin misiniz?")) return;
+    setClearing(true);
+    const supabase = createClient();
+
+    const { error } = await supabase
+      .from("bell_commands")
+      .delete()
+      .eq("school_id", schoolId);
+
+    if (error) {
+      toast("Geçmiş temizlenemedi: " + error.message, "error");
+    } else {
+      toast("Zil komut geçmişi temizlendi", "success");
+      setCommands([]);
+    }
+    setClearing(false);
+  }
+
   return (
     <div className="space-y-6">
       {/* Komut Butonları */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
           <CardTitle className="text-base">Uzaktan Zil / Anons Tetikle</CardTitle>
+          <Badge
+            variant={onlineStatus ? "success" : "outline"}
+            className={onlineStatus ? "bg-emerald-100 text-emerald-800 border-emerald-300" : "bg-slate-100 text-slate-500 border-slate-300"}
+          >
+            {onlineStatus ? "🟢 Zil Programı Aktif" : "🔴 Zil Programı Çevrimdışı"}
+          </Badge>
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 sm:grid-cols-3">
@@ -86,11 +136,24 @@ export function BellControlClient({ schoolId, userId, initialCommands }: Props) 
 
       {/* Log */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <History className="h-5 w-5" />
             Komut Geçmişi
           </CardTitle>
+          {commands.length > 0 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={clearHistory}
+              disabled={clearing}
+              className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              Geçmişi Temizle
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           <Table>
