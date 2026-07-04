@@ -682,6 +682,10 @@
         } else bc.innerHTML = '<div class="card-empty">Bu ay doğum günü yok</div>';
       } else bc.innerHTML = '<div class="card-empty">Veri yok</div>';
 
+      // Class isim haritasi (birkac yerde lazim)
+      var classMap = {};
+      if (classesData) classesData.forEach(function(c){ classMap[c.id] = c.name; });
+
       // En Temiz Sınıf & Quiz (5 sn'de bir degisir)
       var cleanHtml = '<h3>Bu Hafta En Temiz Sınıf</h3>';
       if (rawScores && rawScores.length) {
@@ -709,8 +713,6 @@
 
       // Top Readers
       const trc = document.getElementById('topReaders');
-      const classMap = {};
-      if (classesData) classesData.forEach(c => { classMap[c.id] = c.name; });
 
       if (readers && readers.length && config.show_top_readers !== false) {
         const map = new Map();
