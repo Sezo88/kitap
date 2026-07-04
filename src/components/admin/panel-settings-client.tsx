@@ -174,12 +174,12 @@ export function PanelSettingsClient({ initialSettings, initialConfig, initialAnn
   // ── Duyuru ────────────────────────────────────────────────
   async function handleAddAnnouncement(e: React.FormEvent) {
     e.preventDefault();
-    if (!newTitle.trim()) { toast("Baslik gerekli", "error"); return; }
+    if (!newTitle.trim() && !newContent.trim() && !newImageUrl.trim()) { toast("En az baslik, icerik veya gorsel girin", "error"); return; }
     setAddingAnnouncement(true);
     const supabase = createClient();
     const { data, error } = await supabase.from("panel_announcements").insert({
-      school_id: schoolId, title: newTitle, content: newContent || null,
-      category: newCategory, image_url: newImageUrl || null, priority: newPriority,
+      school_id: schoolId, title: newTitle.trim() || null, content: newContent.trim() || null,
+      category: newCategory, image_url: newImageUrl.trim() || null, priority: newPriority,
     }).select("*").single();
     if (error) toast("Hata: " + error.message, "error");
     else {

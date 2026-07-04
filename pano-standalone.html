@@ -776,42 +776,35 @@
       startAutoScroll();
     }
 
-    // Auto-scroll: tum kart icerikleri yavas yavas kendi kendine kaysin
+    // Auto-scroll: asagi in, yukari cik, surekli tekrarla
     function startAutoScroll() {
-      const containers = document.querySelectorAll('.auto-scroll, .l .card, .r .card, #centerPanel');
-      const speeds = [0.3, 0.4, 0.2, 0.35, 0.25]; // farkli hizlar
+      const containers = document.querySelectorAll('.auto-scroll');
+      const speeds = [0.3, 0.4, 0.25, 0.35, 0.3, 0.28]; // farkli hizlar
 
       containers.forEach((el, i) => {
         if (!el) return;
-        let scrolling = false;
         const speed = speeds[i % speeds.length];
 
-        function doScroll() {
-          if (scrolling) return;
-          if (el.scrollHeight <= el.clientHeight) return;
-          scrolling = true;
+        function doScroll(dir) {
+          var maxScroll = el.scrollHeight - el.clientHeight;
+          if (maxScroll <= 0) return;
 
-          const maxScroll = el.scrollHeight - el.clientHeight;
-          let pos = el.scrollTop;
-          let dir = 1;
+          var pos = dir > 0 ? 0 : maxScroll;
+          el.scrollTop = pos;
 
           function step() {
-            if (!document.contains(el)) { scrolling = false; return; }
+            if (!document.contains(el)) return;
             pos += speed * dir;
             el.scrollTop = pos;
 
-            if (pos >= maxScroll - 2) {
-              dir = -1;
-              // En asagida 3 sn bekle
-              scrolling = false;
-              setTimeout(() => { dir = 1; doScroll(); }, 3000);
+            if (dir > 0 && pos >= maxScroll - 1) {
+              // Asagiya indi, 3sn bekle, yukari cik
+              setTimeout(function() { doScroll(-1); }, 3000);
               return;
             }
-            if (pos <= 1 && dir < 0) {
-              dir = 1;
-              // En yukarida 2 sn bekle
-              scrolling = false;
-              setTimeout(() => doScroll(), 2000);
+            if (dir < 0 && pos <= 1) {
+              // Yukari cikti, 2sn bekle, asagi in
+              setTimeout(function() { doScroll(1); }, 2000);
               return;
             }
             requestAnimationFrame(step);
@@ -819,8 +812,8 @@
           step();
         }
 
-        // Ilk baslatma - 2sn gecikmeyle
-        setTimeout(doScroll, 2000 + i * 500);
+        // Ilk baslatma - asagi dogru
+        setTimeout(function() { doScroll(1); }, 2000 + i * 500);
       });
     }
 
