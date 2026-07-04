@@ -612,7 +612,7 @@
           sb.from('classes').select('id,name').eq('school_id',schoolId),
           sb.from('cleanliness_scores').select('class_id,score,classes!inner(name)').gte('score_date',weekMon).lte('score_date',weekFri),
           sb.from('quiz_daily').select('id,quiz_questions(question,answer)').eq('school_id',schoolId).eq('question_date',today.toISOString().split('T')[0]).maybeSingle(),
-          sb.from('quiz_scores').select('score,classes(name)').eq('school_id',schoolId).order('score',{ascending:false}).limit(5)
+          sb.from('quiz_scores').select('score,class_id,classes(name)').eq('school_id',schoolId).order('score',{ascending:false}).limit(5)
         ]);
 
         allData = { cfg, bells, lessons, duties, ann, gal, bdays, readers, classesData, rawScores, dailyQuiz, quizScores, fetchedAt: Date.now() };
@@ -694,7 +694,11 @@
 
       var quizHtml = '<h3>Quiz Sıralaması</h3>';
       if(quizScores && quizScores.length){
-        quizHtml += quizScores.slice(0,5).map(function(s,i){var cn=getArr(s.classes);return'<div class="reader-row"><span style="font-weight:bold;color:#FFD700;min-width:24px;text-align:center">'+(i+1)+'.</span><span style="flex:1">'+(cn?.name||'')+'</span><span style="font-weight:600">'+s.score+' puan</span></div>'}).join('');
+        quizHtml += quizScores.slice(0,5).map(function(s,i){
+          // class_id uzerinden sinif adini classMap'ten al
+          var cname = classMap[s.class_id] || (getArr(s.classes)?.name) || ('Sınıf '+(i+1));
+          return '<div class="reader-row"><span style="font-weight:bold;color:#FFD700;min-width:24px;text-align:center">'+(i+1)+'.</span><span style="flex:1">'+cname+'</span><span style="font-weight:600">'+s.score+' puan</span></div>';
+        }).join('');
       }else quizHtml += '<div class="card-empty">Henuz cevap yok</div>';
 
       var tsc = document.getElementById('topScores');
