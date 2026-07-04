@@ -732,7 +732,7 @@
       for (var i = 0; i < ann.length; i++) {
         var s = ann[i];
         html += '<div style="background:var(--card);backdrop-filter:blur(10px);border-radius:12px;border:1px solid var(--border);padding:16px 20px;width:100%">';
-        if (s.image_url) html += '<img src="' + s.image_url + '" style="max-width:100%;max-height:200px;border-radius:8px;object-fit:cover;margin-bottom:10px;display:block">';
+        if (s.image_url) html += '<img src="' + s.image_url + '" style="max-width:100%;max-height:200px;border-radius:8px;object-fit:cover;margin:0 auto 10px;display:block">';
         html += '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">';
         html += '<div style="flex:1;min-width:0"><div style="font-size:1.2em;font-weight:bold;margin-bottom:4px">' + s.title + '</div>';
         if (s.content) html += '<div style="font-size:.95em;opacity:.85;line-height:1.4">' + s.content + '</div>';

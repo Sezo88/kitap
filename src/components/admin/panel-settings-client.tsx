@@ -10,7 +10,7 @@ import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Save, Plus, Trash2, Megaphone, Monitor, Copy, Check, Image, Palette, Key, Shield } from "lucide-react";
+import { Save, Plus, Trash2, Megaphone, Image, Palette, Key, Shield, Monitor } from "lucide-react";
 import type { PanelSettings, PanelAnnouncement } from "@/lib/types/database";
 
 interface GalleryItem {
@@ -96,7 +96,6 @@ export function PanelSettingsClient({ initialSettings, initialConfig, initialAnn
   const [uploading, setUploading] = useState(false);
 
   const [saving, setSaving] = useState(false);
-  const [copied, setCopied] = useState(false);
   const { toast } = useToast();
 
   // Cloudinary widget script yukle
@@ -108,10 +107,6 @@ export function PanelSettingsClient({ initialSettings, initialConfig, initialAnn
     script.async = true;
     document.body.appendChild(script);
   }, []);
-
-  const panoUrl = typeof window !== "undefined"
-    ? `${window.location.protocol}//${window.location.host}/pano`
-    : "/pano";
 
   // ── Config kaydet ─────────────────────────────────────────
   async function handleSaveConfig() {
@@ -263,13 +258,6 @@ export function PanelSettingsClient({ initialSettings, initialConfig, initialAnn
     toast("Gorsel silindi", "success");
   }
 
-  function handleCopy() {
-    navigator.clipboard.writeText(panoUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-    toast("Pano baglantisi kopyalandi", "success");
-  }
-
   return (
     <Tabs defaultValue="general">
       <TabsList className="mb-4 flex-wrap h-auto gap-1">
@@ -338,17 +326,6 @@ export function PanelSettingsClient({ initialSettings, initialConfig, initialAnn
       {/* ── SLAYT AYARLARI ──────────────────────────────── */}
       <TabsContent value="slides">
         <div className="grid gap-6 md:grid-cols-2">
-          <Card>
-            <CardHeader><CardTitle className="text-base">Pano Baglantisi</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex gap-2">
-                <Input value={panoUrl} readOnly className="text-xs font-mono select-all" />
-                <Button size="icon" onClick={handleCopy}>{copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}</Button>
-              </div>
-              <p className="text-xs text-muted-foreground">Raspberry Pi veya akilli tahtada tam ekran acin. PIN: {panoPin || "ayarlanmadi"}</p>
-            </CardContent>
-          </Card>
-
           <Card>
             <CardHeader><CardTitle className="text-base">Slayt Secimi</CardTitle></CardHeader>
             <CardContent className="space-y-4">
@@ -493,10 +470,6 @@ export function PanelSettingsClient({ initialSettings, initialConfig, initialAnn
               <div><Label>Pano PIN</Label>
                 <Input type="text" inputMode="numeric" maxLength={6} value={panoPin} onChange={(e) => setPanoPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
                   placeholder="Orn: 1234" className="text-2xl tracking-widest text-center w-40" /></div>
-              <div><Label>Pano URL</Label>
-                <div className="flex gap-2"><Input value={panoUrl} readOnly className="text-xs font-mono" />
-                  <Button size="icon" onClick={handleCopy}>{copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}</Button></div>
-              </div>
               <Button onClick={handleSavePin} disabled={saving}><Save className="h-4 w-4 mr-1" />PIN'i Kaydet</Button>
             </CardContent>
           </Card>
