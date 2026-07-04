@@ -222,9 +222,8 @@ export function PanelSettingsClient({ initialSettings, initialConfig, initialAnn
     setAddingGallery(false);
   }
 
-  function handleCloudinaryUpload() {
+  function openCloudinaryUpload(onSuccess: (url: string) => void) {
     setUploading(true);
-    // Cloudinary Upload Widget
     const widget = (window as any).cloudinary.createUploadWidget({
       cloudName: 'dvvh4n2oh',
       uploadPreset: 'okul_pano',
@@ -232,29 +231,29 @@ export function PanelSettingsClient({ initialSettings, initialConfig, initialAnn
       multiple: false,
       maxFileSize: 10000000,
       language: 'tr',
-      text: { 'tr': { menu: { files: 'Dosyalarim' } } },
     }, async (error: any, result: any) => {
       if (error) { toast("Yukleme hatasi: " + error.message, "error"); setUploading(false); return; }
       if (result.event === 'success') {
-        const url = result.info.secure_url;
-        setNewGalleryUrl(url);
-        // Otomatik kaydet
-        const supabase = createClient();
-        const { error: dbErr } = await supabase.from("panel_gallery").insert({
-          school_id: schoolId, cloudinary_url: url,
-          caption: null, display_order: gallery.length,
-        }).select("*").single();
-        if (!dbErr) {
-          // Refresh gallery list
-          const { data: fresh } = await supabase.from("panel_gallery").select("*").eq("school_id", schoolId).order("display_order");
-          if (fresh) setGallery(fresh as GalleryItem[]);
-          toast("Gorsel yuklendi ve kaydedildi!", "success");
-        }
+        onSuccess(result.info.secure_url);
         setUploading(false);
       }
       if (result.event === 'close') setUploading(false);
     });
     widget.open();
+  }
+
+  function handleCloudinaryUpload() {
+    openCloudinaryUpload(async (url) => {
+      setNewGalleryUrl(url);
+      const supabase = createClient();
+      await supabase.from("panel_gallery").insert({
+        school_id: schoolId, cloudinary_url: url,
+        caption: null, display_order: gallery.length,
+      });
+      const { data: fresh } = await supabase.from("panel_gallery").select("*").eq("school_id", schoolId).order("display_order");
+      if (fresh) setGallery(fresh as GalleryItem[]);
+      toast("Gorsel yuklendi!", "success");
+    });
   }
 
   async function handleDeleteGallery(id: string) {
@@ -306,7 +305,10 @@ export function PanelSettingsClient({ initialSettings, initialConfig, initialAnn
             <CardHeader><CardTitle className="text-base">Okul Kimligi</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div><Label>Logo URL (Cloudinary)</Label>
-                <Input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://res.cloudinary.com/..." /></div>
+                <div className="flex gap-2">
+                  <Input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://res.cloudinary.com/..." className="flex-1" />
+                  <Button type="button" variant="outline" size="sm" onClick={() => openCloudinaryUpload((url) => setLogoUrl(url))} disabled={uploading}><Image className="h-3.5 w-3.5 mr-1" />Yukle</Button>
+                </div></div>
               <div><Label>Okul Mottosu</Label>
                 <Input value={motto} onChange={(e) => setMotto(e.target.value)} placeholder="Orn: Bilim ve Ahlak" /></div>
             </CardContent>
@@ -392,7 +394,11 @@ export function PanelSettingsClient({ initialSettings, initialConfig, initialAnn
                 </div>
                 <div className="grid md:grid-cols-2 gap-3">
                   <div><Label>Icerik</Label><Input value={newContent} onChange={(e) => setNewContent(e.target.value)} placeholder="Detayli aciklama" /></div>
-                  <div><Label>Gorsel URL (Cloudinary, opsiyonel)</Label><Input value={newImageUrl} onChange={(e) => setNewImageUrl(e.target.value)} placeholder="https://res.cloudinary.com/..." /></div>
+                  <div><Label>Gorsel URL (Cloudinary, opsiyonel)</Label>
+                    <div className="flex gap-2">
+                      <Input value={newImageUrl} onChange={(e) => setNewImageUrl(e.target.value)} placeholder="https://res.cloudinary.com/..." className="flex-1" />
+                      <Button type="button" variant="outline" size="sm" onClick={() => openCloudinaryUpload((url) => setNewImageUrl(url))} disabled={uploading}><Image className="h-3.5 w-3.5 mr-1" />Yukle</Button>
+                    </div></div>
                 </div>
                 <div className="flex items-center gap-4">
                   <div><Label>Oncelik</Label><Input type="number" min={0} max={10} value={newPriority} onChange={(e) => setNewPriority(parseInt(e.target.value) || 0)} className="w-20" /></div>
@@ -440,7 +446,11 @@ export function PanelSettingsClient({ initialSettings, initialConfig, initialAnn
                   <p className="text-sm font-medium mb-2">veya manuel URL ekle</p>
                   <form onSubmit={handleAddGallery} className="space-y-3">
                     <div className="grid md:grid-cols-2 gap-3">
-                      <div><Label>Cloudinary URL</Label><Input value={newGalleryUrl} onChange={(e) => setNewGalleryUrl(e.target.value)} placeholder="https://res.cloudinary.com/dvvh4n2oh/..." /></div>
+                      <div><Label>Cloudinary URL</Label>
+                        <div className="flex gap-2">
+                          <Input value={newGalleryUrl} onChange={(e) => setNewGalleryUrl(e.target.value)} placeholder="https://res.cloudinary.com/..." className="flex-1" />
+                          <Button type="button" variant="outline" size="sm" onClick={() => openCloudinaryUpload((url) => setNewGalleryUrl(url))} disabled={uploading}><Image className="h-3.5 w-3.5 mr-1" />Yukle</Button>
+                        </div></div>
                       <div><Label>Aciklama</Label><Input value={newGalleryCaption} onChange={(e) => setNewGalleryCaption(e.target.value)} placeholder="Gorsel aciklamasi" /></div>
                     </div>
                     <Button type="submit" disabled={addingGallery} variant="outline"><Plus className="h-4 w-4 mr-1" />Ekle</Button>
