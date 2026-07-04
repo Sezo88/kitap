@@ -272,6 +272,11 @@ export interface PanelAnnouncement {
   school_id: string;
   title: string;
   content: string;
+  category: string;
+  image_url: string | null;
+  priority: number;
+  is_active: boolean;
+  display_order: number;
   expires_at: string | null;
   created_by: string | null;
   created_at: string;

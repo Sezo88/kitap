@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dijital Pano</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box
+    }
+
+    :root {
+      --bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      --card: rgba(255, 255, 255, 0.1);
+      --border: rgba(255, 255, 255, 0.18);
+      --header: rgba(0, 0, 0, 0.3);
+      --text: #fff;
+      --gold: #FFD700;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+      transition: background .5s
+    }
+
+    .pano {
+      width: 100vw;
+      height: 100vh;
+      display: grid;
+      grid-template-areas: "h h h" "l c r" "f f f";
+      grid-template-columns: 1.3fr 2fr 1.3fr;
+      grid-template-rows: 80px 1fr 40px;
+      gap: 10px;
+      padding: 10px
+    }
+
+    .h {
+      grid-area: h;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--header);
+      backdrop-filter: blur(10px);
+      padding: 10px 25px;
+      border-radius: 15px
+    }
+
+    .h .logo-area {
+      display: flex;
+      align-items: center;
+      gap: 15px
+    }
+
+    .h .logo-area img {
+      width: 50px;
+      height: 50px;
+      border-radius: 10px;
+      object-fit: cover
+    }
+
+    .h .school-name {
+      font-size: 2em;
+      font-weight: bold
+    }
+
+    .h .school-motto {
+      font-size: .85em;
+      opacity: .7
+    }
+
+    .h .clock {
+      text-align: right
+    }
+
+    .h .clock .time {
+      font-size: 2.5em;
+      font-weight: bold;
+      font-variant-numeric: tabular-nums
+    }
+
+    .h .clock .date {
+      font-size: .85em;
+      opacity: .8
+    }
+
+    .h .clock .status {
+      font-size: 1em;
+      color: var(--gold);
+      margin-top: 2px
+    }
+
+    .l {
+      grid-area: l;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow: hidden
+    }
+
+    .c {
+      grid-area: c;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border-radius: 15px
+    }
+
+    .r {
+      grid-area: r;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow: hidden
+    }
+
+    .f {
+      grid-area: f;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 10px;
+      font-size: .8em
+    }
+
+    .card {
+      background: var(--card);
+      backdrop-filter: blur(10px);
+      border-radius: 15px;
+      padding: 15px;
+      border: 1px solid var(--border);
+      overflow: auto
+    }
+
+    .card h3 {
+      margin: 0 0 10px;
+      font-size: 1.1em
+    }
+
+    .card-empty {
+      opacity: .6;
+      text-align: center;
+      padding: 20px;
+      font-size: .9em
+    }
+
+    .lesson-row,
+    .duty-row,
+    .bday-row,
+    .reader-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 5px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: .9em
+    }
+
+    .lesson-row .per {
+      font-weight: 600;
+      min-width: 30px
+    }
+
+    .lesson-row .sub {
+      flex: 1
+    }
+
+    .lesson-row .tch {
+      opacity: .7;
+      font-size: .85em
+    }
+
+    .slide-wrap {
+      width: 100%;
+      height: 100%;
+      background: var(--card);
+      backdrop-filter: blur(10px);
+      border-radius: 15px;
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 30px;
+      text-align: center;
+      position: relative;
+      overflow: hidden
+    }
+
+    .slide-wrap img {
+      max-width: 60%;
+      max-height: 45%;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      object-fit: cover
+    }
+
+    .slide-wrap .title {
+      font-size: 2.2em;
+      font-weight: bold;
+      margin-bottom: 10px
+    }
+
+    .slide-wrap .content {
+      font-size: 1.2em;
+      opacity: .85;
+      max-width: 80%
+    }
+
+    .slide-wrap .cat {
+      position: absolute;
+      top: 15px;
+      right: 20px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: .75em;
+      font-weight: 600
+    }
+
+    .slide-wrap .dots {
+      position: absolute;
+      bottom: 15px;
+      display: flex;
+      gap: 8px
+    }
+
+    .slide-wrap .dots span {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .3);
+      transition: .3s
+    }
+
+    .slide-wrap .dots span.active {
+      width: 24px;
+      background: #fff
+    }
+
+    .top-class {
+      background: linear-gradient(135deg, rgba(255, 215, 0, .2), rgba(255, 215, 0, .05));
+      border: 1px solid rgba(255, 215, 0, .3);
+      border-radius: 15px;
+      padding: 15px;
+      text-align: center
+    }
+
+    .top-class .label {
+      font-size: .85em;
+      opacity: .8
+    }
+
+    .top-class .name {
+      font-size: 1.5em;
+      font-weight: bold;
+      color: var(--gold)
+    }
+
+    .top-class .avg {
+      font-size: .85em;
+      opacity: .7
+    }
+
+    .login-overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      z-index: 9999
+    }
+
+    .login-box {
+      background: rgba(255, 255, 255, .15);
+      backdrop-filter: blur(20px);
+      padding: 40px 50px;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, .2);
+      text-align: center;
+      color: #fff
+    }
+
+    .login-box h1 {
+      font-size: 28px;
+      margin-bottom: 8px
+    }
+
+    .login-box p {
+      opacity: .8;
+      margin-bottom: 24px
+    }
+
+    .login-box input {
+      width: 100%;
+      padding: 14px 18px;
+      font-size: 22px;
+      border-radius: 12px;
+      border: 2px solid rgba(255, 255, 255, .3);
+      background: rgba(255, 255, 255, .1);
+      color: #fff;
+      text-align: center;
+      letter-spacing: 8px;
+      outline: none;
+      margin-bottom: 12px
+    }
+
+    .login-box .err {
+      color: #FFD700;
+      font-size: 14px;
+      margin-bottom: 12px
+    }
+
+    .login-box button {
+      width: 100%;
+      padding: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer
+    }
+
+    .login-box button:enabled {
+      background: #fff;
+      color: #667eea
+    }
+
+    .login-box button:disabled {
+      background: rgba(255, 255, 255, .2);
+      color: rgba(255, 255, 255, .5);
+      cursor: default
+    }
+
+    .gallery-thumb {
+      position: fixed;
+      bottom: 50px;
+      right: 20px;
+      width: 280px;
+      height: 180px;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 2px solid rgba(255, 255, 255, .2);
+      z-index: 100
+    }
+
+    .gallery-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover
+    }
+
+    .gallery-thumb .cap {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(0, 0, 0, .7);
+      padding: 4px 10px;
+      font-size: .8em
+    }
+
+    .offline-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 6px
+    }
+
+    .offline-dot.on {
+      background: #4CAF50
+    }
+
+    .offline-dot.off {
+      background: #f44336
+    }
+
+    @media(max-width:1024px) {
+      .pano {
+        grid-template-areas: "h" "c" "f";
+        grid-template-columns: 1fr;
+        grid-template-rows: 70px 1fr 35px
+      }
+
+      .l,
+      .r {
+        display: none
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="login-overlay" id="login">
+    <div class="login-box">
+      <h1>Dijital Pano</h1>
+      <p>Okul PIN kodunu girin</p>
+      <input type="password" inputmode="numeric" maxlength="6" id="pinInput" placeholder="PIN" autofocus>
+      <div class="err" id="pinErr"></div>
+      <button id="pinBtn">Giris Yap</button>
+    </div>
+  </div>
+
+  <div class="pano" id="pano" style="display:none">
+    <div class="h">
+      <div class="logo-area">
+        <img id="logo" src="" style="display:none">
+        <div>
+          <div class="school-name" id="schoolName"></div>
+          <div class="school-motto" id="schoolMotto"></div>
+        </div>
+      </div>
+      <div class="clock">
+        <div class="time" id="time"></div>
+        <div class="date" id="date"></div>
+        <div class="status" id="periodStatus"></div>
+      </div>
+    </div>
+
+    <div class="l">
+      <div class="card" style="flex:1">
+        <h3>Bugunun Ders Programi</h3>
+        <div id="lessons">
+          <div class="card-empty">Yukleniyor...</div>
+        </div>
+      </div>
+      <div class="card" style="max-height:200px">
+        <h3>Bugunun Nobetcileri</h3>
+        <div id="duties">
+          <div class="card-empty">Yukleniyor...</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="c">
+      <div class="slide-wrap" id="slide">
+        <div style="opacity:.5;font-size:1.2em">Duyuru yukleniyor...</div>
+      </div>
+    </div>
+
+    <div class="r">
+      <div class="card" style="max-height:200px">
+        <h3>Bu Ay Doganlar</h3>
+        <div id="birthdays">
+          <div class="card-empty">Yukleniyor...</div>
+        </div>
+      </div>
+      <div class="card" style="flex:1">
+        <h3>En Cok Kitap Okuyanlar</h3>
+        <div id="topReaders">
+          <div class="card-empty">Yukleniyor...</div>
+        </div>
+      </div>
+      <div id="topClassBox"></div>
+    </div>
+
+    <div class="f">
+      <span style="opacity:.7" id="galleryInfo"></span>
+      <span>
+        <span class="offline-dot on" id="statusDot"></span>
+        <span id="statusText">Canli</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="gallery-thumb" id="galleryThumb" style="display:none">
+    <img id="galleryImg" src="" alt="">
+    <div class="cap" id="galleryCap"></div>
+  </div>
+
+  <script>
+    // ═══════════════ CONFIG ═══════════════
+    // KITAP Supabase - degistirmeyin!
+    const SUPABASE_URL = 'https://cfkyfqmruruwiyffossq.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNma3lmcW1ydXJ1d2l5ZmZvc3NxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzMDgxOTAsImV4cCI6MjA5Nzg4NDE5MH0.ZjFqPPiZOD6Bw0Ok8wiBfqgSjxYBebXsLayXJSMTw4Y';
+    const REFRESH_MIN = 2; // kac dakikada bir kontrol
+    const CACHE_KEY = 'pano_data';
+    const AUTH_KEY = 'pano_auth';
+
+    const THEMES = {
+      blue: 'linear-gradient(135deg,#667eea 0%,#764ba2 100%)',
+      green: 'linear-gradient(135deg,#2E7D32 0%,#1B5E20 100%)',
+      orange: 'linear-gradient(135deg,#FF9800 0%,#E65100 100%)',
+      purple: 'linear-gradient(135deg,#9C27B0 0%,#6A1B9A 100%)',
+      red: 'linear-gradient(135deg,#D32F2F 0%,#B71C1C 100%)',
+      teal: 'linear-gradient(135deg,#00897B 0%,#00695C 100%)',
+      indigo: 'linear-gradient(135deg,#303F9F 0%,#1A237E 100%)',
+      pink: 'linear-gradient(135deg,#E91E63 0%,#C2185B 100%)',
+      dark: 'linear-gradient(135deg,#424242 0%,#212121 100%)',
+      sky: 'linear-gradient(135deg,#0288D1 0%,#01579B 100%)'
+    };
+
+    // ═══════════════ STATE ═══════════════
+    let schoolId = null;
+    let schoolName = '';
+    let config = {};
+    let allData = null;
+    let slideIdx = 0;
+    let galleryIdx = 0;
+    let slideTimer, galleryTimer, clockTimer, refreshTimer;
+
+    // ═══════════════ INIT ═══════════════
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // Auto-login
+    const saved = sessionStorage.getItem(AUTH_KEY);
+    if (saved) {
+      try {
+        const d = JSON.parse(saved);
+        if (d.expires > Date.now()) { schoolId = d.schoolId; schoolName = d.schoolName; startPano(); }
+      } catch (e) { sessionStorage.removeItem(AUTH_KEY); }
+    }
+
+    // ═══════════════ LOGIN ═══════════════
+    document.getElementById('pinBtn').addEventListener('click', async () => {
+      const pin = document.getElementById('pinInput').value.trim();
+      const btn = document.getElementById('pinBtn');
+      const err = document.getElementById('pinErr');
+      if (!pin) return;
+      btn.disabled = true; btn.textContent = 'Kontrol ediliyor...'; err.textContent = '';
+
+      const { data } = await sb.from('schools').select('id,name,pano_pin').eq('pano_pin', pin).maybeSingle();
+      if (data) {
+        schoolId = data.id; schoolName = data.name;
+        sessionStorage.setItem(AUTH_KEY, JSON.stringify({ schoolId: data.id, schoolName: data.name, expires: Date.now() + 86400000 }));
+        startPano();
+      } else {
+        err.textContent = 'Gecersiz PIN!';
+        btn.disabled = false; btn.textContent = 'Giris Yap';
+      }
+    });
+
+    document.getElementById('pinInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('pinBtn').click();
+    });
+
+    // ═══════════════ START ═══════════════
+    async function startPano() {
+      document.getElementById('login').style.display = 'none';
+      document.getElementById('pano').style.display = 'grid';
+      document.getElementById('schoolName').textContent = schoolName;
+
+      // Cache'ten yukle
+      const cached = localStorage.getItem(CACHE_KEY + '_' + schoolId);
+      if (cached) {
+        try { allData = JSON.parse(cached); renderAll(); } catch (e) { }
+      }
+
+      await fetchAll();
+      startTimers();
+      refreshTimer = setInterval(fetchAll, REFRESH_MIN * 60 * 1000);
+    }
+
+    // ═══════════════ FETCH ═══════════════
+    async function fetchAll() {
+      if (!schoolId) return;
+      const today = new Date();
+      const dow = today.getDay();
+
+      try {
+        const [
+          { data: cfg }, { data: bells }, { data: lessons }, { data: duties },
+          { data: ann }, { data: gal }, { data: bdays }, { data: readers }, { data: classesData }
+        ] = await Promise.all([
+          sb.from('panel_config').select('*').eq('school_id', schoolId).maybeSingle(),
+          sb.from('bell_schedule').select('*').eq('school_id', schoolId).order('period_no'),
+          sb.from('lesson_schedule').select('day_of_week,period_no,subjects(name),profiles!lesson_schedule_teacher_id_fkey(full_name),classes(name)').eq('classes.school_id', schoolId).eq('day_of_week', dow).order('period_no'),
+          sb.from('duty_schedule').select('day_of_week,location,time_slot,profiles!duty_schedule_teacher_id_fkey(full_name)').eq('school_id', schoolId).eq('day_of_week', dow),
+          sb.from('panel_announcements').select('*').eq('school_id', schoolId).eq('is_active', true).order('priority', { ascending: false }).order('display_order'),
+          sb.from('panel_gallery').select('*').eq('school_id', schoolId).eq('is_active', true).order('display_order'),
+          sb.from('students').select('full_name,class_id,dogum_tarihi,classes(name)').eq('school_id', schoolId).eq('is_active', true).not('dogum_tarihi', 'is', null),
+          sb.from('student_books').select('student_id,students!inner(full_name,class_id)').eq('status','completed'),
+          sb.from('classes').select('id,name').eq('school_id',schoolId)
+        ]);
+
+        allData = { cfg, bells, lessons, duties, ann, gal, bdays, readers, classesData, fetchedAt: Date.now() };
+        localStorage.setItem(CACHE_KEY + '_' + schoolId, JSON.stringify(allData));
+        updateStatus(true);
+      } catch (e) {
+        updateStatus(false);
+      }
+      renderAll();
+    }
+
+    function updateStatus(online) {
+      document.getElementById('statusDot').className = 'offline-dot ' + (online ? 'on' : 'off');
+      document.getElementById('statusText').textContent = online ? 'Canli' : 'Cache';
+    }
+
+    function getArr(d) { return Array.isArray(d) ? d[0] : d; }
+
+    // ═══════════════ RENDER ═══════════════
+    function renderAll() {
+      if (!allData) return;
+      const { cfg, bells, lessons, duties, ann, gal, bdays, readers, classesData } = allData;
+
+      // Config
+      config = cfg || {};
+      document.body.style.background = THEMES[config.theme] || THEMES.blue;
+      if (config.school_logo_url) { document.getElementById('logo').src = config.school_logo_url; document.getElementById('logo').style.display = 'block'; }
+      document.getElementById('schoolMotto').textContent = config.school_motto || '';
+
+      // Lessons
+      const lc = document.getElementById('lessons');
+      if (lessons && lessons.length) {
+        lc.innerHTML = lessons.slice(0, 10).map(l => {
+          const s = getArr(l.subjects); const t = getArr(l.profiles);
+          return `<div class="lesson-row"><span class="per">${l.period_no}.</span><span class="sub">${s?.name || '-'}</span><span class="tch">${t?.full_name || ''}</span></div>`;
+        }).join('');
+      } else lc.innerHTML = '<div class="card-empty">Bugun ders yok</div>';
+
+      // Duties
+      const dc = document.getElementById('duties');
+      if (duties && duties.length) {
+        dc.innerHTML = duties.slice(0, 8).map(d => {
+          const t = getArr(d.profiles);
+          return `<div class="duty-row"><span style="font-weight:600">${t?.full_name || ''}</span><span style="opacity:.7;font-size:.85em">${d.location || d.time_slot || ''}</span></div>`;
+        }).join('');
+      } else dc.innerHTML = '<div class="card-empty">Nobetci yok</div>';
+
+      // Announcements
+      if (ann && ann.length) {
+        slideIdx = 0;
+        renderSlide(ann);
+        if (slideTimer) clearInterval(slideTimer);
+        slideTimer = setInterval(() => { slideIdx = (slideIdx + 1) % ann.length; renderSlide(ann); }, (config.slide_interval || 10) * 1000);
+      }
+
+      // Birthdays
+      const now = new Date(); const thisMonth = now.getMonth();
+      const bc = document.getElementById('birthdays');
+      if (bdays && bdays.length) {
+        const monthBdays = bdays.filter(s => s.dogum_tarihi && new Date(s.dogum_tarihi).getMonth() === thisMonth);
+        if (monthBdays.length) {
+          bc.innerHTML = monthBdays.slice(0, 8).map(b => {
+            const cls = getArr(b.classes);
+            return `<div class="bday-row"><span>${b.full_name}</span><span style="opacity:.7;font-size:.85em">${cls?.name || ''}</span></div>`;
+          }).join('');
+        } else bc.innerHTML = '<div class="card-empty">Bu ay dogum gunu yok</div>';
+      } else bc.innerHTML = '<div class="card-empty">Veri yok</div>';
+
+      // Top Readers
+      const trc = document.getElementById('topReaders');
+      const classMap = {};
+      if (classesData) classesData.forEach(c => { classMap[c.id] = c.name; });
+
+      if (readers && readers.length && config.show_top_readers !== false) {
+        const map = new Map();
+        readers.forEach(r => {
+          const s = getArr(r.students);
+          const sid = s?.full_name; if (!sid) return;
+          const cid = s?.class_id;
+          if (!map.has(sid)) map.set(sid, { student_name: sid, class_name: classMap[cid] || '', book_count: 0 });
+          map.get(sid).book_count++;
+        });
+        const top = Array.from(map.values()).sort((a, b) => b.book_count - a.book_count).slice(0, 7);
+        if (top.length) {
+          trc.innerHTML = top.map((r, i) => `<div class="reader-row"><span style="font-weight:bold;color:#FFD700;min-width:24px;text-align:center">${['1.', '2.', '3.'][i] || (i + 1 + '.')}</span><span style="flex:1">${r.student_name}</span><span style="opacity:.7;font-size:.85em">${r.class_name}</span><span style="font-weight:600">${r.book_count} kitap</span></div>`).join('');
+        } else trc.innerHTML = '<div class="card-empty">Henuz veri yok</div>';
+      } else trc.innerHTML = '<div class="card-empty">Henuz veri yok</div>';
+
+      // Top Class
+      if (readers && readers.length && config.show_top_class !== false) {
+        const cmap = new Map();
+        readers.forEach(r => {
+          const s = getArr(r.students);
+          const cid = s?.class_id; if (!cid) return;
+          const cn = classMap[cid]; if (!cn) return;
+          if (!cmap.has(cn)) cmap.set(cn, { total: 0, count: 0 });
+          const c = cmap.get(cn); c.total++; c.count++;
+        });
+        let best = '', bestAvg = 0;
+        cmap.forEach((v, k) => { const a = v.total / v.count; if (a > bestAvg) { bestAvg = a; best = k; } });
+        if (best) document.getElementById('topClassBox').innerHTML = `<div class="top-class"><div class="label">En Cok Okuyan Sinif</div><div class="name">${best}</div><div class="avg">Ort. ${Math.round(bestAvg)} kitap</div></div>`;
+      }
+
+      // Gallery
+      if (gal && gal.length) {
+        galleryIdx = 0;
+        renderGallery(gal);
+        if (galleryTimer) clearInterval(galleryTimer);
+        galleryTimer = setInterval(() => { galleryIdx = (galleryIdx + 1) % gal.length; renderGallery(gal); }, 8000);
+      }
+    }
+
+    function renderSlide(ann) {
+      if (!ann.length) return;
+      const s = ann[slideIdx];
+      const catNames = { duyuru: 'DUYURU', etkinlik: 'ETKINLIK', ayin_ogrencisi: 'AYIN OGRENCISI', ayin_sinifi: 'AYIN SINIFI', deneme_liderleri: 'DENEME LIDERI' };
+      const catColors = { duyuru: '#4CAF50', etkinlik: '#FF9800', ayin_ogrencisi: '#9C27B0', ayin_sinifi: '#2196F3', deneme_liderleri: '#E91E63' };
+      document.getElementById('slide').innerHTML = `
+    ${s.image_url ? `<img src="${s.image_url}">` : ''}
+    <div class="title" style="font-size:${s.title.length > 30 ? '1.8em' : '2.5em'}">${s.title}</div>
+    ${s.content ? `<div class="content">${s.content}</div>` : ''}
+    <div class="cat" style="background:${catColors[s.category] || '#4CAF50'}">${catNames[s.category] || s.category.toUpperCase()}</div>
+    <div class="dots">${ann.map((_, i) => `<span class="${i === slideIdx ? 'active' : ''}"></span>`).join('')}</div>`;
+    }
+
+    function renderGallery(gal) {
+      if (!gal.length) return;
+      const g = gal[galleryIdx];
+      document.getElementById('galleryThumb').style.display = 'block';
+      document.getElementById('galleryImg').src = g.cloudinary_url;
+      document.getElementById('galleryCap').textContent = g.caption || '';
+      document.getElementById('galleryInfo').textContent = `${galleryIdx + 1} / ${gal.length} - ${g.caption || ''}`;
+    }
+
+    // ═══════════════ TIMERS ═══════════════
+    function startTimers() {
+      clockTimer = setInterval(updateClock, 1000);
+      updateClock();
+    }
+
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('time').textContent = now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      document.getElementById('date').textContent = now.toLocaleDateString('tr-TR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+      if (allData?.bells) {
+        const mins = now.getHours() * 60 + now.getMinutes();
+        let status = 'Ders Disi';
+        for (const b of allData.bells) {
+          const [sh, sm] = b.start_time.split(':').map(Number);
+          const [eh, em] = b.end_time.split(':').map(Number);
+          if (mins >= sh * 60 + sm && mins <= eh * 60 + em) { status = `${b.label} devam ediyor`; break; }
+          if (mins < sh * 60 + sm && status === 'Ders Disi') status = `${b.label} baslayacak`;
+        }
+        document.getElementById('periodStatus').textContent = status;
+      }
+    }
+  </script>
+</body>
+
+</html>
