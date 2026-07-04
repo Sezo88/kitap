@@ -11,20 +11,10 @@ interface Props {
   teachers: { id: string; full_name: string }[];
   initialSchedule: any[];
   schoolId: string;
+  nobetYerleri: string[];
 }
 
 const DAY_NAMES = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma"];
-
-const NOBET_YERLERI = [
-  "1. Kat Koridor",
-  "2. Kat Koridor",
-  "3. Kat Koridor",
-  "Giris / Kapı",
-  "Bahce",
-  "Kantin",
-  "Spor Salonu",
-  "Yemekhane",
-];
 
 interface DutyEntry {
   id?: string;
@@ -33,7 +23,7 @@ interface DutyEntry {
   location: string;
 }
 
-export function DutyScheduleEditor({ teachers, initialSchedule, schoolId }: Props) {
+export function DutyScheduleEditor({ teachers, initialSchedule, schoolId, nobetYerleri }: Props) {
   const [entries, setEntries] = useState<DutyEntry[]>(
     initialSchedule.map((d) => ({
       id: d.id,
@@ -46,7 +36,7 @@ export function DutyScheduleEditor({ teachers, initialSchedule, schoolId }: Prop
   const { toast } = useToast();
 
   function addEntry(dayOfWeek: number) {
-    setEntries([...entries, { teacher_id: "", day_of_week: dayOfWeek, location: NOBET_YERLERI[0] }]);
+    setEntries([...entries, { teacher_id: "", day_of_week: dayOfWeek, location: nobetYerleri[0] }]);
   }
 
   function removeEntry(idx: number) {
@@ -142,7 +132,7 @@ export function DutyScheduleEditor({ teachers, initialSchedule, schoolId }: Prop
                         value={entry.location}
                         onChange={(e) => updateEntry(entry._idx, "location", e.target.value)}
                       >
-                        {NOBET_YERLERI.map((loc) => (
+                        {nobetYerleri.map((loc) => (
                           <option key={loc} value={loc}>{loc}</option>
                         ))}
                       </select>

@@ -8,6 +8,7 @@ ALTER TABLE panel_announcements ADD COLUMN IF NOT EXISTS image_url TEXT;
 ALTER TABLE panel_announcements ADD COLUMN IF NOT EXISTS priority INT DEFAULT 0;
 ALTER TABLE panel_announcements ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
 ALTER TABLE panel_announcements ADD COLUMN IF NOT EXISTS display_order INT DEFAULT 0;
+ALTER TABLE panel_config ADD COLUMN IF NOT EXISTS nobet_yerleri TEXT DEFAULT '1. Kat Koridor,2. Kat Koridor,Giris/Kapi,Bahce,Kantin';
 
 -- 1. Schools tablosuna pano PIN ve token ekle
 ALTER TABLE schools ADD COLUMN IF NOT EXISTS pano_pin TEXT;
@@ -53,6 +54,7 @@ CREATE TABLE IF NOT EXISTS panel_config (
   show_clock BOOLEAN DEFAULT true,
   show_top_readers BOOLEAN DEFAULT true,
   show_top_class BOOLEAN DEFAULT true,
+  nobet_yerleri TEXT DEFAULT '1. Kat Koridor,2. Kat Koridor,Giris/Kapi,Bahce,Kantin',
   updated_at TIMESTAMPTZ DEFAULT now(),
   updated_by UUID REFERENCES profiles(id)
 );
