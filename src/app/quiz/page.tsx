@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 
 export default function QuizPage() {
   const [step, setStep] = useState<"pin" | "question" | "done" | "already">("pin");
+  const [schoolCode, setSchoolCode] = useState("");
   const [pin, setPin] = useState("");
   const [classData, setClassData] = useState<any>(null);
   const [dailyQuestion, setDailyQuestion] = useState<any>(null);
@@ -16,20 +17,30 @@ export default function QuizPage() {
 
   async function handlePinSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!pin.trim()) return;
+    if (!schoolCode.trim() || !pin.trim()) { setError("Okul kodu ve sınıf PIN'i gerekli"); return; }
     setLoading(true);
     setError("");
 
     const supabase = createClient();
 
-    // Sinifi bul
+    // Once okulu bul
+    const { data: school } = await supabase
+      .from("schools")
+      .select("id, name")
+      .eq("code", schoolCode.trim())
+      .maybeSingle();
+
+    if (!school) { setError("Geçersiz okul kodu!"); setLoading(false); return; }
+
+    // Sinifi bul (okul icinde)
     const { data: cls, error: clsErr } = await supabase
       .from("classes")
       .select("id, name, school_id")
+      .eq("school_id", school.id)
       .eq("quiz_pin", pin.trim())
       .maybeSingle();
 
-    if (clsErr || !cls) { setError("Geçersiz PIN! Öğretmeninize danışın."); setLoading(false); return; }
+    if (clsErr || !cls) { setError("Geçersiz sınıf PIN'i! Öğretmeninize danışın."); setLoading(false); return; }
     setClassData(cls);
 
     // Bugünün sorusunu bul
@@ -125,16 +136,30 @@ export default function QuizPage() {
         {step === "pin" && (
           <form onSubmit={handlePinSubmit}>
             <p style={{ opacity: 0.8, marginBottom: 20, fontSize: 14 }}>
-              Sınıfınıza ait PIN kodunu girin
+              Okul kodu ve sınıf PIN'inizi girin
             </p>
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              value={schoolCode}
+              onChange={(e) => { setSchoolCode(e.target.value.replace(/\D/g,"")); setError(""); }}
+              placeholder="Okul Kodu"
+              autoFocus
+              style={{
+                width: "100%", padding: "12px 18px", fontSize: 18,
+                borderRadius: 12, border: "2px solid rgba(255,255,255,0.3)",
+                background: "rgba(255,255,255,0.1)", color: "white",
+                textAlign: "center", letterSpacing: 4, outline: "none", marginBottom: 10,
+              }}
+            />
             <input
               type="password"
               inputMode="numeric"
               maxLength={6}
               value={pin}
-              onChange={(e) => { setPin(e.target.value); setError(""); }}
+              onChange={(e) => { setPin(e.target.value.replace(/\D/g,"")); setError(""); }}
               placeholder="Sınıf PIN"
-              autoFocus
               style={{
                 width: "100%", padding: "14px 18px", fontSize: 22,
                 borderRadius: 12, border: "2px solid rgba(255,255,255,0.3)",
@@ -145,13 +170,13 @@ export default function QuizPage() {
             {error && <p style={{ color: "#FFD700", fontSize: 14, marginBottom: 12 }}>{error}</p>}
             <button
               type="submit"
-              disabled={loading || pin.length < 3}
+              disabled={loading || schoolCode.length < 4 || pin.length < 3}
               style={{
                 width: "100%", padding: 14, fontSize: 16, fontWeight: 700,
                 borderRadius: 12, border: "none",
-                background: pin.length < 3 ? "rgba(255,255,255,0.2)" : "white",
-                color: pin.length < 3 ? "rgba(255,255,255,0.5)" : "#667eea",
-                cursor: pin.length < 3 ? "default" : "pointer",
+                background: schoolCode.length < 4 || pin.length < 3 ? "rgba(255,255,255,0.2)" : "white",
+                color: schoolCode.length < 4 || pin.length < 3 ? "rgba(255,255,255,0.5)" : "#667eea",
+                cursor: schoolCode.length < 4 || pin.length < 3 ? "default" : "pointer",
               }}
             >
               {loading ? "Kontrol ediliyor..." : "Soruyu Gör"}
@@ -259,7 +284,7 @@ export default function QuizPage() {
 
         {step === "pin" && (
           <p style={{ marginTop: 20, fontSize: 11, opacity: 0.5 }}>
-            PIN kodunu öğretmeninizden alabilirsiniz
+            Okul kodu ve sınıf PIN'inizi öğretmeninizden alabilirsiniz
           </p>
         )}
       </div>
