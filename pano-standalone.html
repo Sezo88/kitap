@@ -761,7 +761,7 @@
         if (qd) quizFooter.innerHTML = '❓ Günün Sorusu: ' + qd.question;
       }
       if (quizScores && quizScores.length) {
-        quizFooter.innerHTML += ' | 🏆 ' + quizScores.slice(0,3).map(function(s){var cn=getArr(s.classes);return (cn?.name||'')+' '+s.score+'p';}).join(' • ');
+        quizFooter.innerHTML += ' | 🏆 ' + quizScores.slice(0,3).map(function(s){return (s.class_name||'')+' '+s.score+'p';}).join(' • ');
       }
 
       // Gallery
