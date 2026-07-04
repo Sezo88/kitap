@@ -29,6 +29,69 @@
       overflow: hidden;
       transition: background .5s
     }
+    ::-webkit-scrollbar { display: none }
+    * { scrollbar-width: none; -ms-overflow-style: none }
+
+    .h {
+      grid-area: h;
+      display: flex;
+      align-items: center;
+      background: var(--header);
+      backdrop-filter: blur(10px);
+      padding: 10px 25px;
+      border-radius: 15px;
+      gap: 20px
+    }
+    .h .logo-area {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      min-width: 280px
+    }
+    .h .logo-area img {
+      width: 50px; height: 50px; border-radius: 10px; object-fit: cover
+    }
+    .h .school-name {
+      font-size: 1.8em; font-weight: bold
+    }
+    .h .school-motto {
+      font-size: .75em; opacity: .7
+    }
+    .h .period-center {
+      flex: 1;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center
+    }
+    .h .period-center .period-text {
+      font-size: 1.4em;
+      font-weight: bold;
+      color: var(--gold)
+    }
+    .h .period-center .countdown {
+      font-size: 1.6em;
+      font-weight: bold;
+      font-variant-numeric: tabular-nums
+    }
+    .h .clock {
+      text-align: right;
+      min-width: 200px
+    }
+    .h .clock .time {
+      font-size: 2.3em;
+      font-weight: bold;
+      font-variant-numeric: tabular-nums
+    }
+    .h .clock .date {
+      font-size: .8em; opacity: .8
+    }
+
+    .auto-scroll {
+      overflow-y: auto;
+      scroll-behavior: smooth
+    }
 
     .pano {
       width: 100vw;
@@ -39,55 +102,6 @@
       grid-template-rows: 80px 1fr 40px;
       gap: 10px;
       padding: 10px
-    }
-
-    .h {
-      grid-area: h;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: var(--header);
-      backdrop-filter: blur(10px);
-      padding: 10px 25px;
-      border-radius: 15px
-    }
-
-    .h .logo-area {
-      display: flex;
-      align-items: center;
-      gap: 15px
-    }
-
-    .h .logo-area img {
-      width: 50px;
-      height: 50px;
-      border-radius: 10px;
-      object-fit: cover
-    }
-
-    .h .school-name {
-      font-size: 2em;
-      font-weight: bold
-    }
-
-    .h .school-motto {
-      font-size: .85em;
-      opacity: .7
-    }
-
-    .h .clock {
-      text-align: right
-    }
-
-    .h .clock .time {
-      font-size: 2.5em;
-      font-weight: bold;
-      font-variant-numeric: tabular-nums
-    }
-
-    .h .clock .date {
-      font-size: .85em;
-      opacity: .8
     }
 
     .h .clock .status {
@@ -420,21 +434,24 @@
           <div class="school-motto" id="schoolMotto"></div>
         </div>
       </div>
+      <div class="period-center">
+        <div class="period-text" id="periodStatus">Ders Disi</div>
+        <div class="countdown" id="periodCountdown"></div>
+      </div>
       <div class="clock">
         <div class="time" id="time"></div>
         <div class="date" id="date"></div>
-        <div class="status" id="periodStatus"></div>
       </div>
     </div>
 
     <div class="l">
-      <div class="card" style="flex:1">
+      <div class="card auto-scroll" style="flex:1">
         <h3>Bugunun Ders Programi</h3>
         <div id="lessons">
           <div class="card-empty">Yukleniyor...</div>
         </div>
       </div>
-      <div class="card" style="max-height:200px">
+      <div class="card auto-scroll" style="max-height:200px">
         <h3>Bugunun Nobetcileri</h3>
         <div id="duties">
           <div class="card-empty">Yukleniyor...</div>
@@ -442,22 +459,22 @@
       </div>
     </div>
 
-    <div class="c" style="overflow-y:auto;padding:5px;display:flex;flex-direction:column;gap:8px;width:100%;align-items:stretch;justify-content:flex-start" id="centerPanel">
+    <div class="c auto-scroll" style="overflow-y:auto;padding:5px;display:flex;flex-direction:column;gap:8px;width:100%;align-items:stretch;justify-content:flex-start" id="centerPanel">
       <div style="opacity:.5;font-size:1.2em;text-align:center;padding:40px">Duyuru yukleniyor...</div>
     </div>
 
     <div class="r">
-      <div class="card" style="max-height:150px">
+      <div class="card auto-scroll" style="max-height:150px">
         <h3>Bu Ay Doganlar</h3>
         <div id="birthdays">
           <div class="card-empty">Yukleniyor...</div>
         </div>
       </div>
-      <div class="card" id="topScores" style="max-height:170px">
+      <div class="card auto-scroll" id="topScores" style="max-height:170px">
         <h3>Bu Hafta En Temiz Sinif</h3>
         <div class="card-empty">Yukleniyor...</div>
       </div>
-      <div class="card" style="flex:1">
+      <div class="card auto-scroll" style="flex:1">
         <h3>En Cok Kitap Okuyanlar</h3>
         <div id="topReaders">
           <div class="card-empty">Yukleniyor...</div>
@@ -756,6 +773,55 @@
     function startTimers() {
       clockTimer = setInterval(updateClock, 1000);
       updateClock();
+      startAutoScroll();
+    }
+
+    // Auto-scroll: tum kart icerikleri yavas yavas kendi kendine kaysin
+    function startAutoScroll() {
+      const containers = document.querySelectorAll('.auto-scroll, .l .card, .r .card, #centerPanel');
+      const speeds = [0.3, 0.4, 0.2, 0.35, 0.25]; // farkli hizlar
+
+      containers.forEach((el, i) => {
+        if (!el) return;
+        let scrolling = false;
+        const speed = speeds[i % speeds.length];
+
+        function doScroll() {
+          if (scrolling) return;
+          if (el.scrollHeight <= el.clientHeight) return;
+          scrolling = true;
+
+          const maxScroll = el.scrollHeight - el.clientHeight;
+          let pos = el.scrollTop;
+          let dir = 1;
+
+          function step() {
+            if (!document.contains(el)) { scrolling = false; return; }
+            pos += speed * dir;
+            el.scrollTop = pos;
+
+            if (pos >= maxScroll - 2) {
+              dir = -1;
+              // En asagida 3 sn bekle
+              scrolling = false;
+              setTimeout(() => { dir = 1; doScroll(); }, 3000);
+              return;
+            }
+            if (pos <= 1 && dir < 0) {
+              dir = 1;
+              // En yukarida 2 sn bekle
+              scrolling = false;
+              setTimeout(() => doScroll(), 2000);
+              return;
+            }
+            requestAnimationFrame(step);
+          }
+          step();
+        }
+
+        // Ilk baslatma - 2sn gecikmeyle
+        setTimeout(doScroll, 2000 + i * 500);
+      });
     }
 
     function updateClock() {
@@ -764,22 +830,53 @@
       document.getElementById('date').textContent = now.toLocaleDateString('tr-TR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
       const day = now.getDay();
+      const cd = document.getElementById('periodCountdown');
+      const ps = document.getElementById('periodStatus');
+
       if (day === 0 || day === 6) {
-        document.getElementById('periodStatus').textContent = 'Hafta sonu - Iyi tatiller!';
+        ps.textContent = 'Hafta Sonu';
+        cd.textContent = 'Iyi Tatiller!';
         return;
       }
 
+      const mins = now.getHours() * 60 + now.getMinutes();
+      let status = 'Ders Disi';
+      let remaining = '';
+      let endMins = 0;
+
       if (allData?.bells) {
-        const mins = now.getHours() * 60 + now.getMinutes();
-        let status = 'Ders Disi';
         for (const b of allData.bells) {
           const [sh, sm] = b.start_time.split(':').map(Number);
           const [eh, em] = b.end_time.split(':').map(Number);
-          if (mins >= sh * 60 + sm && mins <= eh * 60 + em) { status = `${b.label} devam ediyor`; break; }
-          if (mins < sh * 60 + sm && status === 'Ders Disi') status = `${b.label} baslayacak`;
+          const start = sh * 60 + sm;
+          const end = eh * 60 + em;
+          if (mins >= start && mins <= end) {
+            status = b.label + ' devam ediyor';
+            endMins = end;
+            break;
+          }
+          if (mins < start && status === 'Ders Disi') {
+            status = b.label + ' baslayacak';
+            endMins = start;
+          }
+          if (mins > end) {
+            status = 'Teneffus';
+          }
         }
-        document.getElementById('periodStatus').textContent = status;
       }
+
+      ps.textContent = status;
+
+      // Countdown
+      if (endMins > 0) {
+        const diff = endMins - mins;
+        const h = Math.floor(diff / 60);
+        const m = diff % 60;
+        if (h > 0) remaining = h + 's ' + m + 'dk kaldi';
+        else if (m > 0) remaining = m + ' dk kaldi';
+        else remaining = 'Bitti';
+      }
+      cd.textContent = remaining;
     }
   </script>
 </body>
