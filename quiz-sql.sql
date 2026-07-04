@@ -43,10 +43,12 @@ CREATE TABLE IF NOT EXISTS quiz_answers (
 );
 
 -- 5. Puan durumu
+ALTER TABLE quiz_scores ADD COLUMN IF NOT EXISTS class_name TEXT;
 CREATE TABLE IF NOT EXISTS quiz_scores (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   school_id UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
   class_id UUID NOT NULL REFERENCES classes(id),
+  class_name TEXT,
   score INT DEFAULT 0,
   updated_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(school_id, class_id)
@@ -124,13 +126,14 @@ BEGIN
   IF LOWER(TRIM(NEW.answer)) = correct_answer THEN
     NEW.is_correct := true;
 
-    -- Puan ekle
-    INSERT INTO quiz_scores (school_id, class_id, score)
-    SELECT qd.school_id, NEW.class_id, 1
+    -- Puan ekle (sinif adiyla birlikte)
+    INSERT INTO quiz_scores (school_id, class_id, class_name, score)
+    SELECT qd.school_id, NEW.class_id, c.name, 1
     FROM quiz_daily qd
+    JOIN classes c ON c.id = NEW.class_id
     WHERE qd.id = NEW.daily_id
     ON CONFLICT (school_id, class_id)
-    DO UPDATE SET score = quiz_scores.score + 1, updated_at = now();
+    DO UPDATE SET score = quiz_scores.score + 1, class_name = EXCLUDED.class_name, updated_at = now();
   ELSE
     NEW.is_correct := false;
   END IF;
