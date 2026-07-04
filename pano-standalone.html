@@ -573,7 +573,7 @@
       // Cache'ten yukle
       const cached = localStorage.getItem(CACHE_KEY + '_' + schoolId);
       if (cached) {
-        try { allData = JSON.parse(cached); renderAll(); } catch (e) { }
+        try { allData = JSON.parse(cached); renderAll().catch(function(){}); } catch (e) { }
       }
 
       await fetchAll();
@@ -621,7 +621,7 @@
       } catch (e) {
         updateStatus(false);
       }
-      renderAll();
+      await renderAll();
     }
 
     function updateStatus(online) {
@@ -632,9 +632,12 @@
     function getArr(d) { return Array.isArray(d) ? d[0] : d; }
 
     // ═══════════════ RENDER ═══════════════
-    function renderAll() {
+    async function renderAll() {
       if (!allData) return;
-      const { cfg, bells, lessons, duties, ann, gal, bdays, readers, classesData, rawScores, dailyQuiz, quizScores } = allData;
+      var cfg = allData.cfg, bells = allData.bells, lessons = allData.lessons, duties = allData.duties;
+      var ann = allData.ann, gal = allData.gal, bdays = allData.bdays, readers = allData.readers;
+      var classesData = allData.classesData, rawScores = allData.rawScores;
+      var dailyQuiz = allData.dailyQuiz, quizScores = allData.quizScores;
 
       // Config
       config = cfg || {};
@@ -733,7 +736,15 @@
         if (best) document.getElementById('topClassBox').innerHTML = `<div class="top-class"><div class="label">En Çok Okuyan Sınıf</div><div class="name">${best}</div><div class="avg">Ort. ${Math.round(bestAvg)} kitap</div></div>`;
       }
 
-      // Quiz Footer
+      // Quiz Footer - auto-pick daily question if not selected yet
+      if (!dailyQuiz && schoolId) {
+        var { error: pickErr } = await sb.rpc('pick_daily_question', { p_school_id: schoolId });
+        if (!pickErr) {
+          var { data: freshDaily } = await sb.from('quiz_daily').select('id,quiz_questions(question,answer)').eq('school_id',schoolId).eq('question_date',new Date().toISOString().split('T')[0]).maybeSingle();
+          dailyQuiz = freshDaily;
+        }
+      }
+
       var quizFooter = document.getElementById('quizFooter');
       if (dailyQuiz) {
         var qq = dailyQuiz.quiz_questions;
