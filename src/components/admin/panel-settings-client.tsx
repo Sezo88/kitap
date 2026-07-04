@@ -10,7 +10,7 @@ import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Save, Plus, Trash2, Megaphone, Monitor, Copy, Check, Image, Palette, Key } from "lucide-react";
+import { Save, Plus, Trash2, Megaphone, Monitor, Copy, Check, Image, Palette, Key, Shield } from "lucide-react";
 import type { PanelSettings, PanelAnnouncement } from "@/lib/types/database";
 
 interface GalleryItem {
@@ -29,6 +29,7 @@ interface PanoConfig {
   show_clock: boolean;
   show_top_readers: boolean;
   show_top_class: boolean;
+  nobet_yerleri?: string;
 }
 
 interface Props {
@@ -137,12 +138,29 @@ export function PanelSettingsClient({ initialSettings, initialConfig, initialAnn
   }
 
   // ── PIN kaydet ────────────────────────────────────────────
+  const [nobetYerleri, setNobetYerleri] = useState(initialConfig?.nobet_yerleri || "1. Kat Koridor,2. Kat Koridor,Giris/Kapi,Bahce,Kantin");
+
   async function handleSavePin() {
     setSaving(true);
     const supabase = createClient();
     const { error } = await supabase.from("schools").update({ pano_pin: panoPin || null }).eq("id", schoolId);
     if (error) toast("PIN kaydedilemedi: " + error.message, "error");
     else toast("Pano PIN'i guncellendi", "success");
+    setSaving(false);
+  }
+
+  async function handleSaveNobetYerleri() {
+    setSaving(true);
+    const supabase = createClient();
+    const payload = { school_id: schoolId, nobet_yerleri: nobetYerleri, updated_by: (await supabase.auth.getUser()).data.user?.id };
+    let error;
+    if (initialConfig?.id) {
+      ({ error } = await supabase.from("panel_config").update(payload).eq("id", initialConfig.id));
+    } else {
+      ({ error } = await supabase.from("panel_config").insert(payload));
+    }
+    if (error) toast("Nobet yerleri kaydedilemedi: " + error.message, "error");
+    else toast("Nobet yerleri guncellendi", "success");
     setSaving(false);
   }
 
@@ -455,22 +473,44 @@ export function PanelSettingsClient({ initialSettings, initialConfig, initialAnn
 
       {/* ── GUVENLIK ──────────────────────────────────── */}
       <TabsContent value="security">
-        <Card className="max-w-md">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2"><Key className="h-5 w-5" />Pano PIN Kodu</CardTitle>
-            <CardDescription>Bu PIN ile panoya giris yapilir. Okulunuza ozel 4-6 haneli bir sayi belirleyin.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div><Label>Pano PIN</Label>
-              <Input type="text" inputMode="numeric" maxLength={6} value={panoPin} onChange={(e) => setPanoPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                placeholder="Orn: 1234" className="text-2xl tracking-widest text-center w-40" /></div>
-            <div><Label>Pano URL</Label>
-              <div className="flex gap-2"><Input value={panoUrl} readOnly className="text-xs font-mono" />
-                <Button size="icon" onClick={handleCopy}>{copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}</Button></div>
-            </div>
-            <Button onClick={handleSavePin} disabled={saving}><Save className="h-4 w-4 mr-1" />PIN'i Kaydet</Button>
-          </CardContent>
-        </Card>
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2"><Key className="h-5 w-5" />Pano PIN Kodu</CardTitle>
+              <CardDescription>Bu PIN ile panoya giris yapilir.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div><Label>Pano PIN</Label>
+                <Input type="text" inputMode="numeric" maxLength={6} value={panoPin} onChange={(e) => setPanoPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="Orn: 1234" className="text-2xl tracking-widest text-center w-40" /></div>
+              <div><Label>Pano URL</Label>
+                <div className="flex gap-2"><Input value={panoUrl} readOnly className="text-xs font-mono" />
+                  <Button size="icon" onClick={handleCopy}>{copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}</Button></div>
+              </div>
+              <Button onClick={handleSavePin} disabled={saving}><Save className="h-4 w-4 mr-1" />PIN'i Kaydet</Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2"><Shield className="h-5 w-5" />Nobet Yerleri</CardTitle>
+              <CardDescription>Nobet programinda kullanilacak yerler. Her satira bir tane, virgulle ayirabilirsiniz.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>Nobet Yerleri (virgulle ayirin)</Label>
+                <textarea
+                  value={nobetYerleri}
+                  onChange={(e) => setNobetYerleri(e.target.value)}
+                  rows={5}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="1. Kat Koridor, 2. Kat Koridor, Giris/Kapi, Bahce, Kantin"
+                />
+              </div>
+              <Button onClick={handleSaveNobetYerleri} disabled={saving}><Save className="h-4 w-4 mr-1" />Kaydet</Button>
+            </CardContent>
+          </Card>
+        </div>
       </TabsContent>
     </Tabs>
   );
