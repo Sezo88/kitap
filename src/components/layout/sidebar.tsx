@@ -28,6 +28,7 @@ import {
   Monitor,
   Building,
   Archive,
+  HelpCircle,
 } from "lucide-react";
 import type { Role } from "@/lib/types/database";
 
@@ -62,6 +63,7 @@ const menuItems = [
   { href: "/dashboard/admin/lesson-schedule", label: "Ders Programı", icon: CalendarDays, roles: ["super_admin", "idareci"], feature: "feature_lesson_schedule" },
   { href: "/dashboard/admin/duty-schedule", label: "Nöbet Programı", icon: Shield, roles: ["super_admin", "idareci"], feature: "feature_lesson_schedule" },
   { href: "/dashboard/admin/panel-settings", label: "Pano Ayarları", icon: Monitor, roles: ["super_admin", "idareci"] },
+  { href: "/dashboard/admin/quiz", label: "Soru Bankası", icon: HelpCircle, roles: ["super_admin", "idareci"] },
   { href: "/dashboard/admin/archive", label: "Sezon Arşivleme", icon: Archive, roles: ["super_admin", "idareci"] },
   { href: "/dashboard/admin/approvals", label: "Bekleyen Onaylar", icon: Clock, roles: ["super_admin", "idareci"] },
   { href: "/dashboard/admin/users", label: "Kullanıcılar", icon: Settings, roles: ["super_admin", "idareci"] },

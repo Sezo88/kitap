@@ -55,7 +55,7 @@ function getSessionFromCookies(request: NextRequest) {
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
-  const publicPaths = ["/login", "/register", "/callback", "/pano"];
+  const publicPaths = ["/login", "/register", "/callback", "/pano", "/quiz"];
   const isPublicPath = publicPaths.some((p) =>
     request.nextUrl.pathname.startsWith(p)
   );
