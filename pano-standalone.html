@@ -699,8 +699,8 @@
       var quizHtml = '<h3>Quiz Sıralaması</h3>';
       if(quizScores && quizScores.length){
         quizHtml += quizScores.slice(0,5).map(function(s,i){
-          // class_id uzerinden sinif adini classMap'ten al
-          var cname = classMap[s.class_id] || (getArr(s.classes)?.name) || ('Sınıf '+(i+1));
+          var c = getArr(s.classes);
+          var cname = (c && c.name) || classMap[s.class_id] || 'Bilinmeyen';
           return '<div class="reader-row"><span style="font-weight:bold;color:#FFD700;min-width:24px;text-align:center">'+(i+1)+'.</span><span style="flex:1">'+cname+'</span><span style="font-weight:600">'+s.score+' puan</span></div>';
         }).join('');
       }else quizHtml += '<div class="card-empty">Henuz cevap yok</div>';
@@ -746,11 +746,13 @@
 
       // Quiz Footer - auto-pick daily question if not selected yet
       if (!dailyQuiz && schoolId) {
-        var { error: pickErr } = await sb.rpc('pick_daily_question', { p_school_id: schoolId });
-        if (!pickErr) {
-          var { data: freshDaily } = await sb.from('quiz_daily').select('id,quiz_questions(question,answer)').eq('school_id',schoolId).eq('question_date',new Date().toISOString().split('T')[0]).maybeSingle();
-          dailyQuiz = freshDaily;
-        }
+        try {
+          var pickResult = await sb.rpc('pick_daily_question', { p_school_id: schoolId });
+          if (!pickResult.error) {
+            var freshResult = await sb.from('quiz_daily').select('id,quiz_questions(question,answer)').eq('school_id',schoolId).eq('question_date',new Date().toISOString().split('T')[0]).maybeSingle();
+            if (freshResult.data) dailyQuiz = freshResult.data;
+          }
+        } catch(e) {}
       }
 
       var quizFooter = document.getElementById('quizFooter');
