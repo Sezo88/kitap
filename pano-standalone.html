@@ -421,7 +421,7 @@
       <p>Okul PIN kodunu girin</p>
       <input type="password" inputmode="numeric" maxlength="6" id="pinInput" placeholder="PIN" autofocus>
       <div class="err" id="pinErr"></div>
-      <button id="pinBtn">Giris Yap</button>
+      <button id="pinBtn">Giriş Yap</button>
     </div>
   </div>
 
@@ -435,7 +435,7 @@
         </div>
       </div>
       <div class="period-center">
-        <div class="period-text" id="periodStatus">Ders Disi</div>
+        <div class="period-text" id="periodStatus">Ders Dışı</div>
         <div class="countdown" id="periodCountdown"></div>
       </div>
       <div class="clock">
@@ -446,15 +446,15 @@
 
     <div class="l">
       <div class="card auto-scroll" style="flex:1">
-        <h3>Bugunun Ders Programi</h3>
+        <h3>Bugünün Ders Programı</h3>
         <div id="lessons">
-          <div class="card-empty">Yukleniyor...</div>
+          <div class="card-empty">Yükleniyor...</div>
         </div>
       </div>
       <div class="card auto-scroll" style="max-height:200px">
-        <h3>Bugunun Nobetcileri</h3>
+        <h3>Bugunun Nöbetçileri</h3>
         <div id="duties">
-          <div class="card-empty">Yukleniyor...</div>
+          <div class="card-empty">Yükleniyor...</div>
         </div>
       </div>
     </div>
@@ -465,19 +465,19 @@
 
     <div class="r">
       <div class="card auto-scroll" style="max-height:150px">
-        <h3>Bu Ay Doganlar</h3>
+        <h3>Bu Ay Doğanlar</h3>
         <div id="birthdays">
-          <div class="card-empty">Yukleniyor...</div>
+          <div class="card-empty">Yükleniyor...</div>
         </div>
       </div>
       <div class="card auto-scroll" id="topScores" style="max-height:170px">
-        <h3>Bu Hafta En Temiz Sinif</h3>
-        <div class="card-empty">Yukleniyor...</div>
+        <h3>Bu Hafta En Temiz Sınıf</h3>
+        <div class="card-empty">Yükleniyor...</div>
       </div>
       <div class="card auto-scroll" style="flex:1">
-        <h3>En Cok Kitap Okuyanlar</h3>
+        <h3>En Çok Kitap Okuyanlar</h3>
         <div id="topReaders">
-          <div class="card-empty">Yukleniyor...</div>
+          <div class="card-empty">Yükleniyor...</div>
         </div>
       </div>
       <div id="topClassBox"></div>
@@ -555,7 +555,7 @@
         startPano();
       } else {
         err.textContent = 'Gecersiz PIN!';
-        btn.disabled = false; btn.textContent = 'Giris Yap';
+        btn.disabled = false; btn.textContent = 'Giriş Yap';
       }
     });
 
@@ -655,7 +655,7 @@
           const t = getArr(d.profiles);
           return `<div class="duty-row"><span style="font-weight:600">${t?.full_name || ''}</span><span style="opacity:.7;font-size:.85em">${d.location || d.time_slot || ''}</span></div>`;
         }).join('');
-      } else dc.innerHTML = '<div class="card-empty">Nobetci yok</div>';
+      } else dc.innerHTML = '<div class="card-empty">Nöbetçi yok</div>';
 
       // Announcements
       renderAnnouncements(ann);
@@ -669,12 +669,14 @@
         if (monthBdays.length) {
           bc.innerHTML = monthBdays.slice(0, 8).map(b => {
             const cls = getArr(b.classes);
-            return `<div class="bday-row"><span>${b.full_name}</span><span style="opacity:.7;font-size:.85em">${cls?.name || ''}</span></div>`;
+            var d = b.dogum_tarihi ? new Date(b.dogum_tarihi) : null;
+            var dateStr = d ? d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' }) : '';
+            return `<div class="bday-row"><span>🎂 ${dateStr} - ${b.full_name}</span><span style="opacity:.7;font-size:.85em">${cls?.name || ''}</span></div>`;
           }).join('');
-        } else bc.innerHTML = '<div class="card-empty">Bu ay dogum gunu yok</div>';
+        } else bc.innerHTML = '<div class="card-empty">Bu ay doğum günü yok</div>';
       } else bc.innerHTML = '<div class="card-empty">Veri yok</div>';
 
-      // En Temiz Sinif (haftalik ilk 3)
+      // En Temiz Sınıf (haftalik ilk 3)
       const tsc = document.getElementById('topScores');
       if (rawScores && rawScores.length) {
         const scMap = {};
@@ -687,11 +689,11 @@
           name, avg: Math.round((v.total / v.count) * 10) / 10
         })).sort((a, b) => b.avg - a.avg).slice(0, 3);
         if (ranked.length) {
-          tsc.innerHTML = '<h3>Bu Hafta En Temiz Sinif</h3>' + ranked.map((r, i) =>
+          tsc.innerHTML = '<h3>Bu Hafta En Temiz Sınıf</h3>' + ranked.map((r, i) =>
             `<div class="reader-row"><span style="font-weight:bold;color:#FFD700;min-width:24px;text-align:center">${i+1}.</span><span style="flex:1">${r.name}</span><span style="font-weight:600">${r.avg} puan</span></div>`
           ).join('');
-        } else tsc.innerHTML = '<h3>Bu Hafta En Temiz Sinif</h3><div class="card-empty">Veri yok</div>';
-      } else tsc.innerHTML = '<h3>Bu Hafta En Temiz Sinif</h3><div class="card-empty">Veri yok</div>';
+        } else tsc.innerHTML = '<h3>Bu Hafta En Temiz Sınıf</h3><div class="card-empty">Veri yok</div>';
+      } else tsc.innerHTML = '<h3>Bu Hafta En Temiz Sınıf</h3><div class="card-empty">Veri yok</div>';
 
       // Top Readers
       const trc = document.getElementById('topReaders');
@@ -725,7 +727,7 @@
         });
         let best = '', bestAvg = 0;
         cmap.forEach((v, k) => { const a = v.total / v.count; if (a > bestAvg) { bestAvg = a; best = k; } });
-        if (best) document.getElementById('topClassBox').innerHTML = `<div class="top-class"><div class="label">En Cok Okuyan Sinif</div><div class="name">${best}</div><div class="avg">Ort. ${Math.round(bestAvg)} kitap</div></div>`;
+        if (best) document.getElementById('topClassBox').innerHTML = `<div class="top-class"><div class="label">En Çok Okuyan Sınıf</div><div class="name">${best}</div><div class="avg">Ort. ${Math.round(bestAvg)} kitap</div></div>`;
       }
 
       // Gallery
@@ -743,8 +745,8 @@
         panel.innerHTML = '<div style="opacity:.5;font-size:1.2em;text-align:center;padding:40px">Duyuru eklenmemis</div>';
         return;
       }
-      var catColors = { duyuru: '#4CAF50', etkinlik: '#FF9800', ayin_ogrencisi: '#9C27B0', ayin_sinifi: '#2196F3', deneme_liderleri: '#E91E63' };
-      var catNames = { duyuru: 'DUYURU', etkinlik: 'ETKINLIK', ayin_ogrencisi: 'AYIN OGRENCISI', ayin_sinifi: 'AYIN SINIFI', deneme_liderleri: 'DENEME LIDERI' };
+      var catColors = { duyuru: '#4CAF50', etkinlik: '#FF9800', ayin_Oğrencisi: '#9C27B0', ayin_sinifi: '#2196F3', deneme_liderleri: '#E91E63' };
+      var catNames = { duyuru: 'DUYURU', etkinlik: 'ETKINLIK', ayin_Oğrencisi: 'AYIN OğrenciSI', ayin_sinifi: 'AYIN SINIFI', deneme_liderleri: 'DENEME LIDERI' };
       var html = '';
       for (var i = 0; i < ann.length; i++) {
         var s = ann[i];
@@ -833,7 +835,7 @@
       }
 
       const mins = now.getHours() * 60 + now.getMinutes();
-      let status = 'Ders Disi';
+      let status = 'Ders Dışı';
       let remaining = '';
       let endMins = 0;
 
@@ -848,7 +850,7 @@
             endMins = end;
             break;
           }
-          if (mins < start && status === 'Ders Disi') {
+          if (mins < start && status === 'Ders Dışı') {
             status = b.label + ' baslayacak';
             endMins = start;
           }
