@@ -27,6 +27,7 @@ export function ClassList({ classes: initialClasses, teachers, role, schoolId }:
   const [editingClass, setEditingClass] = useState<Class | null>(null);
   const [name, setName] = useState("");
   const [gradeLevel, setGradeLevel] = useState(1);
+  const [quizPin, setQuizPin] = useState("");
   const [assignedTeacher, setAssignedTeacher] = useState("");
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
@@ -41,6 +42,7 @@ export function ClassList({ classes: initialClasses, teachers, role, schoolId }:
     setEditingClass(null);
     setName("");
     setGradeLevel(1);
+    setQuizPin("");
     setAssignedTeacher("");
     setDialogOpen(true);
   }
@@ -49,6 +51,7 @@ export function ClassList({ classes: initialClasses, teachers, role, schoolId }:
     setEditingClass(cls);
     setName(cls.name);
     setGradeLevel(cls.grade_level);
+    setQuizPin((cls as any).quiz_pin || "");
     setAssignedTeacher("");
     setDialogOpen(true);
   }
@@ -59,11 +62,11 @@ export function ClassList({ classes: initialClasses, teachers, role, schoolId }:
     const supabase = createClient();
 
     if (editingClass) {
-      await supabase.from("classes").update({ name, grade_level: gradeLevel }).eq("id", editingClass.id);
-      setClasses((prev) => prev.map((c) => (c.id === editingClass.id ? { ...c, name, grade_level: gradeLevel } : c)));
+      await supabase.from("classes").update({ name, grade_level: gradeLevel, quiz_pin: quizPin || null }).eq("id", editingClass.id);
+      setClasses((prev) => prev.map((c) => (c.id === editingClass.id ? { ...c, name, grade_level: gradeLevel, quiz_pin: quizPin } : c)));
       toast("Sınıf güncellendi", "success");
     } else {
-      const { data } = await supabase.from("classes").insert({ name, grade_level: gradeLevel, school_id: schoolId }).select().single();
+      const { data } = await supabase.from("classes").insert({ name, grade_level: gradeLevel, quiz_pin: quizPin || null, school_id: schoolId }).select().single();
       if (data) {
         setClasses((prev) => [...prev, data as Class]);
         // Assign teacher if selected
@@ -104,6 +107,7 @@ export function ClassList({ classes: initialClasses, teachers, role, schoolId }:
               <TableRow>
                 <TableHead>Sınıf Adı</TableHead>
                 <TableHead>Seviye</TableHead>
+                {canEdit && <TableHead>Quiz PIN</TableHead>}
                 {canEdit && <TableHead className="w-24">İşlem</TableHead>}
               </TableRow>
             </TableHeader>
@@ -119,6 +123,7 @@ export function ClassList({ classes: initialClasses, teachers, role, schoolId }:
                 <TableRow key={cls.id}>
                   <TableCell className="font-medium">{cls.name}</TableCell>
                   <TableCell><Badge variant="secondary">{cls.grade_level}. Sınıf</Badge></TableCell>
+                  {canEdit && <TableCell className="font-mono text-sm">{(cls as any).quiz_pin || "-"}</TableCell>}
                   {canEdit && (
                     <TableCell>
                       <div className="flex gap-1">
@@ -155,6 +160,10 @@ export function ClassList({ classes: initialClasses, teachers, role, schoolId }:
                 <option key={g} value={g}>{g}. Sınıf</option>
               ))}
             </Select>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="qpin">Quiz PIN (öğrenciler bu kodla cevap verir)</Label>
+            <Input id="qpin" value={quizPin} onChange={(e) => setQuizPin(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="örn: 1234" maxLength={6} />
           </div>
           {!editingClass && teachers.length > 0 && (
             <div className="flex flex-col gap-2">

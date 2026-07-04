@@ -75,7 +75,40 @@ CREATE POLICY "qa_anon_insert" ON quiz_answers FOR INSERT WITH CHECK (true);
 CREATE POLICY "qa_anon_select" ON quiz_answers FOR SELECT USING (true);
 CREATE POLICY "qs_anon" ON quiz_scores FOR SELECT USING (true);
 
--- 7. Otomatik puanlama fonksiyonu (trigger)
+-- 7. Gunluk soru otomatik secme fonksiyonu
+CREATE OR REPLACE FUNCTION pick_daily_question(p_school_id UUID)
+RETURNS UUID AS $$
+DECLARE
+  v_question_id UUID;
+  v_daily_id UUID;
+BEGIN
+  -- Zaten bugunun sorusu var mi?
+  SELECT id INTO v_daily_id FROM quiz_daily
+  WHERE school_id = p_school_id AND question_date = CURRENT_DATE;
+
+  IF v_daily_id IS NOT NULL THEN
+    RETURN v_daily_id;
+  END IF;
+
+  -- Rastgele bir soru sec
+  SELECT id INTO v_question_id FROM quiz_questions
+  WHERE school_id = p_school_id AND is_active = true
+  ORDER BY random() LIMIT 1;
+
+  IF v_question_id IS NULL THEN
+    RETURN NULL;
+  END IF;
+
+  -- Gunluk soruyu olustur
+  INSERT INTO quiz_daily (school_id, question_id, question_date)
+  VALUES (p_school_id, v_question_id, CURRENT_DATE)
+  RETURNING id INTO v_daily_id;
+
+  RETURN v_daily_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 8. Otomatik puanlama fonksiyonu (trigger)
 CREATE OR REPLACE FUNCTION check_quiz_answer()
 RETURNS TRIGGER AS $$
 DECLARE

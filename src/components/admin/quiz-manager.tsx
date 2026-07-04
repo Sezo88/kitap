@@ -106,9 +106,9 @@ export function QuizManager({ schoolId, initialQuestions }: Props) {
         <CardHeader><CardTitle className="text-base flex items-center gap-2"><HelpCircle className="h-5 w-5" />Toplu Soru Ekle (AI Format)</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Her satır bir soru. Format: <code className="bg-muted px-1 rounded">soru|cevap|A|B|C|D|zorluk|kategori</code>
-            <br />Örnek: <code className="bg-muted px-1 rounded">Türkiye&apos;nin başkenti?|Ankara|İstanbul|Ankara|İzmir|Bursa|kolay|coğrafya</code>
-            <br />Yapay zekaya bu formatta soru-cevap ürettirebilirsiniz.
+            Her satır bir soru. Format: <code className="bg-muted px-1 rounded">soru|cevap|zorluk</code> (kısa cevaplı)
+            <br />Opsiyonel çoktan seçmeli için: <code className="bg-muted px-1 rounded">soru|cevap|A|B|C|D|zorluk</code>
+            <br />Yapay zekaya &quot;lise düzeyi genel kültür soruları, kısa cevaplı, şu formatta: soru|cevap|zorluk&quot; yazdırabilirsiniz.
           </p>
           <textarea
             value={importText}

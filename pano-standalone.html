@@ -484,8 +484,9 @@
     </div>
 
     <div class="f">
-      <span style="opacity:.7" id="galleryInfo"></span>
-      <span>
+      <span style="opacity:.9;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" id="quizFooter"></span>
+      <span style="opacity:.7;flex-shrink:0;margin-left:15px" id="galleryInfo"></span>
+      <span style="flex-shrink:0;margin-left:15px">
         <span class="offline-dot on" id="statusDot"></span>
         <span id="statusText">Canli</span>
       </span>
@@ -598,7 +599,7 @@
         const [
           { data: cfg }, { data: bells }, { data: lessons }, { data: duties },
           { data: ann }, { data: gal }, { data: bdays }, { data: readers }, { data: classesData },
-          { data: rawScores }
+          { data: rawScores }, { data: dailyQuiz }, { data: quizScores }
         ] = await Promise.all([
           sb.from('panel_config').select('*').eq('school_id', schoolId).maybeSingle(),
           sb.from('bell_schedule').select('*').eq('school_id', schoolId).order('period_no'),
@@ -609,10 +610,12 @@
           sb.from('students').select('full_name,class_id,dogum_tarihi,classes(name)').eq('school_id', schoolId).eq('is_active', true).not('dogum_tarihi', 'is', null),
           sb.from('student_books').select('student_id,students!inner(full_name,class_id)').eq('status','completed'),
           sb.from('classes').select('id,name').eq('school_id',schoolId),
-          sb.from('cleanliness_scores').select('class_id,score,classes!inner(name)').gte('score_date',weekMon).lte('score_date',weekFri)
+          sb.from('cleanliness_scores').select('class_id,score,classes!inner(name)').gte('score_date',weekMon).lte('score_date',weekFri),
+          sb.from('quiz_daily').select('id,quiz_questions(question,answer)').eq('school_id',schoolId).eq('question_date',today.toISOString().split('T')[0]).maybeSingle(),
+          sb.from('quiz_scores').select('score,classes(name)').eq('school_id',schoolId).order('score',{ascending:false}).limit(5)
         ]);
 
-        allData = { cfg, bells, lessons, duties, ann, gal, bdays, readers, classesData, rawScores, fetchedAt: Date.now() };
+        allData = { cfg, bells, lessons, duties, ann, gal, bdays, readers, classesData, rawScores, dailyQuiz, quizScores, fetchedAt: Date.now() };
         localStorage.setItem(CACHE_KEY + '_' + schoolId, JSON.stringify(allData));
         updateStatus(true);
       } catch (e) {
@@ -631,7 +634,7 @@
     // ═══════════════ RENDER ═══════════════
     function renderAll() {
       if (!allData) return;
-      const { cfg, bells, lessons, duties, ann, gal, bdays, readers, classesData, rawScores } = allData;
+      const { cfg, bells, lessons, duties, ann, gal, bdays, readers, classesData, rawScores, dailyQuiz, quizScores } = allData;
 
       // Config
       config = cfg || {};
@@ -728,6 +731,17 @@
         let best = '', bestAvg = 0;
         cmap.forEach((v, k) => { const a = v.total / v.count; if (a > bestAvg) { bestAvg = a; best = k; } });
         if (best) document.getElementById('topClassBox').innerHTML = `<div class="top-class"><div class="label">En Çok Okuyan Sınıf</div><div class="name">${best}</div><div class="avg">Ort. ${Math.round(bestAvg)} kitap</div></div>`;
+      }
+
+      // Quiz Footer
+      var quizFooter = document.getElementById('quizFooter');
+      if (dailyQuiz) {
+        var qq = dailyQuiz.quiz_questions;
+        var qd = Array.isArray(qq) ? qq[0] : qq;
+        if (qd) quizFooter.innerHTML = '❓ Günün Sorusu: ' + qd.question;
+      }
+      if (quizScores && quizScores.length) {
+        quizFooter.innerHTML += ' | 🏆 ' + quizScores.slice(0,3).map(function(s){var cn=getArr(s.classes);return (cn?.name||'')+' '+s.score+'p';}).join(' • ');
       }
 
       // Gallery
