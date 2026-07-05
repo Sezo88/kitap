@@ -6,26 +6,30 @@ export async function GET(request: Request) {
   const code = searchParams.get("code");
   const next = searchParams.get("next") ?? "/dashboard";
 
+  const supabase = await createClient();
+
+  // Email/PW sifirilama vs icin code exchange
   if (code) {
-    const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      // Check if user has a profile (Google ile ilk giris kontrolu)
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("id", user.id)
-          .maybeSingle();
-
-        if (!profile) {
-          // Ilk defa Google ile giris - kayit tamamlama sayfasina yonlendir
-          return NextResponse.redirect(`${origin}/complete-registration`);
-        }
-      }
       return NextResponse.redirect(`${origin}${next}`);
     }
+  }
+
+  // OAuth (Google) — session zaten cookie'de var mi kontrol et
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    // Profile var mi?
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (!profile) {
+      return NextResponse.redirect(`${origin}/complete-registration`);
+    }
+    return NextResponse.redirect(`${origin}${next}`);
   }
 
   return NextResponse.redirect(`${origin}/login?error=auth_callback_error`);
