@@ -16,6 +16,8 @@ export function LoginForm() {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  const [mode, setMode] = useState<"login" | "forgot">("login");
+  const [resetEmail, setResetEmail] = useState("");
   const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent) {
@@ -41,7 +43,12 @@ export function LoginForm() {
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/callback?next=/dashboard` },
+      options: { 
+        redirectTo: `${window.location.origin}/callback?next=/dashboard`,
+        queryParams: {
+          prompt: "select_account"
+        }
+      },
     });
     if (error) {
       setError("Google giriş hatası: " + error.message);
@@ -49,14 +56,16 @@ export function LoginForm() {
     }
   }
 
-  async function handleForgotPassword(e: React.FormEvent) {
+  async function handleForgotPasswordSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!email.trim()) { setError("Lütfen e-posta adresinizi girin"); return; }
+    if (!resetEmail.trim()) { setError("Lütfen e-posta adresinizi girin"); return; }
     setError(""); setSuccess("");
+    setLoading(true);
     const supabase = createClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${location.origin}/callback?next=/dashboard`,
+    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
+      redirectTo: `${window.location.origin}/callback?next=/dashboard`,
     });
+    setLoading(false);
     if (error) setError("Hata: " + error.message);
     else {
       setResetSent(true);
@@ -70,9 +79,39 @@ export function LoginForm() {
         <CardHeader><CardTitle className="text-center">E-postanızı Kontrol Edin</CardTitle></CardHeader>
         <CardContent className="text-center space-y-4">
           <p className="text-sm text-muted-foreground">{success}</p>
-          <Button variant="outline" className="w-full" onClick={() => setResetSent(false)}>
+          <Button variant="outline" className="w-full" onClick={() => { setResetSent(false); setMode("login"); }}>
             Girişe Dön
           </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (mode === "forgot") {
+    return (
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <CardTitle className="text-center">Şifremi Sıfırla</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleForgotPasswordSubmit} className="flex flex-col gap-4">
+            <p className="text-xs text-muted-foreground text-center">
+              Şifre sıfırlama bağlantısı almak için e-posta adresinizi girin.
+            </p>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="reset-email">E-posta</Label>
+              <Input id="reset-email" type="email" placeholder="ornek@okul.com"
+                value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} required />
+            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <Button type="submit" disabled={loading} className="w-full">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sıfırlama Bağlantısı Gönder"}
+            </Button>
+            <div className="text-center text-xs mt-2">
+              <button type="button" onClick={() => { setMode("login"); setError(""); }}
+                className="text-primary hover:underline">Giriş Yap Sayfasına Dön</button>
+            </div>
+          </form>
         </CardContent>
       </Card>
     );
@@ -101,7 +140,7 @@ export function LoginForm() {
           </Button>
 
           <div className="flex items-center gap-2 text-xs">
-            <button type="button" onClick={handleForgotPassword}
+            <button type="button" onClick={() => { setMode("forgot"); setError(""); }}
               className="text-primary hover:underline">Şifremi Unuttum</button>
           </div>
 
