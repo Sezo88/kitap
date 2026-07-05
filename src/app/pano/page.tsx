@@ -79,6 +79,8 @@ export default function PanoPage() {
   const [topReaders, setTopReaders] = useState<TopReader[]>([]);
   const [topClass, setTopClass] = useState<{ class_name: string; avg_rate: number } | null>(null);
   const [birthdays, setBirthdays] = useState<{ full_name: string; class_name: string; dogum_tarihi: string }[]>([]);
+  const [dailyQuiz, setDailyQuiz] = useState<any>(null);
+  const [yesterdayQuiz, setYesterdayQuiz] = useState<any>(null);
 
   // UI state
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -146,14 +148,16 @@ export default function PanoPage() {
     }
 
     const [
-      { data: configData },
-      { data: bellData },
-      { data: lessonData },
-      { data: dutyData },
-      { data: annData },
-      { data: galleryData },
-      { data: birthdaysData },
-      { data: readersData },
+      configData,
+      bellData,
+      lessonData,
+      dutyData,
+      annData,
+      galleryData,
+      birthdaysData,
+      readersData,
+      dailyQuizRes,
+      yesterdayQuizRes
     ] = await Promise.all([
       supabase.from("panel_config").select("*").eq("school_id", schoolId).maybeSingle(),
       supabase.from("bell_schedule").select("*").eq("school_id", schoolId).order("period_no"),
@@ -163,14 +167,16 @@ export default function PanoPage() {
       supabase.from("panel_gallery").select("*").eq("school_id", schoolId).eq("is_active", true).order("display_order"),
       supabase.from("students").select("full_name, class_id, dogum_tarihi, classes(name)").eq("school_id", schoolId).eq("is_active", true).not("dogum_tarihi", "is", null),
       supabase.from("student_books").select("students!inner(full_name, class_id, classes!inner(name))").eq("status", "completed"),
+      supabase.from("quiz_daily").select("id, quiz_questions(question, answer)").eq("school_id", schoolId).eq("question_date", today.toISOString().split("T")[0]).maybeSingle(),
+      supabase.from("quiz_daily").select("id, question_date, quiz_questions(question, answer)").eq("school_id", schoolId).lt("question_date", today.toISOString().split("T")[0]).order("question_date", { ascending: false }).limit(1).maybeSingle(),
     ]);
 
-    if (configData) setConfig(configData as PanoConfig);
-    if (bellData) setBellSchedule(bellData as BellPeriod[]);
+    if (configData.data) setConfig(configData.data as PanoConfig);
+    if (bellData.data) setBellSchedule(bellData.data as BellPeriod[]);
 
     // Lessons
-    if (lessonData) {
-      setLessons((lessonData as any[]).map((l) => ({
+    if (lessonData.data) {
+      setLessons((lessonData.data as any[]).map((l) => ({
         day_of_week: l.day_of_week,
         period_no: l.period_no,
         subject_name: Array.isArray(l.subjects) ? l.subjects[0]?.name : (l.subjects as any)?.name,
@@ -180,8 +186,8 @@ export default function PanoPage() {
     }
 
     // Duties
-    if (dutyData) {
-      setDuties((dutyData as any[]).map((d) => ({
+    if (dutyData.data) {
+      setDuties((dutyData.data as any[]).map((d) => ({
         day_of_week: d.day_of_week,
         teacher_name: Array.isArray(d.profiles) ? d.profiles[0]?.full_name : (d.profiles as any)?.full_name,
         location: d.location,
@@ -190,17 +196,17 @@ export default function PanoPage() {
     }
 
     // Announcements
-    if (annData) setAnnouncements(annData as Announcement[]);
+    if (annData.data) setAnnouncements(annData.data as Announcement[]);
 
     // Gallery
-    if (galleryData) setGallery(galleryData as GalleryItem[]);
+    if (galleryData.data) setGallery(galleryData.data as GalleryItem[]);
 
     // Birthdays (bu ay)
     const now = new Date();
     const thisMonth = now.getMonth();
-    if (birthdaysData) {
+    if (birthdaysData.data) {
       setBirthdays(
-        (birthdaysData as any[])
+        (birthdaysData.data as any[])
           .filter((s) => {
             if (!s.dogum_tarihi) return false;
             const bMonth = new Date(s.dogum_tarihi).getMonth();
@@ -215,9 +221,9 @@ export default function PanoPage() {
     }
 
     // Top Readers (son 30 gun)
-    if (readersData) {
+    if (readersData.data) {
       const countMap = new Map<string, { name: string; className: string; count: number }>();
-      (readersData as any[]).forEach((sb) => {
+      (readersData.data as any[]).forEach((sb) => {
         const sid = sb.students?.full_name;
         if (!sid) return;
         if (!countMap.has(sid)) {
@@ -250,6 +256,20 @@ export default function PanoPage() {
       });
       if (bestClassName) setTopClass({ class_name: bestClassName, avg_rate: Math.round(bestAvg) });
     }
+
+    // Günün sorusu otomatik seçme akışı
+    let daily = dailyQuizRes?.data || null;
+    if (!daily && schoolId) {
+      try {
+        const { error: pickErr } = await supabase.rpc("pick_daily_question", { p_school_id: schoolId });
+        if (!pickErr) {
+          const { data: fresh } = await supabase.from("quiz_daily").select("id, quiz_questions(question, answer)").eq("school_id", schoolId).eq("question_date", today.toISOString().split("T")[0]).maybeSingle();
+          if (fresh) daily = fresh;
+        }
+      } catch {}
+    }
+    setDailyQuiz(daily);
+    setYesterdayQuiz(yesterdayQuizRes?.data || null);
   }, [schoolId]);
 
   useEffect(() => {
@@ -373,6 +393,23 @@ export default function PanoPage() {
   // ── Pano Ekrani ───────────────────────────────────────────
   const currentSlide = announcements[slideIndex];
   const currentGallery = gallery[galleryIndex];
+
+  const todayQuestion = dailyQuiz?.quiz_questions ? (Array.isArray(dailyQuiz.quiz_questions) ? dailyQuiz.quiz_questions[0] : dailyQuiz.quiz_questions) : null;
+  const yesterdayQuestion = yesterdayQuiz?.quiz_questions ? (Array.isArray(yesterdayQuiz.quiz_questions) ? yesterdayQuiz.quiz_questions[0] : yesterdayQuiz.quiz_questions) : null;
+
+  let footerText = "";
+  if (todayQuestion) {
+    footerText += `❓ Günün Sorusu: ${todayQuestion.question}`;
+  }
+  if (yesterdayQuestion) {
+    if (footerText) {
+      footerText += "     ◆ ◆ ◆     ";
+    }
+    footerText += `💡 Dünkü Sorunun Cevabı: ${yesterdayQuestion.answer} (Soru: ${yesterdayQuestion.question})`;
+  }
+  if (!footerText) {
+    footerText = "O.Y.P. - Okul Yönetim Paneline Hoş Geldiniz!";
+  }
   const theme = config.theme || "blue";
 
   const themeColors: Record<string, string> = {
@@ -605,18 +642,42 @@ export default function PanoPage() {
         borderRadius: 10,
         fontSize: "0.8em",
       }}>
-        <span style={{ opacity: 0.7 }}>
+        <div className="marquee-container">
+          <span className="marquee-text">{footerText}</span>
+        </div>
+
+        <span style={{ opacity: 0.7, flexShrink: 0, marginLeft: 15 }}>
           {currentGallery ? (
             <>{galleryIndex + 1} / {gallery.length} - {currentGallery.caption || ""}</>
           ) : (
             gallery.length > 0 ? "Galeri yukleniyor..." : ""
           )}
         </span>
-        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, marginLeft: 15 }}>
           <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#4CAF50" }}></span>
           Canli
         </span>
       </div>
+
+      <style>{`
+        .marquee-container {
+          flex: 1;
+          overflow: hidden;
+          white-space: nowrap;
+          margin-right: 15px;
+          font-size: 1.4em;
+          font-weight: bold;
+        }
+        .marquee-text {
+          display: inline-block;
+          animation: marquee 30s linear infinite;
+          padding-left: 100%;
+        }
+        @keyframes marquee {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-100%); }
+        }
+      `}</style>
 
       {/* Gallery image (absolute positioned, cycles) */}
       {currentGallery && (
