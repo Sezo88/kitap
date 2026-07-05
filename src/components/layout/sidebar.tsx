@@ -94,7 +94,7 @@ export function Sidebar({ role, schoolName, schoolFeatures, onClose }: SidebarPr
         <div className="flex items-center gap-2">
           <GraduationCap className="h-5 w-5 text-primary shrink-0" />
           <div className="min-w-0">
-            <h1 className="font-bold text-sm leading-tight">Okul Asistanı</h1>
+            <h1 className="font-bold text-sm leading-tight">EduOS</h1>
             {schoolName && (
               <p className="text-xs text-sidebar-foreground/60 truncate max-w-[160px]">{schoolName}</p>
             )}

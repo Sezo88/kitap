@@ -213,6 +213,6 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     duration,
-    slides: slides.length > 0 ? slides : [{ type: "welcome", title: "Okul Asistanı", content: "Dijital Pano Sistemine Hoş Geldiniz" }]
+    slides: slides.length > 0 ? slides : [{ type: "welcome", title: "EduOS", content: "Dijital Pano Sistemine Hoş Geldiniz" }]
   });
 }

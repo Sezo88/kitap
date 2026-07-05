@@ -139,6 +139,12 @@ export function BellControlClient({ schoolId, userId, initialCommands }: Props) 
           </div>
         </CardHeader>
         <CardContent>
+          {/* Bilgilendirme Kutusu */}
+          <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-300 flex flex-col gap-1">
+            <span className="font-bold flex items-center gap-1">⚠️ Önemli Uyarı:</span>
+            <span>Uzaktan zil kontrolünü kullanabilmek için bilgisayarınızda kurulu olan <strong>Okul Zil Sistemi</strong> uygulamasının ayarlar bölümünde doğru <strong>Zil API PIN</strong> kodunu girdiğinizden emin olun. PIN kodu girilmezse veya eşleşmezse uzaktan komutlar güvenlik nedeniyle çalıştırılmayacaktır.</span>
+          </div>
+
           <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
             {Object.entries(COMMAND_LABELS)
               .filter(([type]) => type !== "mute_bell" && type !== "unmute_bell")
