@@ -261,21 +261,20 @@ export default function QuizPage() {
 
             {(step === "already" || step === "done") && (
               <div style={{
-                background: result?.is_correct
-                  ? "rgba(76,175,80,0.3)" : "rgba(244,67,54,0.3)",
-                borderRadius: 12, padding: "16px 20px", textAlign: "center",
+                background: "rgba(255,255,255,0.15)",
+                borderRadius: 12, padding: "20px", textAlign: "center",
               }}>
-                <div style={{ fontSize: 28, marginBottom: 6 }}>
-                  {result?.is_correct ? "✅" : "❌"}
+                <div style={{ fontSize: 32, marginBottom: 8 }}>
+                  ✉️
                 </div>
-                <div style={{ fontSize: 16, fontWeight: 600 }}>
-                  {result?.is_correct ? "Doğru bildiniz!" : "Yanlış cevap"}
+                <div style={{ fontSize: 18, fontWeight: 600 }}>
+                  Cevap Gönderildi!
                 </div>
-                <div style={{ fontSize: 13, opacity: 0.7, marginTop: 6 }}>
-                  {step === "already" ? "Bu sınıf bugün zaten cevap vermiş." : "Cevabınız kaydedildi."}
+                <div style={{ fontSize: 14, opacity: 0.9, marginTop: 8 }}>
+                  {step === "already" ? "Bu sınıf bugün için zaten cevap vermiş." : "Cevabınız başarıyla kaydedildi."}
                 </div>
-                <div style={{ fontSize: 14, marginTop: 10, fontWeight: 500 }}>
-                  Doğru cevap: <strong>{questionData.answer}</strong>
+                <div style={{ fontSize: 13, opacity: 0.7, marginTop: 12 }}>
+                  Doğru cevap yarın okul panosunda açıklanacaktır.
                 </div>
               </div>
             )}

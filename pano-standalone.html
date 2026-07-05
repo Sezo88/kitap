@@ -410,6 +410,24 @@
         display: none
       }
     }
+
+    .marquee-container {
+      flex: 1;
+      overflow: hidden;
+      white-space: nowrap;
+      margin-right: 15px;
+      font-size: 1.4em; /* Büyütülmüş yazı boyutu */
+      font-weight: bold;
+    }
+    .marquee-text {
+      display: inline-block;
+      animation: marquee 30s linear infinite;
+      padding-left: 100%;
+    }
+    @keyframes marquee {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-100%); }
+    }
   </style>
 </head>
 
@@ -484,7 +502,9 @@
     </div>
 
     <div class="f">
-      <span style="opacity:.9;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" id="quizFooter"></span>
+      <div class="marquee-container">
+        <span class="marquee-text" id="quizFooter"></span>
+      </div>
       <span style="opacity:.7;flex-shrink:0;margin-left:15px" id="galleryInfo"></span>
       <span style="flex-shrink:0;margin-left:15px">
         <span class="offline-dot on" id="statusDot"></span>
@@ -599,7 +619,7 @@
         const [
           { data: cfg }, { data: bells }, { data: lessons }, { data: duties },
           { data: ann }, { data: gal }, { data: bdays }, { data: readers }, { data: classesData },
-          { data: rawScores }, { data: dailyQuiz }, { data: quizScores }
+          { data: rawScores }, { data: dailyQuiz }, { data: quizScores }, { data: yesterdayQuiz }
         ] = await Promise.all([
           sb.from('panel_config').select('*').eq('school_id', schoolId).maybeSingle(),
           sb.from('bell_schedule').select('*').eq('school_id', schoolId).order('period_no'),
@@ -612,10 +632,11 @@
           sb.from('classes').select('id,name').eq('school_id',schoolId),
           sb.from('cleanliness_scores').select('class_id,score,classes!inner(name)').gte('score_date',weekMon).lte('score_date',weekFri),
           sb.from('quiz_daily').select('id,quiz_questions(question,answer)').eq('school_id',schoolId).eq('question_date',today.toISOString().split('T')[0]).maybeSingle(),
-          sb.from('quiz_scores').select('score,class_name').eq('school_id',schoolId).order('score',{ascending:false}).limit(5)
+          sb.from('quiz_scores').select('score,class_name').eq('school_id',schoolId).order('score',{ascending:false}).limit(5),
+          sb.from('quiz_daily').select('id,question_date,quiz_questions(question,answer)').eq('school_id',schoolId).lt('question_date',today.toISOString().split('T')[0]).order('question_date',{ascending:false}).limit(1).maybeSingle()
         ]);
 
-        allData = { cfg, bells, lessons, duties, ann, gal, bdays, readers, classesData, rawScores, dailyQuiz, quizScores, fetchedAt: Date.now() };
+        allData = { cfg, bells, lessons, duties, ann, gal, bdays, readers, classesData, rawScores, dailyQuiz, quizScores, yesterdayQuiz, fetchedAt: Date.now() };
         localStorage.setItem(CACHE_KEY + '_' + schoolId, JSON.stringify(allData));
         updateStatus(true);
       } catch (e) {
@@ -637,7 +658,7 @@
       var cfg = allData.cfg, bells = allData.bells, lessons = allData.lessons, duties = allData.duties;
       var ann = allData.ann, gal = allData.gal, bdays = allData.bdays, readers = allData.readers;
       var classesData = allData.classesData, rawScores = allData.rawScores;
-      var dailyQuiz = allData.dailyQuiz, quizScores = allData.quizScores;
+      var dailyQuiz = allData.dailyQuiz, quizScores = allData.quizScores, yesterdayQuiz = allData.yesterdayQuiz;
 
       // Config
       config = cfg || {};
@@ -755,14 +776,28 @@
       }
 
       var quizFooter = document.getElementById('quizFooter');
+      var footerText = '';
       if (dailyQuiz) {
         var qq = dailyQuiz.quiz_questions;
         var qd = Array.isArray(qq) ? qq[0] : qq;
-        if (qd) quizFooter.innerHTML = '❓ Günün Sorusu: ' + qd.question;
+        if (qd) {
+          footerText += '❓ Günün Sorusu: ' + qd.question;
+        }
       }
-      if (quizScores && quizScores.length) {
-        quizFooter.innerHTML += ' | 🏆 ' + quizScores.slice(0,3).map(function(s){return (s.class_name||'')+' '+s.score+'p';}).join(' • ');
+      if (yesterdayQuiz) {
+        var yqq = yesterdayQuiz.quiz_questions;
+        var yqd = Array.isArray(yqq) ? yqq[0] : yqq;
+        if (yqd) {
+          if (footerText) {
+            footerText += '     ◆ ◆ ◆     ';
+          }
+          footerText += '💡 Dünkü Sorunun Cevabı: ' + yqd.answer + ' (Soru: ' + yqd.question + ')';
+        }
       }
+      if (!footerText) {
+        footerText = 'O.Y.P. - Okul Yönetim Paneline Hoş Geldiniz!';
+      }
+      quizFooter.innerHTML = footerText;
 
       // Gallery
       if (gal && gal.length) {
