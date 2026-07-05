@@ -19,14 +19,14 @@ export async function GET(request: Request) {
   // OAuth (Google) — session zaten cookie'de var mi kontrol et
   const { data: { user } } = await supabase.auth.getUser();
   if (user) {
-    // Profile var mi?
+    // Profile var mi? Eksik bilgi var mi? (trigger bos profil olusturmus olabilir)
     const { data: profile } = await supabase
       .from("profiles")
-      .select("id")
+      .select("id, full_name, school_id")
       .eq("id", user.id)
       .maybeSingle();
 
-    if (!profile) {
+    if (!profile || !profile.full_name || !profile.school_id) {
       return NextResponse.redirect(`${origin}/complete-registration`);
     }
     return NextResponse.redirect(`${origin}${next}`);

@@ -70,8 +70,8 @@ export default function CompleteRegistrationPage() {
       schoolId = school.id;
     }
 
-    // Profili oluştur
-    const { error: profileErr } = await supabase.from("profiles").insert({
+    // Profili olustur (trigger zaten bos kayit acmis olabilir, upsert yap)
+    const { error: profileErr } = await supabase.from("profiles").upsert({
       id: userId,
       school_id: schoolId,
       full_name: fullName.trim(),
