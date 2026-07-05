@@ -13,12 +13,12 @@ export default function LoginPage() {
 
         {/* Logo / Başlık */}
         <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-primary/20 rounded-xl border border-primary/30 shadow-lg shadow-primary/10">
-            <GraduationCap className="h-8 w-8 text-primary" />
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary via-purple-600 to-pink-500 flex items-center justify-center font-black text-white text-base tracking-tighter shadow-lg shadow-primary/20">
+            OYP
           </div>
           <div>
-            <h1 className="text-2xl font-black tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-primary via-purple-400 to-pink-500">EduOS</h1>
-            <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Eğitim Yönetim İşletim Sistemi</p>
+            <h1 className="text-2xl font-black tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-primary via-purple-400 to-pink-500">O.Y.P.</h1>
+            <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Okul Yönetim Paneli</p>
           </div>
         </div>
 
@@ -74,7 +74,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <div className="text-xs text-slate-500">
-          <span>© {new Date().getFullYear()} EduOS. Tüm hakları saklıdır.</span>
+          <span>© {new Date().getFullYear()} OYP. Tüm hakları saklıdır.</span>
         </div>
       </div>
 
@@ -82,11 +82,11 @@ export default function LoginPage() {
       <div className="lg:col-span-5 flex flex-col justify-center items-center p-8 lg:p-12 bg-slate-950 relative">
         {/* Mobil Logo Görünümü */}
         <div className="lg:hidden flex flex-col items-center gap-2 mb-8 text-center">
-          <div className="p-3 bg-primary/10 rounded-xl border border-primary/20">
-            <GraduationCap className="h-10 w-10 text-primary" />
+          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary via-purple-600 to-pink-500 flex items-center justify-center font-black text-white text-lg tracking-tighter shadow-lg shadow-primary/20 mb-1">
+            OYP
           </div>
-          <h1 className="text-3xl font-black bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-400">EduOS</h1>
-          <p className="text-xs text-slate-400 max-w-xs">Kitap okuma, yoklama, akıllı pano ve uzaktan zil yönetim sistemi</p>
+          <h1 className="text-3xl font-black bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-400">O.Y.P.</h1>
+          <p className="text-xs text-slate-400 max-w-xs">Okul Yönetim Paneli — Kitap okuma, yoklama, akıllı pano ve uzaktan zil yönetim sistemi</p>
         </div>
 
         <div className="w-full max-w-sm">

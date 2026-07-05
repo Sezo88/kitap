@@ -1,8 +1,8 @@
-# EduOS - Eğitim Yönetim ve Okul İşletim Sistemi
+# O.Y.P. - Okul Yönetim Paneli
 
 Okul yönetimi, öğrenci takip, yoklama, temiz sınıf puanlama, uzaktan zil kontrolü ve daha fazlası için kapsamlı bir web uygulaması.
 
-**Canlı:** [eduostr.vercel.app](https://eduostr.vercel.app)
+**Canlı:** [oyp.vercel.app](https://oyp.vercel.app)
 
 ## Teknolojiler
 
