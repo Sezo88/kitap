@@ -8,29 +8,32 @@ export async function GET(request: Request) {
 
   const supabase = await createClient();
 
-  // Email/PW sifirlama vs icin code exchange
+  // Email/PW sifirlama veya OAuth icin code exchange
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) return NextResponse.redirect(`${origin}${next}`);
+    if (error) {
+      return NextResponse.redirect(`${origin}/login?error=auth_callback_error`);
+    }
   }
 
-  // OAuth veya mevcut session
+  // Kullanıcı oturumunu kontrol et
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.redirect(`${origin}/login?error=auth_callback_error`);
 
-  // Google ile giris yapmissa direkt kayit tamamlama sayfasina git
-  // (trigger bos profil olusturmus olabilir, complete-registration halledecek)
-  const isOAuth = user.app_metadata?.provider === "google";
-  if (isOAuth) return NextResponse.redirect(`${origin}/complete-registration`);
-
-  // Email ile giris — profile kontrol et
+  // Profil kontrolü
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, full_name, school_id")
+    .select("id, full_name, role, school_id")
     .eq("id", user.id)
     .maybeSingle();
 
-  if (!profile || !profile.full_name || !profile.school_id) {
+  // Eğer profil yoksa veya okul_id / ad_soyad bilgileri eksikse (super_admin hariç)
+  const isIncomplete = !profile || 
+                       !profile.full_name || 
+                       profile.full_name === "Yeni Kullanıcı" || 
+                       (profile.role !== "super_admin" && !profile.school_id);
+
+  if (isIncomplete) {
     return NextResponse.redirect(`${origin}/complete-registration`);
   }
 

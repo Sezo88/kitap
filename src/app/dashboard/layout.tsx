@@ -14,6 +14,16 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
+  // Profil eksikse kaydı tamamlama sayfasına yönlendir (super_admin hariç)
+  const isIncomplete = !profile || 
+                       !profile.full_name || 
+                       profile.full_name === "Yeni Kullanıcı" || 
+                       (profile.role !== "super_admin" && !profile.school_id);
+
+  if (isIncomplete) {
+    redirect("/complete-registration");
+  }
+
   // If pending, show waiting page (no sidebar)
   if (profile?.status === "pending") {
     return (

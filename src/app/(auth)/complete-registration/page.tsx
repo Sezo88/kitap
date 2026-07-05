@@ -33,7 +33,7 @@ export default function CompleteRegistrationPage() {
       // Profil zaten tamamlanmis mi? (sayfaya tekrar gelirse direkt atla)
       var { data: existingProfile } = await supabase.from("profiles")
         .select("full_name, school_id").eq("id", user.id).maybeSingle();
-      if (existingProfile && existingProfile.full_name && existingProfile.full_name !== 'Yeni Kullanici' && existingProfile.school_id) {
+      if (existingProfile && existingProfile.full_name && existingProfile.full_name !== 'Yeni Kullanici' && existingProfile.full_name !== 'Yeni Kullanıcı' && existingProfile.school_id) {
         router.push("/dashboard");
         return;
       }
