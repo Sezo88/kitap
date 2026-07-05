@@ -20,6 +20,11 @@ export async function GET(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.redirect(`${origin}/login?error=auth_callback_error`);
 
+  // Şifre sıfırlama akışında profil kontrolünü atla (şifre değiştikten sonra dashboard layout'u zaten yakalayacak)
+  if (next.startsWith("/reset-password")) {
+    return NextResponse.redirect(`${origin}${next}`);
+  }
+
   // Profil kontrolü
   const { data: profile } = await supabase
     .from("profiles")
