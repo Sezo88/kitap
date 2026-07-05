@@ -505,10 +505,37 @@ export function StudentList({ students: initialStudents, classes, books, role, s
                   )}
                 </div>
               </div>
-              {/* Veli Telefonları */}
               <div className="space-y-1 bg-muted/60 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground">
-                <div>1. Veli: {s.veli_telefon || "-"} {s.veli_telefon_sahip && <Badge variant="outline" className="text-[10px] ml-1 py-0 px-1">{s.veli_telefon_sahip}</Badge>}</div>
-                <div>2. Veli: {s.veli_telefon_2 || "-"} {s.veli_telefon_2_sahip && <Badge variant="outline" className="text-[10px] ml-1 py-0 px-1">{s.veli_telefon_2_sahip}</Badge>}</div>
+                <div>
+                  1. Veli:{" "}
+                  {s.veli_telefon ? (
+                    <a href={`tel:${s.veli_telefon}`} className="text-primary hover:underline font-mono">
+                      {s.veli_telefon}
+                    </a>
+                  ) : (
+                    "-"
+                  )}{" "}
+                  {s.veli_telefon_sahip && (
+                    <Badge variant="outline" className="text-[10px] ml-1 py-0 px-1">
+                      {s.veli_telefon_sahip}
+                    </Badge>
+                  )}
+                </div>
+                <div>
+                  2. Veli:{" "}
+                  {s.veli_telefon_2 ? (
+                    <a href={`tel:${s.veli_telefon_2}`} className="text-primary hover:underline font-mono">
+                      {s.veli_telefon_2}
+                    </a>
+                  ) : (
+                    "-"
+                  )}{" "}
+                  {s.veli_telefon_2_sahip && (
+                    <Badge variant="outline" className="text-[10px] ml-1 py-0 px-1">
+                      {s.veli_telefon_2_sahip}
+                    </Badge>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -544,8 +571,32 @@ export function StudentList({ students: initialStudents, classes, books, role, s
                     <TableCell className="text-muted-foreground">{s.e_okul_no || "-"}</TableCell>
                     <TableCell>
                       <div className="text-sm space-y-0.5 text-muted-foreground">
-                        <div>1. Veli: {s.veli_telefon || "-"} {s.veli_telefon_sahip && <span className="text-xs opacity-70">({s.veli_telefon_sahip})</span>}</div>
-                        <div>2. Veli: {s.veli_telefon_2 || "-"} {s.veli_telefon_2_sahip && <span className="text-xs opacity-70">({s.veli_telefon_2_sahip})</span>}</div>
+                        <div>
+                          1. Veli:{" "}
+                          {s.veli_telefon ? (
+                            <a href={`tel:${s.veli_telefon}`} className="text-primary hover:underline font-mono">
+                              {s.veli_telefon}
+                            </a>
+                          ) : (
+                            "-"
+                          )}{" "}
+                          {s.veli_telefon_sahip && (
+                            <span className="text-xs opacity-70">({s.veli_telefon_sahip})</span>
+                          )}
+                        </div>
+                        <div>
+                          2. Veli:{" "}
+                          {s.veli_telefon_2 ? (
+                            <a href={`tel:${s.veli_telefon_2}`} className="text-primary hover:underline font-mono">
+                              {s.veli_telefon_2}
+                            </a>
+                          ) : (
+                            "-"
+                          )}{" "}
+                          {s.veli_telefon_2_sahip && (
+                            <span className="text-xs opacity-70">({s.veli_telefon_2_sahip})</span>
+                          )}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>
