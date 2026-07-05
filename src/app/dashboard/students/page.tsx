@@ -13,13 +13,6 @@ export default async function StudentsPage() {
 
   const schoolFilter = profile.role === "super_admin" ? {} : { school_id: profile.school_id };
 
-  // Build teacher classes filter if necessary
-  let teacherClassIds: string[] | null = null;
-  if (profile.role === "ogretmen") {
-    const { data: tc } = await supabase.from("teacher_classes").select("class_id").eq("teacher_id", user!.id);
-    teacherClassIds = tc?.map((t) => t.class_id) || [];
-  }
-
   // Build student query
   let studentsQuery = supabase
     .from("students")
@@ -27,14 +20,6 @@ export default async function StudentsPage() {
     .match(schoolFilter)
     .eq("is_active", true)
     .order("full_name");
-
-  if (profile.role === "ogretmen" && teacherClassIds) {
-    if (teacherClassIds.length > 0) {
-      studentsQuery = studentsQuery.in("class_id", teacherClassIds);
-    } else {
-      studentsQuery = studentsQuery.eq("class_id", "00000000-0000-0000-0000-000000000000");
-    }
-  }
 
   // Parallelize student query, classes list, and books list
   const [
