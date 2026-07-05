@@ -63,7 +63,7 @@ export function LoginForm() {
     setLoading(true);
     const supabase = createClient();
     const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
-      redirectTo: `${window.location.origin}/callback?next=/dashboard`,
+      redirectTo: `${window.location.origin}/callback?next=/reset-password`,
     });
     setLoading(false);
     if (error) setError("Hata: " + error.message);
