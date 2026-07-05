@@ -322,7 +322,7 @@ AS $$
   SELECT school_id FROM public.profiles WHERE id = auth.uid();
 $$;
 
--- Günlük Soru Seçme Fonksiyonu (Döngülü & Çakışmasız)
+-- Günlük Soru Seçme Fonksiyonu (Döngülü & Çakışmasız & Hafta Sonu Korumalı)
 CREATE OR REPLACE FUNCTION public.pick_daily_question(p_school_id uuid)
 RETURNS uuid
 LANGUAGE plpgsql
@@ -333,6 +333,11 @@ DECLARE
   v_question_id uuid;
   v_daily_id uuid;
 BEGIN
+  -- Hafta sonu kontrolü (Cumartesi = 6, Pazar = 7) -> Hafta sonları soru seçilmez
+  IF EXTRACT(isodow FROM CURRENT_DATE) IN (6, 7) THEN
+    RETURN NULL;
+  END IF;
+
   -- 1. Bugün için halihazırda seçilmiş soru var mı kontrol et
   SELECT id INTO v_daily_id FROM public.quiz_daily
   WHERE school_id = p_school_id AND question_date = CURRENT_DATE;
