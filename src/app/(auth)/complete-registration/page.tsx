@@ -49,8 +49,8 @@ export default function CompleteRegistrationPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!fullName.trim()) { setError("Ad soyad zorunludur"); return; }
-    if (!createNewSchool && !schoolCode.trim()) { setError("Okul kodu gerekli"); return; }
-    if (createNewSchool && !newSchoolName.trim()) { setError("Okul adı gerekli"); return; }
+    if (!schoolCode.trim() || schoolCode.trim().length !== 6) { setError("Okul kodu 6 haneli bir sayı olmalıdır"); return; }
+    if (createNewSchool && !newSchoolName.trim()) { setError("Okul adı zorunludur"); return; }
 
     setSaving(true);
     setError("");
@@ -58,11 +58,23 @@ export default function CompleteRegistrationPage() {
     let schoolId = "";
 
     if (createNewSchool) {
+      // Okul kodunun benzersiz olduğunu kontrol et
+      const { data: existingSchool } = await supabase
+        .from("schools")
+        .select("id")
+        .eq("code", schoolCode.trim())
+        .maybeSingle();
+
+      if (existingSchool) {
+        setError("Bu okul kodu zaten kullanılıyor. Lütfen başka bir kod seçin.");
+        setSaving(false);
+        return;
+      }
+
       // Yeni okul oluştur (idareci kendi okulunu açar)
-      const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
       const { data: school, error: schoolErr } = await supabase
         .from("schools")
-        .insert({ name: newSchoolName.trim(), code: newCode, created_by: userId })
+        .insert({ name: newSchoolName.trim(), code: schoolCode.trim(), created_by: userId })
         .select("id")
         .single();
       if (schoolErr) { setError("Okul oluşturma hatası: " + schoolErr.message); setSaving(false); return; }
@@ -75,7 +87,7 @@ export default function CompleteRegistrationPage() {
         .select("id")
         .eq("code", schoolCode.trim())
         .single();
-      if (!school) { setError("Geçersiz okul kodu"); setSaving(false); return; }
+      if (!school) { setError("Geçersiz okul kodu. Bu koda sahip bir okul bulunamadı."); setSaving(false); return; }
       schoolId = school.id;
     }
 
@@ -138,19 +150,19 @@ export default function CompleteRegistrationPage() {
               Yeni okul topluluğu oluştur
             </label>
 
-            {createNewSchool ? (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="code">Okul Kodu</Label>
+              <Input id="code" value={schoolCode}
+                onChange={(e) => setSchoolCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="6 haneli okul kodu" maxLength={6} required />
+            </div>
+
+            {createNewSchool && (
               <div className="flex flex-col gap-2">
                 <Label htmlFor="schoolname">Okul Adı</Label>
                 <Input id="schoolname" value={newSchoolName}
                   onChange={(e) => setNewSchoolName(e.target.value)}
-                  placeholder="örn: İhsan Çelikten Ortaokulu" />
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="code">Okul Kodu</Label>
-                <Input id="code" value={schoolCode}
-                  onChange={(e) => setSchoolCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder="6 haneli okul kodu" maxLength={6} />
+                  placeholder="örn: İhsan Çelikten Ortaokulu" required />
               </div>
             )}
 
