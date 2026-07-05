@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Users, GraduationCap, Library, ClipboardCheck, CalendarDays, Shield, Cake } from "lucide-react";
+import { Users, GraduationCap, Library, ClipboardCheck, CalendarDays, Shield, Cake, HelpCircle } from "lucide-react";
 import { getCachedUserAndProfile } from "@/lib/supabase/auth-cache";
 
 export default async function DashboardPage() {
@@ -190,16 +190,61 @@ export default async function DashboardPage() {
     return d.getMonth() + 1 === todayMonth && d.getDate() === todayDate;
   });
 
+  // Günün Soruları İstatistikleri
+  const qqQuery = supabase
+    .from("quiz_questions")
+    .select("id", { count: "exact", head: true })
+    .eq("is_active", true);
+  if (profile.school_id) qqQuery.eq("school_id", profile.school_id);
+  const { count: totalQuestionsCount } = await qqQuery;
+
+  const qdQuery = supabase.from("quiz_daily").select("question_id");
+  if (profile.school_id) qdQuery.eq("school_id", profile.school_id);
+  const { data: askedQuestionsRes } = await qdQuery;
+
+  const uniqueAskedIds = Array.from(
+    new Set((askedQuestionsRes || []).map((d: any) => d.question_id).filter(Boolean))
+  );
+
+  let activeAskedCount = 0;
+  if (uniqueAskedIds.length > 0) {
+    const qCountQuery = supabase
+      .from("quiz_questions")
+      .select("id")
+      .eq("is_active", true)
+      .in("id", uniqueAskedIds);
+    if (profile.school_id) qCountQuery.eq("school_id", profile.school_id);
+    const { data: activeAskedRes } = await qCountQuery;
+    activeAskedCount = activeAskedRes?.length || 0;
+  }
+
+  const totalQuestions = totalQuestionsCount || 0;
+  const remainingQuestions = Math.max(0, totalQuestions - activeAskedCount);
+
   const stats = [
     { label: "Sınıflar", value: classCount || 0, icon: GraduationCap, color: "text-blue-600 bg-blue-100" },
     { label: "Öğrenciler", value: studentCount || 0, icon: Users, color: "text-green-600 bg-green-100" },
     { label: "Kitaplar", value: bookCount || 0, icon: Library, color: "text-purple-600 bg-purple-100" },
-    { label: "Bugün İşaretlenen", value: todayCount || 0, icon: ClipboardCheck, color: "text-orange-600 bg-orange-100" },
+    { label: "Sorulmamış Sorular", value: `${remainingQuestions} / ${totalQuestions}`, icon: HelpCircle, color: remainingQuestions === 0 ? "text-rose-600 bg-rose-100 animate-pulse" : "text-amber-600 bg-amber-100" },
   ];
 
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">Ana Sayfa</h2>
+
+      {/* Günün Sorusu Durum Uyarısı */}
+      {remainingQuestions === 0 ? (
+        <div className="p-4 bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 rounded-lg flex flex-col gap-1 text-sm animate-pulse">
+          <span className="font-bold flex items-center gap-1">⚠️ Günün Soruları Bitti!</span>
+          <span>Soru bankanızdaki tüm aktif sorular soruldu. Lütfen yeni sorular ekleyin. Şu anda mevcut sorular sıfırlanıp tekrar döngüye girecektir.</span>
+        </div>
+      ) : remainingQuestions <= 5 ? (
+        <div className="p-4 bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 rounded-lg flex flex-col gap-1 text-sm">
+          <span className="font-bold flex items-center gap-1">⚠️ Günün Soruları Azalıyor!</span>
+          <span>Soru bankanızda sorulmamış son <strong>{remainingQuestions}</strong> adet aktif soru kaldı. Yakında soruların bitmemesi için yeni sorular ekleyebilirsiniz.</span>
+        </div>
+      ) : null}
+
       {school && (profile.role === "idareci" || profile.role === "super_admin") && (
         <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg flex items-center gap-4">
           <div>

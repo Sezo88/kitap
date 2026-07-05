@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Save, Plus, Trash2, Upload, HelpCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 interface QuizQuestion {
   id: string;
@@ -26,9 +27,10 @@ interface QuizQuestion {
 interface Props {
   schoolId: string;
   initialQuestions: QuizQuestion[];
+  askedQuestionIds: string[];
 }
 
-export function QuizManager({ schoolId, initialQuestions }: Props) {
+export function QuizManager({ schoolId, initialQuestions, askedQuestionIds }: Props) {
   const [questions, setQuestions] = useState<QuizQuestion[]>(initialQuestions);
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
@@ -166,7 +168,24 @@ export function QuizManager({ schoolId, initialQuestions }: Props) {
               {questions.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Soru yok</TableCell></TableRow>}
               {questions.slice(0, 100).map((q) => (
                 <TableRow key={q.id}>
-                  <TableCell className="text-sm max-w-[300px] truncate" title={q.question}>{q.question}</TableCell>
+                  <TableCell className="text-sm max-w-[300px] truncate" title={q.question}>
+                    <div className="flex flex-col gap-1">
+                      <span>{q.question}</span>
+                      {askedQuestionIds.includes(q.id) ? (
+                        <div>
+                          <Badge variant="secondary" className="text-[10px] font-bold text-amber-600 bg-amber-500/10 border-amber-500/20 py-0 px-1">
+                            Soruldu
+                          </Badge>
+                        </div>
+                      ) : (
+                        <div>
+                          <Badge variant="outline" className="text-[10px] font-bold text-slate-500 bg-slate-50 border-slate-200 py-0 px-1">
+                            Sorulmadı
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell className="text-sm font-medium text-green-600">{q.answer}</TableCell>
                   <TableCell><span className="text-xs bg-muted px-2 py-0.5 rounded-full">{q.difficulty}</span></TableCell>
                   <TableCell><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDelete(q.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button></TableCell>
