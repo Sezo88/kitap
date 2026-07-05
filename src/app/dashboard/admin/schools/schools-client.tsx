@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
-import { ShieldAlert, Search, MessageSquare, Calendar, X, Coins, Activity, CheckCircle, XCircle, Clock } from "lucide-react";
+import { ShieldAlert, Search, MessageSquare, Calendar, X, Coins, Activity, CheckCircle, XCircle, Clock, Trash2 } from "lucide-react";
 
 interface School {
   id: string;
@@ -113,6 +113,32 @@ export function SchoolsClient({ initialSchools }: Props) {
       toast("Lisans tarihi güncellenemedi: " + error.message, "error");
     } else {
       toast("Lisans süresi güncellendi.", "success");
+    }
+  }
+
+  async function handleDeleteSchool(school: School) {
+    const confirmName = window.prompt(
+      `DİKKAT: "${school.name}" okulunu ve bu okula ait TÜM sınıfları, öğrencileri, yoklama kayıtlarını ve kitap verilerini kalıcı olarak silmek üzeresiniz!\n\nDevam etmek için okulun adını tam olarak yazın:`
+    );
+
+    if (confirmName !== school.name) {
+      if (confirmName !== null) {
+        toast("Okul adı eşleşmedi, silme işlemi iptal edildi.", "error");
+      }
+      return;
+    }
+
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("schools")
+      .delete()
+      .eq("id", school.id);
+
+    if (error) {
+      toast("Okul silinemedi: " + error.message, "error");
+    } else {
+      setSchools((prev) => prev.filter((s) => s.id !== school.id));
+      toast(`"${school.name}" okulu ve tüm ilişkili verileri başarıyla silindi.`, "success");
     }
   }
 
@@ -255,12 +281,13 @@ export function SchoolsClient({ initialSchools }: Props) {
                   <TableHead className="text-center">Ders Programı Yetkisi</TableHead>
                   <TableHead className="text-center">Zil Yetkisi</TableHead>
                   <TableHead className="text-center">SMS Ayar</TableHead>
+                  <TableHead className="text-center">İşlemler</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredSchools.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                       Okul bulunamadı
                     </TableCell>
                   </TableRow>
@@ -392,6 +419,18 @@ export function SchoolsClient({ initialSchools }: Props) {
                           title="SMS Ayarlarını & Raporlarını Yönet"
                         >
                           <MessageSquare className="h-4 w-4" />
+                        </button>
+                      </TableCell>
+
+                      {/* Okul Silme Butonu */}
+                      <TableCell className="text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteSchool(school)}
+                          className="p-2 rounded-lg text-destructive hover:bg-destructive/10 transition-colors border border-destructive/20"
+                          title="Okulu Sil"
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </button>
                       </TableCell>
                     </TableRow>

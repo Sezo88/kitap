@@ -492,6 +492,7 @@ CREATE POLICY "schools_insert" ON public.schools FOR INSERT WITH CHECK (true);
 CREATE POLICY "schools_update" ON public.schools FOR UPDATE USING (id = public.get_my_school_id() OR public.get_my_role() = 'super_admin');
 CREATE POLICY "schools_select_super_admin" ON public.schools FOR SELECT USING (public.get_my_role() = 'super_admin');
 CREATE POLICY "schools_update_super_admin" ON public.schools FOR UPDATE USING (public.get_my_role() = 'super_admin');
+CREATE POLICY "schools_delete_super_admin" ON public.schools FOR DELETE USING (public.get_my_role() = 'super_admin');
 
 -- 2. Profiles Policies
 CREATE POLICY "profiles_select_own" ON public.profiles FOR SELECT USING (id = auth.uid());
