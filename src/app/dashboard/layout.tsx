@@ -8,6 +8,7 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const supabase = await createClient();
   const { user, profile } = await getCachedUserAndProfile();
 
   if (!user) {
@@ -63,12 +64,30 @@ export default async function DashboardLayout({
     feature_bell: school?.feature_bell !== false,
   };
 
+  // Get pending approvals count
+  let pendingApprovalsCount = 0;
+  if (profile?.role === "idareci" && profile.school_id) {
+    const { count } = await supabase
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("school_id", profile.school_id)
+      .eq("status", "pending");
+    pendingApprovalsCount = count || 0;
+  } else if (profile?.role === "super_admin") {
+    const { count } = await supabase
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending");
+    pendingApprovalsCount = count || 0;
+  }
+
   return (
     <DashboardLayoutClient
       role={profile?.role || "ogretmen"}
       fullName={profile?.full_name}
       schoolName={school?.name || null}
       schoolFeatures={schoolFeatures}
+      pendingApprovalsCount={pendingApprovalsCount}
     >
       {children}
     </DashboardLayoutClient>

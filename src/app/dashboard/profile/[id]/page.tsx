@@ -6,6 +6,7 @@ import { BookOpen, CalendarCheck, TrendingUp } from "lucide-react";
 import { notFound } from "next/navigation";
 import { getCachedUserAndProfile } from "@/lib/supabase/auth-cache";
 import { StudentReportCard } from "@/components/profile/student-report-card";
+import { UserProfileClient } from "@/components/profile/user-profile-client";
 
 function getAcademicYear(dateStrOrObj: string | Date | null): string {
   if (!dateStrOrObj) return "Bilinmeyen";
@@ -34,16 +35,24 @@ export default async function StudentProfilePage({
 
   if (!profile) return null;
 
-  let studentId = id;
-  if (id === "me") {
-    // Redirect to own profile doesn't make sense for students; teachers don't have tracking
-    // Just show the first student from their class
-    const { data: tc } = await supabase.from("teacher_classes").select("class_id").eq("teacher_id", user!.id).limit(1);
-    if (tc?.[0]) {
-      const { data: firstStudent } = await supabase.from("students").select("id").eq("class_id", tc[0].class_id).limit(1).single();
-      if (firstStudent) studentId = firstStudent.id;
-    }
+  if (id === "me" || id === user!.id) {
+    const { data: userProfile } = await supabase
+      .from("profiles")
+      .select("*, schools(name)")
+      .eq("id", user!.id)
+      .single();
+
+    if (!userProfile) notFound();
+
+    return (
+      <div>
+        <h2 className="text-2xl font-bold mb-6">Profilim</h2>
+        <UserProfileClient userProfile={userProfile as any} email={user!.email || ""} />
+      </div>
+    );
   }
+
+  let studentId = id;
 
   // Parallelize student info, reading logs history and student books history queries
   const [
