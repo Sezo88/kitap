@@ -1,8 +1,8 @@
-# Okul Asistanı
+# EduOS - Eğitim Yönetim ve Okul İşletim Sistemi
 
-Okul yönetimi, öğrenci takip, yoklama, temiz sınıf puanlama ve daha fazlası için kapsamlı bir web uygulaması.
+Okul yönetimi, öğrenci takip, yoklama, temiz sınıf puanlama, uzaktan zil kontrolü ve daha fazlası için kapsamlı bir web uygulaması.
 
-**Canlı:** [kitapokuma.vercel.app](https://kitapokuma.vercel.app)
+**Canlı:** [eduostr.vercel.app](https://eduostr.vercel.app)
 
 ## Teknolojiler
 
@@ -31,20 +31,7 @@ SUPABASE_SERVICE_ROLE_KEY=eyJ...
 
 ### 3. Veritabanı Kurulumu
 
-**Yeni kurulum** için `database-migration-v2.sql` dosyasını Supabase SQL Editor'da çalıştırın. Bu dosya tüm tabloları, RLS politikalarını ve fonksiyonları içerir.
-
-**Mevcut veritabanına** yeni özellikler eklemek için ilgili `patch-*.sql` dosyalarını sırayla çalıştırın:
-
-| Dosya | Açıklama |
-|-------|----------|
-| `database-migration.sql` | İlk kurulum (v1) |
-| `patch-rol-trigger-fix.sql` | Rol atama düzeltmesi |
-| `patch-rls-recursion-fix.sql` | RLS sonsuz döngü düzeltmesi |
-| `patch-okul-onay-sistemi.sql` | Okul kodu + onay sistemi |
-| `patch-okul-kodu-ve-onay.sql` | Okul kodu benzersizlik |
-| `patch-ogretmen-ogrenci-ekleme.sql` | Öğretmen öğrenci ekleme yetkisi |
-| `patch-veli-sahip.sql` | Veli telefon sahiplik alanları |
-| `database-migration-v2.sql` | Konsolide şema (tüm tabloları içerir) |
+**Sıfırdan kurulum veya şema güncelleme** için `database-migration-combined.sql` dosyasını Supabase SQL Editor'da çalıştırın. Bu dosya en güncel haliyle tüm tabloları, RLS politikalarını, RPC tetikleyicilerini ve performans iyileştirmelerini içerir.
 
 ### 4. Geliştirme Sunucusu
 
