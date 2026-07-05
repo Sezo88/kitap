@@ -29,9 +29,18 @@ export default function CompleteRegistrationPage() {
       if (!user) { router.push("/login"); return; }
 
       setUserId(user.id);
+
+      // Profil zaten tamamlanmis mi? (sayfaya tekrar gelirse direkt atla)
+      var { data: existingProfile } = await supabase.from("profiles")
+        .select("full_name, school_id").eq("id", user.id).maybeSingle();
+      if (existingProfile && existingProfile.full_name && existingProfile.full_name !== 'Yeni Kullanici' && existingProfile.school_id) {
+        router.push("/dashboard");
+        return;
+      }
+
       // Google'dan gelen ismi al
       const googleName = user.user_metadata?.full_name || user.user_metadata?.name || "";
-      setFullName(googleName);
+      setFullName(googleName || "");
       setStep("form");
     }
     init();

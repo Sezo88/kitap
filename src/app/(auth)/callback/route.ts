@@ -8,29 +8,31 @@ export async function GET(request: Request) {
 
   const supabase = await createClient();
 
-  // Email/PW sifirilama vs icin code exchange
+  // Email/PW sifirlama vs icin code exchange
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      return NextResponse.redirect(`${origin}${next}`);
-    }
+    if (!error) return NextResponse.redirect(`${origin}${next}`);
   }
 
-  // OAuth (Google) — session zaten cookie'de var mi kontrol et
+  // OAuth veya mevcut session
   const { data: { user } } = await supabase.auth.getUser();
-  if (user) {
-    // Profile var mi? Eksik bilgi var mi? (trigger bos profil olusturmus olabilir)
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("id, full_name, school_id")
-      .eq("id", user.id)
-      .maybeSingle();
+  if (!user) return NextResponse.redirect(`${origin}/login?error=auth_callback_error`);
 
-    if (!profile || !profile.full_name || !profile.school_id) {
-      return NextResponse.redirect(`${origin}/complete-registration`);
-    }
-    return NextResponse.redirect(`${origin}${next}`);
+  // Google ile giris yapmissa direkt kayit tamamlama sayfasina git
+  // (trigger bos profil olusturmus olabilir, complete-registration halledecek)
+  const isOAuth = user.app_metadata?.provider === "google";
+  if (isOAuth) return NextResponse.redirect(`${origin}/complete-registration`);
+
+  // Email ile giris — profile kontrol et
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, full_name, school_id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (!profile || !profile.full_name || !profile.school_id) {
+    return NextResponse.redirect(`${origin}/complete-registration`);
   }
 
-  return NextResponse.redirect(`${origin}/login?error=auth_callback_error`);
+  return NextResponse.redirect(`${origin}${next}`);
 }
