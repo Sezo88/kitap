@@ -81,6 +81,9 @@ export default function PanoPage() {
   const [birthdays, setBirthdays] = useState<{ full_name: string; class_name: string; dogum_tarihi: string }[]>([]);
   const [dailyQuiz, setDailyQuiz] = useState<any>(null);
   const [yesterdayQuiz, setYesterdayQuiz] = useState<any>(null);
+  const [cleanlinessScores, setCleanlinessScores] = useState<{ name: string; avg: number }[]>([]);
+  const [quizScores, setQuizScores] = useState<{ class_name: string; score: number }[]>([]);
+  const [showClean, setShowClean] = useState(true);
 
   // UI state
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -90,6 +93,12 @@ export default function PanoPage() {
   const slideTimer = useRef<NodeJS.Timeout | null>(null);
   const galleryTimer = useRef<NodeJS.Timeout | null>(null);
   const clockTimer = useRef<NodeJS.Timeout | null>(null);
+
+  const announcementsRef = useRef<HTMLDivElement>(null);
+  const readersRef = useRef<HTMLDivElement>(null);
+  const lessonsRef = useRef<HTMLDivElement>(null);
+  const dutiesRef = useRef<HTMLDivElement>(null);
+  const birthdaysRef = useRef<HTMLDivElement>(null);
 
   // ── PIN Auth ──────────────────────────────────────────────
   useEffect(() => {
@@ -107,6 +116,67 @@ export default function PanoPage() {
       sessionStorage.removeItem(STORAGE_KEY);
     }
   }, []);
+
+  // ── Cleanliness / Quiz toggling ────────────────────────────
+  useEffect(() => {
+    if (!authenticated) return;
+    const interval = setInterval(() => {
+      setShowClean((prev) => !prev);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [authenticated]);
+
+  // ── Auto-scroll Effect ─────────────────────────────────────
+  useEffect(() => {
+    if (!authenticated) return;
+
+    const containers = [
+      { ref: announcementsRef, speed: 0.3 },
+      { ref: readersRef, speed: 0.4 },
+      { ref: lessonsRef, speed: 0.25 },
+      { ref: dutiesRef, speed: 0.35 },
+      { ref: birthdaysRef, speed: 0.3 },
+    ];
+
+    const cleanups = containers.map((c) => {
+      let dir = 1;
+      let pos = 0;
+      let timer: NodeJS.Timeout | null = null;
+
+      const runScroll = () => {
+        const el = c.ref.current;
+        if (!el) return;
+
+        const maxScroll = el.scrollHeight - el.clientHeight;
+        if (maxScroll <= 0) return;
+
+        timer = setInterval(() => {
+          pos += c.speed * dir;
+          el.scrollTop = pos;
+
+          if (dir > 0 && pos >= maxScroll - 1) {
+            clearInterval(timer!);
+            dir = -1;
+            setTimeout(runScroll, 3000);
+          } else if (dir < 0 && pos <= 1) {
+            clearInterval(timer!);
+            dir = 1;
+            setTimeout(runScroll, 2000);
+          }
+        }, 30);
+      };
+
+      runScroll();
+
+      return () => {
+        if (timer) clearInterval(timer);
+      };
+    });
+
+    return () => {
+      cleanups.forEach((cleanup) => cleanup());
+    };
+  }, [authenticated, announcements, topReaders, lessons, duties, birthdays]);
 
   async function handlePinSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -147,6 +217,15 @@ export default function PanoPage() {
       setPeriodStatus("Hafta sonu - Iyi tatiller!");
     }
 
+    // Bu haftanin pazartesi ve cumasi
+    const d = new Date(today);
+    const dayOfWeekNum = d.getDay();
+    const diffMon = dayOfWeekNum === 0 ? -6 : 1 - dayOfWeekNum;
+    d.setDate(d.getDate() + diffMon);
+    const weekMon = d.toISOString().split("T")[0];
+    d.setDate(d.getDate() + 4);
+    const weekFri = d.toISOString().split("T")[0];
+
     const [
       configData,
       bellData,
@@ -157,7 +236,10 @@ export default function PanoPage() {
       birthdaysData,
       readersData,
       dailyQuizRes,
-      yesterdayQuizRes
+      yesterdayQuizRes,
+      classesData,
+      cleanScoresData,
+      quizScoresData
     ] = await Promise.all([
       supabase.from("panel_config").select("*").eq("school_id", schoolId).maybeSingle(),
       supabase.from("bell_schedule").select("*").eq("school_id", schoolId).order("period_no"),
@@ -169,6 +251,9 @@ export default function PanoPage() {
       supabase.from("student_books").select("students!inner(full_name, class_id, classes!inner(name))").eq("status", "completed"),
       supabase.from("quiz_daily").select("id, quiz_questions(question, answer)").eq("school_id", schoolId).eq("question_date", today.toISOString().split("T")[0]).maybeSingle(),
       supabase.from("quiz_daily").select("id, question_date, quiz_questions(question, answer)").eq("school_id", schoolId).lt("question_date", today.toISOString().split("T")[0]).order("question_date", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("classes").select("id, name").eq("school_id", schoolId),
+      supabase.from("cleanliness_scores").select("class_id, score, classes!inner(name)").gte("score_date", weekMon).lte("score_date", weekFri),
+      supabase.from("quiz_scores").select("score, class_name").eq("school_id", schoolId).order("score", { ascending: false }).limit(5)
     ]);
 
     if (configData.data) setConfig(configData.data as PanoConfig);
@@ -237,24 +322,31 @@ export default function PanoPage() {
       });
       const sorted = Array.from(countMap.values()).sort((a, b) => b.count - a.count).slice(0, 10);
       setTopReaders(sorted.map((r) => ({ student_name: r.name, class_name: r.className, book_count: r.count })));
+    }
 
-      // En cok okuyan sinif
-      const classMap = new Map<string, { cname: string; total: number; count: number }>();
-      sorted.forEach((r) => {
-        if (!classMap.has(r.className)) {
-          classMap.set(r.className, { cname: r.className, total: 0, count: 0 });
-        }
-        const c = classMap.get(r.className)!;
-        c.total += r.count;
-        c.count++;
+    // Cleanliness Scores parsing
+    if (cleanScoresData.data) {
+      const scMap2: Record<string, { total: number; count: number }> = {};
+      (cleanScoresData.data as any[]).forEach((s) => {
+        const cn = s.classes?.name;
+        if (!cn) return;
+        if (!scMap2[cn]) scMap2[cn] = { total: 0, count: 0 };
+        scMap2[cn].total += s.score;
+        scMap2[cn].count++;
       });
-      let bestClassName = "";
-      let bestAvg = 0;
-      classMap.forEach((c) => {
-        const avg = c.total / c.count;
-        if (avg > bestAvg) { bestAvg = avg; bestClassName = c.cname; }
-      });
-      if (bestClassName) setTopClass({ class_name: bestClassName, avg_rate: Math.round(bestAvg) });
+      const ranked = Object.entries(scMap2)
+        .map(([name, val]) => ({
+          name,
+          avg: Math.round((val.total / val.count) * 10) / 10,
+        }))
+        .sort((a, b) => b.avg - a.avg)
+        .slice(0, 3);
+      setCleanlinessScores(ranked);
+    }
+
+    // Quiz Scores parsing
+    if (quizScoresData.data) {
+      setQuizScores(quizScoresData.data as any[]);
     }
 
     // Günün sorusu otomatik seçme akışı
@@ -477,108 +569,141 @@ export default function PanoPage() {
       {/* LEFT PANEL */}
       <div style={{ gridArea: "left", display: "flex", flexDirection: "column", gap: 10, overflow: "hidden" }}>
         {/* Canli Ders Programi */}
-        <div style={{ background: cardBg, backdropFilter: "blur(10px)", borderRadius: 15, padding: 15, border: `1px solid ${cardBorder}`, flex: 1, overflow: "auto" }}>
-          <h3 style={{ margin: "0 0 10px", fontSize: "1.1em" }}>Bugunun Ders Programi</h3>
-          {lessons.length === 0 ? (
-            <p style={{ opacity: 0.6, fontSize: "0.9em", textAlign: "center", padding: 20 }}>Bugun ders yok</p>
-          ) : (
-            lessons.slice(0, 10).map((l, i) => (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.08)", fontSize: "0.9em" }}>
-                <span style={{ fontWeight: 600, minWidth: 30 }}>{l.period_no}.</span>
-                <span style={{ flex: 1 }}>{l.subject_name || "-"}</span>
-                <span style={{ opacity: 0.7, fontSize: "0.85em" }}>{l.teacher_name || ""}</span>
-              </div>
-            ))
-          )}
+        <div style={{ background: cardBg, backdropFilter: "blur(10px)", borderRadius: 15, padding: 15, border: `1px solid ${cardBorder}`, flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <h3 style={{ margin: "0 0 10px", fontSize: "1.1em" }}>Bugünün Ders Programı</h3>
+          <div ref={lessonsRef} className="auto-scroll" style={{ flex: 1, overflowY: "auto" }}>
+            {lessons.length === 0 ? (
+              <p style={{ opacity: 0.6, fontSize: "0.9em", textAlign: "center", padding: 20 }}>Bugün ders yok</p>
+            ) : (
+              lessons.slice(0, 10).map((l, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.08)", fontSize: "0.9em" }}>
+                  <span style={{ fontWeight: 600, minWidth: 30 }}>{l.period_no}.</span>
+                  <span style={{ flex: 1 }}>{l.subject_name || "-"}</span>
+                  <span style={{ opacity: 0.7, fontSize: "0.85em" }}>{l.teacher_name || ""}</span>
+                </div>
+              ))
+            )}
+          </div>
         </div>
 
         {/* Nobetci Ogretmenler */}
-        <div style={{ background: cardBg, backdropFilter: "blur(10px)", borderRadius: 15, padding: 15, border: `1px solid ${cardBorder}`, maxHeight: 200, overflow: "auto" }}>
-          <h3 style={{ margin: "0 0 10px", fontSize: "1.1em" }}>Bugunun Nobetcileri</h3>
-          {duties.length === 0 ? (
-            <p style={{ opacity: 0.6, fontSize: "0.9em", textAlign: "center", padding: 10 }}>Nobetci yok</p>
-          ) : (
-            duties.slice(0, 8).map((d, i) => (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: "0.9em" }}>
-                <span style={{ fontWeight: 600 }}>{d.teacher_name}</span>
-                <span style={{ opacity: 0.7, fontSize: "0.85em" }}>{d.location || d.time_slot}</span>
-              </div>
-            ))
-          )}
+        <div style={{ background: cardBg, backdropFilter: "blur(10px)", borderRadius: 15, padding: 15, border: `1px solid ${cardBorder}`, maxHeight: 200, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <h3 style={{ margin: "0 0 10px", fontSize: "1.1em" }}>Bugünün Nöbetçileri</h3>
+          <div ref={dutiesRef} className="auto-scroll" style={{ flex: 1, overflowY: "auto" }}>
+            {duties.length === 0 ? (
+              <p style={{ opacity: 0.6, fontSize: "0.9em", textAlign: "center", padding: 10 }}>Nöbetçi yok</p>
+            ) : (
+              duties.slice(0, 8).map((d, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: "0.9em" }}>
+                  <span style={{ fontWeight: 600 }}>{d.teacher_name}</span>
+                  <span style={{ opacity: 0.7, fontSize: "0.85em" }}>{d.location || d.time_slot}</span>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
 
-      {/* CENTER PANEL - Slayt */}
-      <div style={{ gridArea: "center", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", borderRadius: 15 }}>
-        {currentSlide ? (
-          <div style={{
-            width: "100%", height: "100%",
-            background: cardBg,
-            backdropFilter: "blur(10px)",
-            borderRadius: 15,
-            border: `1px solid ${cardBorder}`,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 30,
-            textAlign: "center",
-            position: "relative",
-            overflow: "hidden",
-          }}>
-            {currentSlide.image_url && (
-              <img src={currentSlide.image_url} alt="" style={{ maxWidth: "60%", maxHeight: "45%", borderRadius: 12, marginBottom: 20, objectFit: "cover" }} />
-            )}
-            <div style={{
-              fontSize: currentSlide.title.length > 30 ? "1.8em" : "2.5em",
-              fontWeight: "bold",
-              marginBottom: 10,
-            }}>
-              {currentSlide.title}
-            </div>
-            {currentSlide.content && (
-              <div style={{ fontSize: "1.2em", opacity: 0.85, maxWidth: "80%" }}>{currentSlide.content}</div>
-            )}
-            <div style={{
-              position: "absolute", top: 15, right: 20,
-              background: currentSlide.category === "duyuru" ? "#4CAF50" :
-                currentSlide.category === "etkinlik" ? "#FF9800" :
-                currentSlide.category === "ayin_ogrencisi" ? "#9C27B0" : "#2196F3",
-              padding: "4px 12px", borderRadius: 20, fontSize: "0.75em", fontWeight: 600,
-            }}>
-              {currentSlide.category === "duyuru" ? "DUYURU" :
-               currentSlide.category === "etkinlik" ? "ETKINLIK" :
-               currentSlide.category === "ayin_ogrencisi" ? "AYIN OGRENCISI" :
-               currentSlide.category === "ayin_sinifi" ? "AYIN SINIFI" :
-               currentSlide.category === "deneme_liderleri" ? "DENEME LIDERI" : currentSlide.category.toUpperCase()}
-            </div>
-            {/* Indicators */}
-            <div style={{ position: "absolute", bottom: 15, display: "flex", gap: 8 }}>
-              {announcements.map((_, i) => (
-                <div key={i} style={{
-                  width: i === slideIndex ? 24 : 8,
-                  height: 8,
-                  borderRadius: 4,
-                  background: i === slideIndex ? "white" : "rgba(255,255,255,0.3)",
-                  transition: "all 0.3s",
-                }} />
-              ))}
-            </div>
-          </div>
+      {/* CENTER PANEL - Announcements List */}
+      <div
+        ref={announcementsRef}
+        className="auto-scroll"
+        style={{
+          gridArea: "center",
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+          overflowY: "auto",
+          borderRadius: 15,
+          padding: "5px 0",
+          alignItems: "stretch",
+          justifyContent: "flex-start",
+          height: "100%",
+        }}
+      >
+        {announcements.length > 0 ? (
+          announcements.map((s) => {
+            const catColors: Record<string, string> = {
+              duyuru: "#4CAF50",
+              etkinlik: "#FF9800",
+              ayin_ogrencisi: "#9C27B0",
+              ayin_sinifi: "#2196F3",
+              deneme_liderleri: "#E91E63",
+            };
+            const catNames: Record<string, string> = {
+              duyuru: "DUYURU",
+              etkinlik: "ETKİNLİK",
+              ayin_ogrencisi: "AYIN ÖĞRENCİSİ",
+              ayin_sinifi: "AYIN SINIFI",
+              deneme_liderleri: "DENEME LİDERİ",
+            };
+
+            return (
+              <div
+                key={s.id}
+                style={{
+                  background: cardBg,
+                  backdropFilter: "blur(10px)",
+                  borderRadius: 12,
+                  border: `1px solid ${cardBorder}`,
+                  padding: "16px 20px",
+                  width: "100%",
+                  flexShrink: 0,
+                }}
+              >
+                {s.image_url && (
+                  <img
+                    src={s.image_url}
+                    alt=""
+                    style={{
+                      maxWidth: "100%",
+                      maxHeight: 200,
+                      borderRadius: 8,
+                      objectFit: "cover",
+                      margin: "0 auto 10px",
+                      display: "block",
+                    }}
+                  />
+                )}
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: "1.2em", fontWeight: "bold", marginBottom: 4 }}>{s.title}</div>
+                    {s.content && <div style={{ fontSize: "0.95em", opacity: 0.85, lineHeight: 1.4 }}>{s.content}</div>}
+                  </div>
+                  <span
+                    style={{
+                      background: catColors[s.category] || "#4CAF50",
+                      padding: "4px 12px",
+                      borderRadius: 14,
+                      fontSize: "0.75em",
+                      fontWeight: 600,
+                      whiteSpace: "nowrap",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {catNames[s.category] || s.category.toUpperCase()}
+                  </span>
+                </div>
+              </div>
+            );
+          })
         ) : (
-          <div style={{
-            width: "100%", height: "100%",
-            background: cardBg,
-            backdropFilter: "blur(10px)",
-            borderRadius: 15,
-            border: `1px solid ${cardBorder}`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            opacity: 0.5,
-            fontSize: "1.2em",
-          }}>
-            Duyuru eklenmemis
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              background: cardBg,
+              backdropFilter: "blur(10px)",
+              borderRadius: 15,
+              border: `1px solid ${cardBorder}`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              opacity: 0.5,
+              fontSize: "1.2em",
+            }}
+          >
+            Duyuru eklenmemiş
           </div>
         )}
       </div>
@@ -586,47 +711,81 @@ export default function PanoPage() {
       {/* RIGHT PANEL */}
       <div style={{ gridArea: "right", display: "flex", flexDirection: "column", gap: 10, overflow: "hidden" }}>
         {/* Dogum Gunleri */}
-        <div style={{ background: cardBg, backdropFilter: "blur(10px)", borderRadius: 15, padding: 15, border: `1px solid ${cardBorder}`, maxHeight: 200, overflow: "auto" }}>
-          <h3 style={{ margin: "0 0 10px", fontSize: "1.1em" }}>Bu Ay Doganlar</h3>
-          {birthdays.length === 0 ? (
-            <p style={{ opacity: 0.6, fontSize: "0.9em", textAlign: "center", padding: 10 }}>Dogum gunu yok</p>
-          ) : (
-            birthdays.slice(0, 8).map((b, i) => (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: "0.9em" }}>
-                <span>{b.full_name}</span>
-                <span style={{ opacity: 0.7, fontSize: "0.85em" }}>{b.class_name}</span>
+        <div style={{ background: cardBg, backdropFilter: "blur(10px)", borderRadius: 15, padding: 15, border: `1px solid ${cardBorder}`, maxHeight: 150, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <h3 style={{ margin: "0 0 10px", fontSize: "1.1em" }}>Bu Ay Doğanlar</h3>
+          <div ref={birthdaysRef} className="auto-scroll" style={{ flex: 1, overflowY: "auto" }}>
+            {birthdays.length === 0 ? (
+              <p style={{ opacity: 0.6, fontSize: "0.9em", textAlign: "center", padding: 10 }}>Doğum günü yok</p>
+            ) : (
+              birthdays.map((b, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: "0.9em" }}>
+                  <span>🎂 {b.full_name}</span>
+                  <span style={{ opacity: 0.7, fontSize: "0.85em" }}>{b.class_name}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Cleanliness / Quiz Rankings Card */}
+        <div style={{ background: cardBg, backdropFilter: "blur(10px)", borderRadius: 15, padding: 15, border: `1px solid ${cardBorder}`, height: 180, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          {showClean ? (
+            <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+              <h3 style={{ margin: "0 0 10px", fontSize: "1.1em" }}>Bu Hafta En Temiz Sınıf</h3>
+              <div className="space-y-1.5 flex-1 overflow-y-auto">
+                {cleanlinessScores.length === 0 ? (
+                  <p style={{ opacity: 0.6, fontSize: "0.9em", textAlign: "center", padding: 10 }}>Puanlama yok</p>
+                ) : (
+                  cleanlinessScores.map((r, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 0", fontSize: "0.9em" }}>
+                      <span style={{ fontWeight: "bold", color: "#FFD700", minWidth: 20 }}>{i + 1}.</span>
+                      <span style={{ flex: 1 }}>{r.name}</span>
+                      <span style={{ fontWeight: 600 }}>{r.avg} puan</span>
+                    </div>
+                  ))
+                )}
               </div>
-            ))
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+              <h3 style={{ margin: "0 0 10px", fontSize: "1.1em" }}>Quiz Sıralaması</h3>
+              <div className="space-y-1.5 flex-1 overflow-y-auto">
+                {quizScores.length === 0 ? (
+                  <p style={{ opacity: 0.6, fontSize: "0.9em", textAlign: "center", padding: 10 }}>Cevap yok</p>
+                ) : (
+                  quizScores.map((s, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 0", fontSize: "0.9em" }}>
+                      <span style={{ fontWeight: "bold", color: "#FFD700", minWidth: 20 }}>{i + 1}.</span>
+                      <span style={{ flex: 1 }}>{s.class_name || "Sınıf"}</span>
+                      <span style={{ fontWeight: 600 }}>{s.score} puan</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           )}
         </div>
 
         {/* En Cok Okuyanlar */}
-        {config.show_top_readers && topReaders.length > 0 && (
-          <div style={{ background: cardBg, backdropFilter: "blur(10px)", borderRadius: 15, padding: 15, border: `1px solid ${cardBorder}`, flex: 1, overflow: "auto" }}>
-            <h3 style={{ margin: "0 0 10px", fontSize: "1.1em" }}>En Cok Kitap Okuyanlar</h3>
-            {topReaders.slice(0, 7).map((r, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 0", fontSize: "0.9em" }}>
-                <span style={{ fontWeight: "bold", color: "#FFD700", minWidth: 24, textAlign: "center" }}>
-                  {i === 0 ? "1." : i === 1 ? "2." : i === 2 ? "3." : `${i + 1}.`}
-                </span>
-                <span style={{ flex: 1 }}>{r.student_name}</span>
-                <span style={{ opacity: 0.7, fontSize: "0.85em" }}>{r.class_name}</span>
-                <span style={{ fontWeight: 600 }}>{r.book_count} kitap</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* En Cok Okuyan Sinif */}
-        {config.show_top_class && topClass && (
-          <div style={{
-            background: "linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,215,0,0.05))",
-            border: "1px solid rgba(255,215,0,0.3)",
-            borderRadius: 15, padding: 15, textAlign: "center",
-          }}>
-            <div style={{ fontSize: "0.85em", opacity: 0.8 }}>En Cok Okuyan Sinif</div>
-            <div style={{ fontSize: "1.5em", fontWeight: "bold", color: "#FFD700" }}>{topClass.class_name}</div>
-            <div style={{ fontSize: "0.85em", opacity: 0.7 }}>Ort. {topClass.avg_rate} kitap</div>
+        {config.show_top_readers && (
+          <div style={{ background: cardBg, backdropFilter: "blur(10px)", borderRadius: 15, padding: 15, border: `1px solid ${cardBorder}`, flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            <h3 style={{ margin: "0 0 10px", fontSize: "1.1em" }}>En Çok Kitap Okuyanlar</h3>
+            <div ref={readersRef} className="auto-scroll" style={{ flex: 1, overflowY: "auto" }}>
+              {topReaders.length === 0 ? (
+                <p style={{ opacity: 0.6, fontSize: "0.9em", textAlign: "center", padding: 10 }}>Veri yok</p>
+              ) : (
+                topReaders.slice(0, 7).map((r, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 0", fontSize: "0.9em" }}>
+                    <span style={{ fontWeight: "bold", color: "#FFD700", minWidth: 24, textAlign: "center" }}>
+                      {i === 0 ? "1." : i === 1 ? "2." : i === 2 ? "3." : `${i + 1}.`}
+                    </span>
+                    <span style={{ flex: 1 }}>{r.student_name}</span>
+                    <span style={{ opacity: 0.7, fontSize: "0.85em" }}>{r.class_name}</span>
+                    <span style={{ fontWeight: 600 }}>{r.book_count} kitap</span>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         )}
       </div>
