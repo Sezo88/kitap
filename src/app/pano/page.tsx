@@ -609,7 +609,12 @@ export default function PanoPage() {
 
         {/* MIDDLE - Period info */}
         <div style={{ textAlign: "center", flex: 1 }}>
-          <div style={{ fontSize: "1.8em", fontWeight: "bold", color: "#FFF", textShadow: "0 2px 4px rgba(0,0,0,0.3)" }}>
+          <div style={{
+            fontSize: "1.8em",
+            fontWeight: "bold",
+            color: (periodStatus === "Ders Dışı" || periodStatus === "Hafta Sonu" || periodStatus.toLowerCase().includes("hafta sonu")) ? "#FF8A80" : "#FFF",
+            textShadow: "0 2px 4px rgba(0,0,0,0.3)"
+          }}>
             {periodStatus}
           </div>
           {periodCountdown && (

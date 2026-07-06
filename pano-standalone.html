@@ -930,6 +930,8 @@
       }
 
       ps.textContent = status;
+      var isOutside = status === 'Ders Dışı' || status === 'Hafta Sonu' || status.toLowerCase().indexOf('hafta sonu') !== -1;
+      ps.style.color = isOutside ? '#FF8A80' : '#FFF';
 
       // Countdown
       if (endMins > 0) {
