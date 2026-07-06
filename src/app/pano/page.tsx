@@ -87,7 +87,7 @@ export default function PanoPage() {
 
   // UI state
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [periodStatus, setPeriodStatus] = useState("");
+  const [periodStatus, setPeriodStatus] = useState("Okul Saati Dışındayız");
   const [periodCountdown, setPeriodCountdown] = useState("");
   const [slideIndex, setSlideIndex] = useState(0);
   const [galleryIndex, setGalleryIndex] = useState(0);
@@ -397,7 +397,7 @@ export default function PanoPage() {
       }
 
       const mins = now.getHours() * 60 + now.getMinutes();
-      let status = "Ders Dışı";
+      let status = "Okul Saati Dışındayız";
       let remaining = "";
       let endMins = 0;
 
@@ -413,7 +413,7 @@ export default function PanoPage() {
             endMins = end;
             break;
           }
-          if (mins < start && status === "Ders Dışı") {
+          if (mins < start && status === "Okul Saati Dışındayız") {
             status = b.label + " Başlayacak";
             endMins = start;
           }
@@ -612,7 +612,7 @@ export default function PanoPage() {
           <div style={{
             fontSize: "1.8em",
             fontWeight: "bold",
-            color: (periodStatus === "Ders Dışı" || periodStatus === "Hafta Sonu" || periodStatus.toLowerCase().includes("hafta sonu")) ? "#FF8A80" : "#FFF",
+            color: (periodStatus === "Okul Saati Dışındayız" || periodStatus === "Hafta Sonu" || periodStatus.toLowerCase().includes("hafta sonu")) ? "#FF8A80" : "#FFF",
             textShadow: "0 2px 4px rgba(0,0,0,0.3)"
           }}>
             {periodStatus}

@@ -453,7 +453,7 @@
         </div>
       </div>
       <div class="period-center">
-        <div class="period-text" id="periodStatus">Ders Dışı</div>
+        <div class="period-text" id="periodStatus">Okul Saati Dışındayız</div>
         <div class="countdown" id="periodCountdown"></div>
       </div>
       <div class="clock">
@@ -904,7 +904,7 @@
       }
 
       const mins = now.getHours() * 60 + now.getMinutes();
-      let status = 'Ders Dışı';
+      let status = 'Okul Saati Dışındayız';
       let remaining = '';
       let endMins = 0;
 
@@ -919,7 +919,7 @@
             endMins = end;
             break;
           }
-          if (mins < start && status === 'Ders Dışı') {
+          if (mins < start && status === 'Okul Saati Dışındayız') {
             status = b.label + ' baslayacak';
             endMins = start;
           }
@@ -930,7 +930,7 @@
       }
 
       ps.textContent = status;
-      var isOutside = status === 'Ders Dışı' || status === 'Hafta Sonu' || status.toLowerCase().indexOf('hafta sonu') !== -1;
+      var isOutside = status === 'Okul Saati Dışındayız' || status === 'Hafta Sonu' || status.toLowerCase().indexOf('hafta sonu') !== -1;
       ps.style.color = isOutside ? '#FF8A80' : '#FFF';
 
       // Countdown
