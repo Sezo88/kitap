@@ -16,6 +16,7 @@ interface Props {
   bellSchedule: BellSchedule[];
   initialSchedule: LessonSchedule[];
   schoolId: string;
+  initialTotalLessons: number;
 }
 
 const DAY_NAMES = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma"];
@@ -27,8 +28,10 @@ function buildKey(classId: string, day: number, period: number) {
   return `${classId}-${day}-${period}`;
 }
 
-export function LessonScheduleEditor({ classes, teachers, subjects, bellSchedule, initialSchedule, schoolId }: Props) {
+export function LessonScheduleEditor({ classes, teachers, subjects, bellSchedule, initialSchedule, schoolId, initialTotalLessons }: Props) {
   const [selectedClassId, setSelectedClassId] = useState(classes[0]?.id || "");
+  const [totalLessons, setTotalLessons] = useState(initialTotalLessons);
+  const [savingTotalLessons, setSavingTotalLessons] = useState(false);
   const [cells, setCells] = useState<Record<CellKey, CellValue>>(() => {
     const init: Record<CellKey, CellValue> = {};
     initialSchedule.forEach((ls) => {
@@ -41,6 +44,23 @@ export function LessonScheduleEditor({ classes, teachers, subjects, bellSchedule
   });
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
+
+  async function handleSaveTotalLessons(newVal: number) {
+    setSavingTotalLessons(true);
+    setTotalLessons(newVal);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("schools")
+      .update({ total_lessons: newVal })
+      .eq("id", schoolId);
+
+    if (error) {
+      toast("Toplam ders saati güncellenemedi: " + error.message, "error");
+    } else {
+      toast("Toplam ders saati başarıyla güncellendi", "success");
+    }
+    setSavingTotalLessons(false);
+  }
 
   function updateCell(day: number, period: number, field: "teacher_id" | "subject_id", value: string) {
     const key = buildKey(selectedClassId, day, period);
@@ -71,8 +91,8 @@ export function LessonScheduleEditor({ classes, teachers, subjects, bellSchedule
     // Dolu hücreleri ekle
     const insertData: any[] = [];
     for (let day = 1; day <= 5; day++) {
-      for (const bell of bellSchedule) {
-        const cell = getCell(day, bell.period_no);
+      for (let period = 1; period <= totalLessons; period++) {
+        const cell = getCell(day, period);
         if (cell.teacher_id && cell.subject_id) {
           insertData.push({
             school_id: schoolId,
@@ -80,7 +100,7 @@ export function LessonScheduleEditor({ classes, teachers, subjects, bellSchedule
             teacher_id: cell.teacher_id,
             subject_id: cell.subject_id,
             day_of_week: day,
-            period_no: bell.period_no,
+            period_no: period,
           });
         }
       }
@@ -99,23 +119,38 @@ export function LessonScheduleEditor({ classes, teachers, subjects, bellSchedule
     setSaving(false);
   }
 
-  // Derslere etiket olarak sadece ders saat numarasını göster
-  const lessonPeriods = bellSchedule.filter((b) => b.label.toLowerCase().includes("ders"));
-
   return (
     <div className="space-y-4">
-      {/* Sınıf seçici */}
-      <div className="flex flex-wrap items-center gap-3">
-        <Select
-          value={selectedClassId}
-          onChange={(e) => setSelectedClassId(e.target.value)}
-          className="w-48"
-        >
-          {classes.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </Select>
-        <Button type="button" onClick={handleSave} disabled={saving} size="sm">
+      {/* Sınıf seçici ve Ders Saati Seçici */}
+      <div className="flex flex-wrap items-center gap-4 bg-muted/20 p-3 rounded-lg border">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">Sınıf:</span>
+          <Select
+            value={selectedClassId}
+            onChange={(e) => setSelectedClassId(e.target.value)}
+            className="w-48"
+          >
+            {classes.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </Select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">Günlük Ders Saati:</span>
+          <Select
+            value={totalLessons.toString()}
+            onChange={(e) => handleSaveTotalLessons(parseInt(e.target.value))}
+            className="w-32"
+            disabled={savingTotalLessons}
+          >
+            {[4, 5, 6, 7, 8, 9, 10].map((num) => (
+              <option key={num} value={num.toString()}>{num} Ders</option>
+            ))}
+          </Select>
+        </div>
+
+        <Button type="button" onClick={handleSave} disabled={saving} size="sm" className="ml-auto">
           <Save className="h-4 w-4 mr-1" />
           {saving ? "Kaydediliyor..." : "Bu Sınıfı Kaydet"}
         </Button>
@@ -140,43 +175,49 @@ export function LessonScheduleEditor({ classes, teachers, subjects, bellSchedule
               </tr>
             </thead>
             <tbody>
-              {bellSchedule.map((bell) => (
-                <tr key={bell.period_no} className="hover:bg-muted/20">
-                  <td className="border p-2 text-xs">
-                    <div className="font-medium">{bell.label}</div>
-                    <div className="text-muted-foreground">{bell.start_time.substring(0,5)}-{bell.end_time.substring(0,5)}</div>
-                  </td>
-                  {[1, 2, 3, 4, 5].map((day) => {
-                    const cell = getCell(day, bell.period_no);
-                    return (
-                      <td key={day} className="border p-1 min-w-[140px]">
-                        <div className="space-y-1">
-                          <select
-                            className="w-full text-xs border rounded px-1 py-1 bg-background"
-                            value={cell.subject_id}
-                            onChange={(e) => updateCell(day, bell.period_no, "subject_id", e.target.value)}
-                          >
-                            <option value="">Ders</option>
-                            {subjects.map((s) => (
-                              <option key={s.id} value={s.id}>{s.name}</option>
-                            ))}
-                          </select>
-                          <select
-                            className="w-full text-xs border rounded px-1 py-1 bg-background"
-                            value={cell.teacher_id}
-                            onChange={(e) => updateCell(day, bell.period_no, "teacher_id", e.target.value)}
-                          >
-                            <option value="">Öğretmen</option>
-                            {teachers.map((t) => (
-                              <option key={t.id} value={t.id}>{t.full_name}</option>
-                            ))}
-                          </select>
-                        </div>
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
+              {Array.from({ length: totalLessons }, (_, i) => i + 1).map((periodNo) => {
+                const bell = bellSchedule.find((b) => b.period_no === periodNo);
+                const label = bell?.label || `${periodNo}. Ders`;
+                const timeStr = bell ? `${bell.start_time.substring(0, 5)}-${bell.end_time.substring(0, 5)}` : "";
+
+                return (
+                  <tr key={periodNo} className="hover:bg-muted/20">
+                    <td className="border p-2 text-xs">
+                      <div className="font-medium">{label}</div>
+                      {timeStr && <div className="text-muted-foreground">{timeStr}</div>}
+                    </td>
+                    {[1, 2, 3, 4, 5].map((day) => {
+                      const cell = getCell(day, periodNo);
+                      return (
+                        <td key={day} className="border p-1 min-w-[140px]">
+                          <div className="space-y-1">
+                            <select
+                              className="w-full text-xs border rounded px-1 py-1 bg-background"
+                              value={cell.subject_id}
+                              onChange={(e) => updateCell(day, periodNo, "subject_id", e.target.value)}
+                            >
+                              <option value="">Ders</option>
+                              {subjects.map((s) => (
+                                <option key={s.id} value={s.id}>{s.name}</option>
+                              ))}
+                            </select>
+                            <select
+                              className="w-full text-xs border rounded px-1 py-1 bg-background"
+                              value={cell.teacher_id}
+                              onChange={(e) => updateCell(day, periodNo, "teacher_id", e.target.value)}
+                            >
+                              <option value="">Öğretmen</option>
+                              {teachers.map((t) => (
+                                <option key={t.id} value={t.id}>{t.full_name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </CardContent>

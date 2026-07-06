@@ -16,7 +16,6 @@ import type { SmsProviderSettings, SmsProviderName } from "@/lib/types/database"
 interface Props {
   schoolId: string;
   existingSettings: SmsProviderSettings | null;
-  schoolTotalLessons: number;
 }
 
 const PROVIDERS: { value: SmsProviderName; label: string; description: string }[] = [
@@ -26,14 +25,13 @@ const PROVIDERS: { value: SmsProviderName; label: string; description: string }[
   { value: "custom", label: "Diğer / Özel API", description: "Kendi SMS sağlayıcınızı yapılandırın" },
 ];
 
-export function SmsSettingsClient({ schoolId, existingSettings, schoolTotalLessons }: Props) {
+export function SmsSettingsClient({ schoolId, existingSettings }: Props) {
   const [providerName, setProviderName] = useState<SmsProviderName>(existingSettings?.provider_name || "netgsm");
   const [apiKey, setApiKey] = useState(existingSettings?.api_key || "");
   const [apiSecret, setApiSecret] = useState(existingSettings?.api_secret || "");
   const [senderId, setSenderId] = useState(existingSettings?.sender_id || "");
   const [isActive, setIsActive] = useState(existingSettings?.is_active || false);
   const [smsUnitCost, setSmsUnitCost] = useState(existingSettings?.sms_unit_cost?.toString() || "");
-  const [totalLessons, setTotalLessons] = useState(schoolTotalLessons.toString());
 
   // Custom fields
   const [apiBaseUrl, setApiBaseUrl] = useState(existingSettings?.api_base_url || "");
@@ -52,26 +50,9 @@ export function SmsSettingsClient({ schoolId, existingSettings, schoolTotalLesso
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [saving, setSaving] = useState(false);
-  const [savingSchool, setSavingSchool] = useState(false);
 
   const { toast } = useToast();
   const isCustom = providerName === "custom";
-
-  async function handleSaveSchoolSettings() {
-    setSavingSchool(true);
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("schools")
-      .update({ total_lessons: parseInt(totalLessons) })
-      .eq("id", schoolId);
-
-    if (error) {
-      toast("Okul ayarları güncellenemedi: " + error.message, "error");
-    } else {
-      toast("Okul genel ayarları güncellendi", "success");
-    }
-    setSavingSchool(false);
-  }
 
   async function handleSave() {
     if (!apiKey || !senderId) {
@@ -166,27 +147,6 @@ export function SmsSettingsClient({ schoolId, existingSettings, schoolTotalLesso
         <Shield className="h-4 w-4 shrink-0 mt-0.5" />
         <p>API anahtarlarınız güvenli şekilde saklanır ve sadece sunucu tarafında kullanılır.</p>
       </div>
-
-      {/* Okul Genel Ayarları */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Okul Genel Ayarları</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="totalLessons">Günlük Toplam Yoklama/Ders Saati</Label>
-            <Select id="totalLessons" value={totalLessons} onChange={(e) => setTotalLessons(e.target.value)}>
-              {[4, 5, 6, 7, 8, 9, 10].map((num) => (
-                <option key={num} value={num.toString()}>{num} Ders Saati</option>
-              ))}
-            </Select>
-            <p className="text-xs text-muted-foreground">Öğretmenlerin günlük alabileceği toplam yoklama/ders saati sayısıdır.</p>
-          </div>
-          <Button onClick={handleSaveSchoolSettings} disabled={savingSchool} size="sm">
-            <Save className="h-4 w-4 mr-1" /> {savingSchool ? "Kaydediliyor..." : "Okul Ayarlarını Kaydet"}
-          </Button>
-        </CardContent>
-      </Card>
 
       {/* Provider Selection */}
       <Card>
