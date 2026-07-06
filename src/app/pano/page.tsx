@@ -99,6 +99,8 @@ export default function PanoPage() {
   const lessonsRef = useRef<HTMLDivElement>(null);
   const dutiesRef = useRef<HTMLDivElement>(null);
   const birthdaysRef = useRef<HTMLDivElement>(null);
+  const cleanlinessRef = useRef<HTMLDivElement>(null);
+  const quizRef = useRef<HTMLDivElement>(null);
 
   // ── PIN Auth ──────────────────────────────────────────────
   useEffect(() => {
@@ -136,6 +138,8 @@ export default function PanoPage() {
       { ref: lessonsRef, speed: 0.25 },
       { ref: dutiesRef, speed: 0.35 },
       { ref: birthdaysRef, speed: 0.3 },
+      { ref: cleanlinessRef, speed: 0.3 },
+      { ref: quizRef, speed: 0.3 },
     ];
 
     const cleanups = containers.map((c) => {
@@ -176,7 +180,7 @@ export default function PanoPage() {
     return () => {
       cleanups.forEach((cleanup) => cleanup());
     };
-  }, [authenticated, announcements, topReaders, lessons, duties, birthdays]);
+  }, [authenticated, announcements, topReaders, lessons, duties, birthdays, cleanlinessScores, quizScores, showClean]);
 
   async function handlePinSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -535,6 +539,15 @@ export default function PanoPage() {
       gap: 10,
       padding: 10,
     }}>
+      <style dangerouslySetInnerHTML={{ __html: `
+        .auto-scroll {
+          -ms-overflow-style: none !important;  /* IE and Edge */
+          scrollbar-width: none !important;  /* Firefox */
+        }
+        .auto-scroll::-webkit-scrollbar {
+          display: none !important;  /* Chrome, Safari and Opera */
+        }
+      `}} />
       {/* HEADER */}
       <div style={{
         gridArea: "header",
@@ -732,7 +745,7 @@ export default function PanoPage() {
           {showClean ? (
             <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
               <h3 style={{ margin: "0 0 10px", fontSize: "1.1em" }}>Bu Hafta En Temiz Sınıf</h3>
-              <div className="space-y-1.5 flex-1 overflow-y-auto">
+              <div ref={cleanlinessRef} className="auto-scroll space-y-1.5 flex-1 overflow-y-auto">
                 {cleanlinessScores.length === 0 ? (
                   <p style={{ opacity: 0.6, fontSize: "0.9em", textAlign: "center", padding: 10 }}>Puanlama yok</p>
                 ) : (
@@ -749,7 +762,7 @@ export default function PanoPage() {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
               <h3 style={{ margin: "0 0 10px", fontSize: "1.1em" }}>Quiz Sıralaması</h3>
-              <div className="space-y-1.5 flex-1 overflow-y-auto">
+              <div ref={quizRef} className="auto-scroll space-y-1.5 flex-1 overflow-y-auto">
                 {quizScores.length === 0 ? (
                   <p style={{ opacity: 0.6, fontSize: "0.9em", textAlign: "center", padding: 10 }}>Cevap yok</p>
                 ) : (
