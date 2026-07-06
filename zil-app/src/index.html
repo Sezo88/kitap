@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Okul Zil Sistemi - Sezai KAYA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <!-- ========== CUSTOM TITLE BAR ========== -->
+  <header id="title-bar" class="title-bar">
+    <div class="title-bar-left">
+      <span class="title-bar-icon">🔔</span>
+      <span class="title-bar-title">Okul Zil Sistemi - Sezai KAYA</span>
+    </div>
+    <div class="title-bar-controls">
+      <button id="btn-minimize" class="title-btn" title="Küçült">
+        <svg width="12" height="12" viewBox="0 0 12 12"><rect y="5" width="12" height="2" fill="currentColor"/></svg>
+      </button>
+      <button id="btn-maximize" class="title-btn" title="Büyüt">
+        <svg width="12" height="12" viewBox="0 0 12 12"><rect x="1" y="1" width="10" height="10" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+      </button>
+      <button id="btn-close" class="title-btn title-btn-close" title="Tray'e Küçült">
+        <svg width="12" height="12" viewBox="0 0 12 12"><path d="M1 1L11 11M11 1L1 11" stroke="currentColor" stroke-width="2"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ========== TOP STATUS BAR ========== -->
+  <div id="status-bar" class="status-bar">
+    <div class="status-bar-left">
+      <div class="clock-container">
+        <div id="digital-clock" class="digital-clock">00:00:00</div>
+        <div id="date-display" class="date-display">Pazartesi, 1 Ocak 2024</div>
+      </div>
+    </div>
+    <div class="status-bar-center">
+      <div id="next-bell-info" class="next-bell-info">
+        <div class="next-bell-label">Sonraki Zil</div>
+        <div id="next-bell-time" class="next-bell-time">--:--</div>
+        <div id="next-bell-name" class="next-bell-name">Program yükleniyor...</div>
+        <div id="next-bell-countdown" class="next-bell-countdown"></div>
+      </div>
+    </div>
+    <div class="status-bar-right">
+      <div class="bell-master-switch">
+        <label class="switch-label" for="bell-switch">Ziller</label>
+        <label class="toggle-switch">
+          <input type="checkbox" id="bell-switch" checked>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== MAIN CONTENT ========== -->
+  <main class="main-content">
+    <!-- ===== SOL PANEL: TÖREN KONTROL (Her zaman görünür) ===== -->
+    <section class="panel panel-ceremony" id="ceremony-panel">
+      <div class="panel-header">
+        <h2 class="panel-title">
+          <span class="panel-icon">🎖️</span>
+          Tören Kontrol
+        </h2>
+        <div id="ceremony-mode-badge" class="ceremony-badge hidden">
+          <span class="pulse-dot"></span> TÖREN MODU
+        </div>
+      </div>
+      
+      <div class="ceremony-buttons">
+        <button id="btn-istiklal" class="ceremony-btn btn-anthem" title="İstiklal Marşı Çal">
+          <div class="ceremony-btn-icon">🇹🇷</div>
+          <div class="ceremony-btn-text">İstiklal Marşı</div>
+        </button>
+        
+        <button id="btn-siren" class="ceremony-btn btn-siren" title="Siren Çal">
+          <div class="ceremony-btn-icon">📢</div>
+          <div class="ceremony-btn-text">Siren</div>
+        </button>
+        
+        <button id="btn-saygi-dursu" class="ceremony-btn btn-silence" title="Saygı Duruşu + İstiklal Marşı">
+          <div class="ceremony-btn-icon">🕊️</div>
+          <div class="ceremony-btn-text">Saygı Duruşu</div>
+          <div class="ceremony-btn-sub">+ İstiklal Marşı</div>
+        </button>
+        
+        <button id="btn-quick-bell" class="ceremony-btn" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;" title="Hızlı Zil Çal">
+          <div class="ceremony-btn-icon">⚡</div>
+          <div class="ceremony-btn-text">Hızlı Zil</div>
+        </button>
+      </div>
+
+      <!-- Saygı Duruşu Sayacı -->
+      <div id="silence-timer" class="silence-timer hidden">
+        <div class="silence-timer-label">Saygı Duruşu</div>
+        <div id="silence-countdown" class="silence-countdown">01:00</div>
+        <div class="silence-progress-bar">
+          <div id="silence-progress" class="silence-progress"></div>
+        </div>
+      </div>
+
+      <!-- Şu an çalıyor göstergesi -->
+      <div id="now-playing" class="now-playing hidden">
+        <div class="now-playing-visualizer">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <div id="now-playing-text" class="now-playing-text">Çalıyor...</div>
+      </div>
+
+      <button id="btn-stop-all" class="btn-stop-all" title="Her Şeyi Durdur">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><rect x="3" y="3" width="14" height="14" rx="2"/></svg>
+        DURDUR
+      </button>
+
+      <!-- Ses dosyası atamaları -->
+      <div class="ceremony-sounds">
+        <h3 class="sub-title">Tören Sesleri</h3>
+        <div class="sound-assignment">
+          <span class="sound-label">İstiklal Marşı:</span>
+          <button id="btn-assign-anthem" class="btn-assign" title="Ses Dosyası Seç">
+            <span id="anthem-file-name" class="file-name">Dosya seç...</span>
+            <span class="assign-icon">📂</span>
+          </button>
+        </div>
+        <div class="sound-assignment">
+          <span class="sound-label">Siren Sesi:</span>
+          <button id="btn-assign-siren" class="btn-assign" title="Ses Dosyası Seç">
+            <span id="siren-file-name" class="file-name">Dosya seç...</span>
+            <span class="assign-icon">📂</span>
+          </button>
+        </div>
+        <div class="sound-assignment">
+          <span class="sound-label">Saygı Duruşu (Ti):</span>
+          <button id="btn-assign-silence-sound" class="btn-assign" title="Ses Dosyası Seç">
+            <span id="silence-sound-file-name" class="file-name">Dosya seç...</span>
+            <span class="assign-icon">📂</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== SAĞ BÖLÜM: SEKMELER ===== -->
+    <div class="tabs-container">
+      <div class="tabs-header">
+        <button class="tab-btn active" data-tab="tab-schedule">📋 Zil Programı</button>
+        <button class="tab-btn" data-tab="tab-recess">☕ Teneffüs Ayarı</button>
+        <button class="tab-btn" data-tab="tab-music">🎵 Müzikler</button>
+        <button class="tab-btn" data-tab="tab-announcements">📢 Anonslar</button>
+        <button class="tab-btn" data-tab="tab-settings">⚙️ Ayarlar</button>
+      </div>
+      
+      <div class="tabs-content">
+        <!-- SEKME: ZİL PROGRAMI -->
+        <section class="tab-pane active panel-schedule" id="tab-schedule">
+          <div class="panel-header" style="border-bottom:none; padding-bottom:0;">
+            <div class="panel-actions" style="width: 100%; justify-content: space-between;">
+              <select id="day-selector" class="day-selector">
+                <option value="pazartesi">Pazartesi</option>
+                <option value="sali">Salı</option>
+                <option value="carsamba">Çarşamba</option>
+                <option value="persembe">Perşembe</option>
+                <option value="cuma">Cuma</option>
+              </select>
+              <div>
+                <button id="btn-copy-schedule" class="btn-action btn-small" title="Bu günün programını diğer günlere kopyala">
+                  📋 Kopyala
+                </button>
+                <button id="btn-add-bell" class="btn-action btn-primary" title="Yeni Zil Ekle">
+                  + Zil Ekle
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="schedule-table-container">
+            <table class="schedule-table" id="schedule-table">
+              <thead>
+                <tr>
+                  <th class="th-time">Saat</th>
+                  <th class="th-type">Tür</th>
+                  <th class="th-label">Açıklama</th>
+                  <th class="th-sound">Ses</th>
+                  <th class="th-enabled">Aktif</th>
+                  <th class="th-actions">İşlem</th>
+                </tr>
+              </thead>
+              <tbody id="schedule-tbody">
+                <!-- Dinamik olarak doldurulacak -->
+              </tbody>
+            </table>
+            <div id="empty-schedule" class="empty-state">
+              <div class="empty-icon">🔕</div>
+              <div class="empty-text">Bu gün için zil programı yok</div>
+              <div class="empty-sub">Yukarıdaki "Zil Ekle" butonuna tıklayarak program oluşturun</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SEKME: TENEFFÜS AYARI -->
+        <section class="tab-pane" id="tab-recess">
+          <div class="panel-header">
+            <h2 class="panel-title">☕ Otomatik Teneffüs Müzik Ayarları</h2>
+            <div style="font-size: 12px; color: var(--text-muted);">
+              Zil programınıza göre teneffüsler otomatik belirlenir.
+            </div>
+          </div>
+          
+          <div class="recess-list-container" style="overflow-y:auto; flex:1; padding: 15px;">
+            <div id="recess-info-banner" class="info-banner" style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); padding: 12px; border-radius: 8px; margin-bottom: 20px; font-size: 13px;">
+              💡 <b>Nasıl Çalışır?</b> Çıkış zili çaldığında teneffüs müziği otomatik başlar. Seçtiğiniz teneffüslerde müzik, öğrenci veya öğretmen giriş zili çalana kadar (veya seçtiğiniz süre boyunca) çalmaya devam eder. Giriş zili çaldığı anda müzik otomatik olarak sonlandırılır.
+            </div>
+
+            <div class="table-responsive">
+              <table class="schedule-table">
+                <thead>
+                  <tr>
+                    <th>Teneffüs</th>
+                    <th>Zaman Aralığı</th>
+                    <th>Süre</th>
+                    <th style="text-align:center;">Müzik Çalınsın mı?</th>
+                    <th>Müzik Seçimi</th>
+                    <th>Süre Sınırı</th>
+                  </tr>
+                </thead>
+                <tbody id="recess-tbody">
+                  <!-- Dinamik doldurulacak -->
+                </tbody>
+              </table>
+              <div id="empty-recess" class="empty-state hidden">
+                <div class="empty-icon">☕</div>
+                <div class="empty-text">Teneffüs bulunamadı</div>
+                <div class="empty-sub">Zil programında çıkış ve giriş zilleri tanımlanmalıdır.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SEKME: MÜZİKLER -->
+        <section class="tab-pane" id="tab-music">
+          <div class="panel-header">
+            <h2 class="panel-title">Teneffüs Müzik Listesi</h2>
+            <button id="btn-add-music" class="btn-action btn-primary" title="Listeye Müzik Ekle">
+              + Müzik Ekle
+            </button>
+          </div>
+          <div class="music-controls" style="border-top:none; border-bottom:1px solid var(--border-color);">
+            <button id="btn-play-music" class="btn-music-control" title="Müzik Çal">▶</button>
+            <button id="btn-stop-music" class="btn-music-control" title="Durdur">⏹</button>
+            <div class="volume-control">
+              <span class="volume-icon">🔊</span>
+              <input type="range" id="music-volume" class="volume-slider" min="0" max="100" value="50">
+            </div>
+          </div>
+          <div id="playlist-container" class="playlist-container" style="max-height: none; flex:1;">
+            <div id="playlist-empty" class="empty-state small">
+              <div class="empty-icon">🎶</div>
+              <div class="empty-text">Listeye henüz müzik eklenmedi</div>
+              <div class="empty-sub">Eklenen müzikleri zil programında seçebilirsiniz</div>
+            </div>
+            <ul id="playlist" class="playlist hidden">
+              <!-- Dinamik -->
+            </ul>
+          </div>
+        </section>
+
+        <!-- SEKME: ANONSLAR -->
+        <section class="tab-pane" id="tab-announcements">
+          <div class="panel-header">
+            <h2 class="panel-title">Anons Listesi</h2>
+            <button id="btn-add-announcement" class="btn-action btn-primary" title="Listeye Anons Ekle">
+              + Anons Ekle
+            </button>
+          </div>
+          <div id="announcement-list-container" class="playlist-container" style="max-height: none; flex:1;">
+            <div id="announcement-empty" class="empty-state small">
+              <div class="empty-icon">📢</div>
+              <div class="empty-text">Listeye henüz anons eklenmedi</div>
+              <div class="empty-sub">Örn: "Ders başlamıştır", "Öğretmenler odasına" vb.</div>
+            </div>
+            <ul id="announcement-list" class="playlist hidden">
+              <!-- Dinamik -->
+            </ul>
+          </div>
+        </section>
+
+        <!-- SEKME: AYARLAR -->
+        <section class="tab-pane" id="tab-settings">
+          <div class="settings-list" style="overflow-y:auto; height:100%;">
+            
+            <div class="settings-group">
+                <h3>Global Zil Sesleri</h3>
+                <p style="color:var(--text-muted);font-size:13px;margin-bottom:15px;">Programda giriş, çıkış ve öğretmen zili olarak atanan saatlerde varsayılan olarak bu sesler çalacaktır.</p>
+                
+                <div class="form-group">
+                  <label>🔔 Giriş Zili</label>
+                  <button id="btn-select-entry-bell" class="btn-assign full-width" style="margin-bottom: 10px;">
+                    <span id="entry-bell-name" class="file-name">Dosya seç...</span>
+                    <span class="assign-icon">📂</span>
+                  </button>
+                </div>
+                
+                <div class="form-group">
+                  <label>👨‍🏫 Öğretmen Zili</label>
+                  <button id="btn-select-teacher-bell" class="btn-assign full-width" style="margin-bottom: 10px;">
+                    <span id="teacher-bell-name" class="file-name">Dosya seç...</span>
+                    <span class="assign-icon">📂</span>
+                  </button>
+                </div>
+
+                <div class="form-group">
+                  <label>🔕 Çıkış Zili</label>
+                  <button id="btn-select-exit-bell" class="btn-assign full-width">
+                    <span id="exit-bell-name" class="file-name">Dosya seç...</span>
+                    <span class="assign-icon">📂</span>
+                  </button>
+                </div>
+                
+                <div class="form-group" style="margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 15px;">
+                  <label>⚡ Hızlı Zil (Manuel Çalma)</label>
+                  <button id="btn-select-quick-bell" class="btn-assign full-width">
+                    <span id="quick-bell-name" class="file-name">Dosya seç...</span>
+                    <span class="assign-icon">📂</span>
+                  </button>
+                </div>
+              </div>
+
+            <h3 class="sub-title" style="margin-top:15px;">Genel Ayarlar</h3>
+            <div class="setting-item">
+              <span class="setting-label">Zil Ses Seviyesi</span>
+              <div class="volume-control">
+                <input type="range" id="bell-volume" class="volume-slider" min="0" max="100" value="100">
+                <span id="bell-volume-value" class="volume-value">100%</span>
+              </div>
+            </div>
+            <div class="setting-item">
+              <span class="setting-label">Anons Ses Seviyesi</span>
+              <div class="volume-control">
+                <input type="range" id="announcement-volume" class="volume-slider" min="0" max="100" value="80">
+                <span id="announcement-volume-value" class="volume-value">80%</span>
+              </div>
+            </div>
+            <div class="setting-item">
+              <span class="setting-label">Varsayılan Zil Süresi (sn)</span>
+              <input type="number" id="bell-duration" class="setting-input" min="1" max="30" value="5">
+            </div>
+            <div class="setting-item">
+              <span class="setting-label">Saygı Duruşu Süresi (sn)</span>
+              <input type="number" id="silence-duration" class="setting-input" min="30" max="300" value="60">
+            </div>
+            <div class="setting-item">
+              <span class="setting-label">Windows ile Başlat</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="auto-start-switch" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            
+            <h3 class="sub-title" style="margin-top:15px;">Uzaktan Kontrol Ayarları (Supabase)</h3>
+            <div class="setting-item">
+              <span class="setting-label">Okul Kodu (School Code)</span>
+              <input type="text" id="school-id" class="setting-input" style="width: 250px;" placeholder="6 haneli kod (örn: XJ712B)">
+            </div>
+            <div class="setting-item" style="justify-content: flex-start;">
+              <button id="btn-save-supabase" class="btn-action btn-primary" style="font-size: 12px; padding: 6px 12px; height: 32px;">Kaydet ve Bağlan</button>
+            </div>
+
+            <h3 class="sub-title" style="margin-top:15px;">Yedekleme</h3>
+            <div class="setting-item" style="justify-content: flex-start; gap: 10px;">
+              <button id="btn-export-data" class="btn-action btn-primary">⬇️ Yedek Al (Dışa Aktar)</button>
+              <button id="btn-import-data" class="btn-action btn-secondary">⬆️ Geri Yükle (İçe Aktar)</button>
+            </div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:5px;">
+              Not: Yedekleme dosyası ses dosyalarınızın kendisini değil, yollarını ve program ayarlarınızı kaydeder.
+            </div>
+
+          </div>
+        </section>
+
+      </div>
+    </div>
+
+    <!-- ===== SAĞ PANEL: HIZLI ÇALAR ===== -->
+    <aside class="panel quick-music-panel" id="quick-music-panel" style="display: flex; flex-direction: column;">
+      <div class="panel-header" style="padding: 12px 16px;">
+        <h2 class="panel-title" style="font-size: 14px;">
+          <span class="panel-icon">🎵</span>
+          Hızlı Çalar
+        </h2>
+      </div>
+      <div class="music-controls" style="padding: 10px; border-bottom: 1px solid var(--border-color); display: flex; gap: 8px;">
+        <button id="btn-quick-stop" class="btn-action btn-secondary" style="flex: 1;" title="Müziği Durdur">
+          ⏹ Durdur
+        </button>
+      </div>
+      <div class="playlist-container" style="flex: 1; overflow-y: auto; padding-top: 5px;">
+        <div id="quick-playlist-empty" class="empty-state small">
+          <div class="empty-icon">🎶</div>
+          <div class="empty-text">Müzik listesi boş</div>
+        </div>
+        <ul id="quick-playlist" class="playlist hidden" style="padding:0;">
+          <!-- Dinamik -->
+        </ul>
+      </div>
+    </aside>
+
+  </main>
+
+  <!-- ========== ZİL EKLEME/DÜZENLEME MODAL ========== -->
+  <div id="bell-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modal-title" class="modal-title">Yeni Zil Ekle</h3>
+        <button id="modal-close" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="bell-time">Saat</label>
+          <input type="time" id="bell-time" class="form-input" required>
+        </div>
+        <div class="form-group">
+          <label for="bell-type">Tür</label>
+          <select id="bell-type" class="form-input">
+            <option value="entry">🔔 Giriş Zili</option>
+            <option value="teacher">👨‍🏫 Öğretmen Zili</option>
+            <option value="exit">🔕 Çıkış Zili</option>
+            <option value="break_music">🎵 Teneffüs Müziği</option>
+            <option value="announcement">📢 Anons</option>
+            <option value="custom">⚡ Özel Zil</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="bell-label">Açıklama</label>
+          <input type="text" id="bell-label" class="form-input" placeholder="ör: 1. Ders Giriş Zili">
+        </div>
+        <div class="form-group" id="sound-selection-group">
+          <label>Ses Seçimi</label>
+          <div id="modal-global-sound-text" class="hidden" style="color:var(--text-muted);font-size:12px;padding:8px 0;">Ayarlar sekmesindeki global zil çalınacak.</div>
+          
+          <button id="modal-select-sound" class="btn-assign full-width hidden">
+            <span id="modal-sound-name" class="file-name">Dosya seç...</span>
+            <span class="assign-icon">📂</span>
+          </button>
+
+          <select id="modal-sound-dropdown" class="form-input hidden">
+            <!-- Dinamik dolacak -->
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="modal-cancel" class="btn-action btn-secondary">İptal</button>
+        <button id="modal-save" class="btn-action btn-primary">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== KOPYALAMA MODAL ========== -->
+  <div id="copy-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Programı Kopyala</h3>
+        <button id="copy-modal-close" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">Bu günün programını hangi günlere kopyalamak istiyorsunuz?</p>
+        <div class="checkbox-group" id="copy-days-group">
+          <label class="checkbox-label">
+            <input type="checkbox" value="pazartesi" class="copy-day-cb"> Pazartesi
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" value="sali" class="copy-day-cb"> Salı
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" value="carsamba" class="copy-day-cb"> Çarşamba
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" value="persembe" class="copy-day-cb"> Perşembe
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" value="cuma" class="copy-day-cb"> Cuma
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="copy-modal-cancel" class="btn-action btn-secondary">İptal</button>
+        <button id="copy-modal-save" class="btn-action btn-primary">Kopyala</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== TOAST BİLDİRİM ========== -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- ========== SCRIPTS ========== -->
+  <script src="js/storage.js"></script>
+  <script src="js/audio-manager.js"></script>
+  <script src="js/scheduler.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

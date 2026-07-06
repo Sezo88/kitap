@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# zil-app dependencies and builds
+/zil-app/node_modules
+/zil-app/dist
+/zil-app/build
+/zil-app/*.zip
+/zil-app/test_extracted_sounds
