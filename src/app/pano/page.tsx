@@ -88,6 +88,7 @@ export default function PanoPage() {
   // UI state
   const [currentTime, setCurrentTime] = useState(new Date());
   const [periodStatus, setPeriodStatus] = useState("");
+  const [periodCountdown, setPeriodCountdown] = useState("");
   const [slideIndex, setSlideIndex] = useState(0);
   const [galleryIndex, setGalleryIndex] = useState(0);
   const slideTimer = useRef<NodeJS.Timeout | null>(null);
@@ -387,23 +388,52 @@ export default function PanoPage() {
     clockTimer.current = setInterval(() => {
       const now = new Date();
       setCurrentTime(now);
-      // Ders durumu
+
+      const day = now.getDay();
+      if (day === 0 || day === 6) {
+        setPeriodStatus("Hafta Sonu");
+        setPeriodCountdown("İyi Tatiller!");
+        return;
+      }
+
+      const mins = now.getHours() * 60 + now.getMinutes();
+      let status = "Ders Dışı";
+      let remaining = "";
+      let endMins = 0;
+
       if (bellSchedule.length > 0) {
-        const mins = now.getHours() * 60 + now.getMinutes();
-        let status = "Ders Disi";
-        for (const p of bellSchedule) {
-          const [sh, sm] = p.start_time.split(":").map(Number);
-          const [eh, em] = p.end_time.split(":").map(Number);
-          if (mins >= sh * 60 + sm && mins <= eh * 60 + em) {
-            status = `${p.label} devam ediyor`;
+        for (const b of bellSchedule) {
+          const [sh, sm] = b.start_time.split(":").map(Number);
+          const [eh, em] = b.end_time.split(":").map(Number);
+          const start = sh * 60 + sm;
+          const end = eh * 60 + em;
+
+          if (mins >= start && mins <= end) {
+            status = b.label + " Devam Ediyor";
+            endMins = end;
             break;
           }
-          if (mins < sh * 60 + sm && status === "Ders Disi") {
-            status = `${p.label} baslayacak`;
+          if (mins < start && status === "Ders Dışı") {
+            status = b.label + " Başlayacak";
+            endMins = start;
+          }
+          if (mins > end) {
+            status = "Teneffüs";
           }
         }
-        setPeriodStatus(status);
       }
+
+      setPeriodStatus(status);
+
+      if (endMins > 0) {
+        const diff = endMins - mins;
+        const h = Math.floor(diff / 60);
+        const m = diff % 60;
+        if (h > 0) remaining = h + "s " + m + " dk kaldı";
+        else if (m > 0) remaining = m + " dk kaldı";
+        else remaining = "Bitti";
+      }
+      setPeriodCountdown(remaining);
     }, 1000);
     return () => { if (clockTimer.current) clearInterval(clockTimer.current); };
   }, [authenticated, bellSchedule]);
@@ -566,23 +596,37 @@ export default function PanoPage() {
         padding: "10px 25px",
         borderRadius: 15,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
+        {/* LEFT - School info */}
+        <div style={{ display: "flex", alignItems: "center", gap: 15, width: "30%", justifySelf: "start" }}>
           {config.school_logo_url && (
             <img src={config.school_logo_url} alt="Logo" style={{ width: 50, height: 50, borderRadius: 10 }} />
           )}
           <div>
-            <div style={{ fontSize: "2em", fontWeight: "bold" }}>{schoolName}</div>
-            {config.school_motto && <div style={{ fontSize: "0.85em", opacity: 0.7 }}>{config.school_motto}</div>}
+            <div style={{ fontSize: "1.8em", fontWeight: "bold", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{schoolName}</div>
+            {config.school_motto && <div style={{ fontSize: "0.85em", opacity: 0.7, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{config.school_motto}</div>}
           </div>
         </div>
-        <div style={{ textAlign: "right" }}>
+
+        {/* MIDDLE - Period info */}
+        <div style={{ textAlign: "center", flex: 1 }}>
+          <div style={{ fontSize: "1.8em", fontWeight: "bold", color: "#FFF", textShadow: "0 2px 4px rgba(0,0,0,0.3)" }}>
+            {periodStatus}
+          </div>
+          {periodCountdown && (
+            <div style={{ fontSize: "1.2em", color: "#FFD700", fontWeight: "bold" }}>
+              {periodCountdown}
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT - Clock */}
+        <div style={{ textAlign: "right", width: "30%", justifySelf: "end" }}>
           <div style={{ fontSize: "2.5em", fontWeight: "bold", fontVariantNumeric: "tabular-nums" }}>
             {currentTime.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
           </div>
           <div style={{ fontSize: "0.85em", opacity: 0.8 }}>
             {currentTime.toLocaleDateString("tr-TR", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
           </div>
-          <div style={{ fontSize: "1em", color: "#FFD700", marginTop: 2 }}>{periodStatus}</div>
         </div>
       </div>
 
