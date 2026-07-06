@@ -81,7 +81,7 @@ export default function PanoPage() {
   const [birthdays, setBirthdays] = useState<{ full_name: string; class_name: string; dogum_tarihi: string }[]>([]);
   const [dailyQuiz, setDailyQuiz] = useState<any>(null);
   const [yesterdayQuiz, setYesterdayQuiz] = useState<any>(null);
-  const [cleanlinessScores, setCleanlinessScores] = useState<{ name: string; avg: number }[]>([]);
+  const [cleanlinessScores, setCleanlinessScores] = useState<{ name: string; total: number }[]>([]);
   const [quizScores, setQuizScores] = useState<{ class_name: string; score: number }[]>([]);
   const [showClean, setShowClean] = useState(true);
 
@@ -101,6 +101,7 @@ export default function PanoPage() {
   const birthdaysRef = useRef<HTMLDivElement>(null);
   const cleanlinessRef = useRef<HTMLDivElement>(null);
   const quizRef = useRef<HTMLDivElement>(null);
+  const scrollStatesRef = useRef<Record<string, { pos: number; dir: number }>>({});
 
   // ── PIN Auth ──────────────────────────────────────────────
   useEffect(() => {
@@ -133,18 +134,20 @@ export default function PanoPage() {
     if (!authenticated) return;
 
     const containers = [
-      { ref: announcementsRef, speed: 0.3 },
-      { ref: readersRef, speed: 0.4 },
-      { ref: lessonsRef, speed: 0.25 },
-      { ref: dutiesRef, speed: 0.35 },
-      { ref: birthdaysRef, speed: 0.3 },
-      { ref: cleanlinessRef, speed: 0.3 },
-      { ref: quizRef, speed: 0.3 },
+      { key: "announcements", ref: announcementsRef, speed: 0.3 },
+      { key: "readers", ref: readersRef, speed: 0.4 },
+      { key: "lessons", ref: lessonsRef, speed: 0.25 },
+      { key: "duties", ref: dutiesRef, speed: 0.35 },
+      { key: "birthdays", ref: birthdaysRef, speed: 0.3 },
+      { key: "cleanliness", ref: cleanlinessRef, speed: 0.3 },
+      { key: "quiz", ref: quizRef, speed: 0.3 },
     ];
 
     const cleanups = containers.map((c) => {
-      let dir = 1;
-      let pos = 0;
+      if (!scrollStatesRef.current[c.key]) {
+        scrollStatesRef.current[c.key] = { pos: 0, dir: 1 };
+      }
+      const state = scrollStatesRef.current[c.key];
       let timer: NodeJS.Timeout | null = null;
 
       const runScroll = () => {
@@ -154,17 +157,21 @@ export default function PanoPage() {
         const maxScroll = el.scrollHeight - el.clientHeight;
         if (maxScroll <= 0) return;
 
-        timer = setInterval(() => {
-          pos += c.speed * dir;
-          el.scrollTop = pos;
+        if (state.pos > maxScroll) state.pos = maxScroll;
+        if (state.pos < 0) state.pos = 0;
+        el.scrollTop = state.pos;
 
-          if (dir > 0 && pos >= maxScroll - 1) {
+        timer = setInterval(() => {
+          state.pos += c.speed * state.dir;
+          el.scrollTop = state.pos;
+
+          if (state.dir > 0 && state.pos >= maxScroll - 1) {
             clearInterval(timer!);
-            dir = -1;
+            state.dir = -1;
             setTimeout(runScroll, 3000);
-          } else if (dir < 0 && pos <= 1) {
+          } else if (state.dir < 0 && state.pos <= 1) {
             clearInterval(timer!);
-            dir = 1;
+            state.dir = 1;
             setTimeout(runScroll, 2000);
           }
         }, 30);
@@ -341,11 +348,11 @@ export default function PanoPage() {
       const ranked = Object.entries(scMap2)
         .map(([name, val]) => ({
           name,
-          avg: Math.round((val.total / val.count) * 10) / 10,
+          total: val.total,
         }))
-        .sort((a, b) => b.avg - a.avg)
+        .sort((a, b) => b.total - a.total)
         .slice(0, 3);
-      setCleanlinessScores(ranked);
+      setCleanlinessScores(ranked as any);
     }
 
     // Quiz Scores parsing
@@ -753,7 +760,7 @@ export default function PanoPage() {
                     <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 0", fontSize: "0.9em" }}>
                       <span style={{ fontWeight: "bold", color: "#FFD700", minWidth: 20 }}>{i + 1}.</span>
                       <span style={{ flex: 1 }}>{r.name}</span>
-                      <span style={{ fontWeight: 600 }}>{r.avg} puan</span>
+                      <span style={{ fontWeight: 600 }}>{r.total} puan</span>
                     </div>
                   ))
                 )}
