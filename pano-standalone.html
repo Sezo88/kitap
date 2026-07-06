@@ -908,23 +908,74 @@
       let remaining = '';
       let endMins = 0;
 
-      if (allData?.bells) {
-        for (const b of allData.bells) {
-          const [sh, sm] = b.start_time.split(':').map(Number);
-          const [eh, em] = b.end_time.split(':').map(Number);
-          const start = sh * 60 + sm;
-          const end = eh * 60 + em;
+      if (allData?.bells && allData.bells.length > 0) {
+        var sortedBells = allData.bells.slice().sort(function(a, b) {
+          var aParts = a.start_time.split(':').map(Number);
+          var bParts = b.start_time.split(':').map(Number);
+          return (aParts[0] * 60 + aParts[1]) - (bParts[0] * 60 + bParts[1]);
+        });
+
+        var currentBell = null;
+        var nextBell = null;
+        var prevBell = null;
+
+        for (var i = 0; i < sortedBells.length; i++) {
+          var b = sortedBells[i];
+          var shParts = b.start_time.split(':').map(Number);
+          var ehParts = b.end_time.split(':').map(Number);
+          var start = shParts[0] * 60 + shParts[1];
+          var end = ehParts[0] * 60 + ehParts[1];
           if (mins >= start && mins <= end) {
-            status = b.label + ' devam ediyor';
+            currentBell = b;
             endMins = end;
             break;
           }
-          if (mins < start && status === 'Okul Saati Dışındayız') {
-            status = b.label + ' baslayacak';
-            endMins = start;
+        }
+
+        if (currentBell) {
+          status = currentBell.label + ' devam ediyor';
+        } else {
+          for (var i = 0; i < sortedBells.length; i++) {
+            var b = sortedBells[i];
+            var shParts = b.start_time.split(':').map(Number);
+            var start = shParts[0] * 60 + shParts[1];
+            if (start > mins) {
+              nextBell = b;
+              if (i > 0) {
+                prevBell = sortedBells[i - 1];
+              }
+              break;
+            }
           }
-          if (mins > end) {
-            status = 'Teneffus';
+
+          if (nextBell) {
+            var nshParts = nextBell.start_time.split(':').map(Number);
+            var nextStart = nshParts[0] * 60 + nshParts[1];
+
+            if (prevBell) {
+              var pehParts = prevBell.end_time.split(':').map(Number);
+              var prevEnd = pehParts[0] * 60 + pehParts[1];
+
+              if (mins >= prevEnd && mins < nextStart) {
+                status = 'Teneffüs';
+                endMins = nextStart;
+              } else {
+                status = 'Okul Saati Dışındayız';
+              }
+            } else {
+              var fshParts = sortedBells[0].start_time.split(':').map(Number);
+              var firstStart = fshParts[0] * 60 + fshParts[1];
+              if (mins < firstStart) {
+                if (firstStart - mins <= 30) {
+                  status = sortedBells[0].label + ' baslayacak';
+                  endMins = firstStart;
+                } else {
+                  status = 'Okul Saati Dışındayız';
+                }
+              }
+            }
+          } else {
+            status = 'Okul Saati Dışındayız';
           }
         }
       }

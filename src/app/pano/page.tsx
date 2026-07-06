@@ -402,23 +402,74 @@ export default function PanoPage() {
       let endMins = 0;
 
       if (bellSchedule.length > 0) {
-        for (const b of bellSchedule) {
+        const sortedBells = [...bellSchedule].sort((a, b) => {
+          const [ah, am] = a.start_time.split(":").map(Number);
+          const [bh, bm] = b.start_time.split(":").map(Number);
+          return (ah * 60 + am) - (bh * 60 + bm);
+        });
+
+        let currentBell = null;
+        let nextBell = null;
+        let prevBell = null;
+
+        for (let i = 0; i < sortedBells.length; i++) {
+          const b = sortedBells[i];
           const [sh, sm] = b.start_time.split(":").map(Number);
           const [eh, em] = b.end_time.split(":").map(Number);
           const start = sh * 60 + sm;
           const end = eh * 60 + em;
 
           if (mins >= start && mins <= end) {
-            status = b.label + " Devam Ediyor";
+            currentBell = b;
             endMins = end;
             break;
           }
-          if (mins < start && status === "Okul Saati Dışındayız") {
-            status = b.label + " Başlayacak";
-            endMins = start;
+        }
+
+        if (currentBell) {
+          status = currentBell.label + " Devam Ediyor";
+        } else {
+          for (let i = 0; i < sortedBells.length; i++) {
+            const b = sortedBells[i];
+            const [sh, sm] = b.start_time.split(":").map(Number);
+            const start = sh * 60 + sm;
+            if (start > mins) {
+              nextBell = b;
+              if (i > 0) {
+                prevBell = sortedBells[i - 1];
+              }
+              break;
+            }
           }
-          if (mins > end) {
-            status = "Teneffüs";
+
+          if (nextBell) {
+            const [nsh, nsm] = nextBell.start_time.split(":").map(Number);
+            const nextStart = nsh * 60 + nsm;
+
+            if (prevBell) {
+              const [peh, pem] = prevBell.end_time.split(":").map(Number);
+              const prevEnd = peh * 60 + pem;
+
+              if (mins >= prevEnd && mins < nextStart) {
+                status = "Teneffüs";
+                endMins = nextStart;
+              } else {
+                status = "Okul Saati Dışındayız";
+              }
+            } else {
+              const [fsh, fsm] = sortedBells[0].start_time.split(":").map(Number);
+              const firstStart = fsh * 60 + fsm;
+              if (mins < firstStart) {
+                if (firstStart - mins <= 30) {
+                  status = sortedBells[0].label + " Başlayacak";
+                  endMins = firstStart;
+                } else {
+                  status = "Okul Saati Dışındayız";
+                }
+              }
+            }
+          } else {
+            status = "Okul Saati Dışındayız";
           }
         }
       }
