@@ -1,11 +1,11 @@
 {
   "name": "okul-zil-sistemi",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Okul Zil Sistemi - Zamanlı zil çalma, tören yönetimi ve teneffüs müzik uygulaması",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder build --win",
+    "build": "electron-builder build --win && node scripts/build-zip.js",
     "postinstall": "electron-builder install-app-deps",
     "pack": "electron-builder --dir"
   },
@@ -35,7 +35,8 @@
     },
     "win": {
       "target": "nsis",
-      "icon": "build/icon.png"
+      "icon": "build/icon.png",
+      "artifactName": "Okul_Zil_Sistemi_Setup_${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,

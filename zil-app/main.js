@@ -198,6 +198,12 @@ ipcMain.on('window-maximize', () => {
 });
 ipcMain.on('window-close', () => mainWindow?.close());
 
+// Uygulamayı Yeniden Başlat (Güncellemeler için)
+ipcMain.handle('restart-app', () => {
+  app.relaunch();
+  app.quit();
+});
+
 // Ayarları yükle/kaydet
 ipcMain.handle('store-get', (event, key) => {
   return store.get(key);
@@ -991,9 +997,9 @@ app.whenReady().then(() => {
   createTray();
   rescheduleAllBells();
 
-  // Güncelleme kontrolünü başlat (açılışta + 24 saatte bir)
+  // Güncelleme kontrolünü başlat (açılışta + 2 saatte bir)
   setTimeout(() => checkForUpdates(false), 5000);
-  setInterval(() => checkForUpdates(false), 24 * 60 * 60 * 1000);
+  setInterval(() => checkForUpdates(false), 2 * 60 * 60 * 1000);
 
   // Otomatik başlatma ayarla
   const autoStart = store.get('settings.autoStart', true);

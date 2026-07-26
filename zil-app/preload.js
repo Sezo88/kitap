@@ -37,6 +37,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Güncelleme Kontrolü
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  restartApp: () => ipcRenderer.invoke('restart-app'),
 
   // Olayları dinle
   onPlayScheduledBell: (callback) => {

@@ -687,23 +687,36 @@ const App = {
       window.electronAPI.onUpdateDownloaded(() => {
         btnUpdateNow.textContent = 'Yeniden Başlat';
         btnUpdateNow.disabled = false;
-        updateProgressText.textContent = 'İndirme tamamlandı! Yeniden başlatılıyor...';
+        updateProgressText.textContent = 'İndirme tamamlandı!';
         updateProgressBar.style.backgroundColor = '#10b981'; // success green
         
-        // Yeniden başlat butonuna tıklandığında (veya otomatik) restart atmasını main'den ayarlayacağız, 
-        // ama biz de 2 saniye sonra otomatik diyelim
+        // Modalı gizle ve ana ekrandaki butonu göster
         setTimeout(() => {
-          if (window.electronAPI?.startDownloadUpdate) {
-             // Main process'e yeniden başlatması için sinyal ver (aynı fonksiyonu tetikleyebiliriz)
-             window.electronAPI.startDownloadUpdate();
-          }
-        }, 3000);
+          updateModal.classList.add('hidden');
+          const btnRestart = document.getElementById('btn-restart-update');
+          if (btnRestart) btnRestart.classList.remove('hidden');
+        }, 1500);
       });
     }
 
     if (window.electronAPI?.onRendererPatchAvailable) {
       window.electronAPI.onRendererPatchAvailable((info) => {
-        UI.showToast(`✨ Arayüz yaması (v${info.version}) yüklendi. Bir sonraki açılışta aktif olacaktır.`, 'success');
+        // Tost mesajı yerine doğrudan butonu göster
+        const btnRestart = document.getElementById('btn-restart-update');
+        if (btnRestart) {
+          btnRestart.classList.remove('hidden');
+          btnRestart.title = `Yeni arayüz yaması (v${info.version}) hazır. Tıklayıp yeniden başlatın.`;
+        }
+      });
+    }
+    
+    // Yeniden Başlat Butonu Tıklaması
+    const btnRestartUpdate = document.getElementById('btn-restart-update');
+    if (btnRestartUpdate) {
+      btnRestartUpdate.addEventListener('click', () => {
+        if (window.electronAPI?.restartApp) {
+          window.electronAPI.restartApp();
+        }
       });
     }
     
