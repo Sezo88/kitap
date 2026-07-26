@@ -84,6 +84,7 @@ export default function CapacitorBackButtonHandler() {
 
                 if (error) {
                   console.error("setSession error:", error.message);
+                  deepLinkProcessed.current = false;
                   router.push("/login?error=session_error");
                   return;
                 }
@@ -94,14 +95,11 @@ export default function CapacitorBackButtonHandler() {
                 .then(({ Browser }) => Browser.close().catch(() => {}))
                 .catch(() => {});
 
-              // Hedef sayfaya yönlendir
-              if (next) {
-                router.push(next);
-              } else {
-                router.push("/dashboard");
-              }
-            } catch {
-              // Geçersiz URL, sessizce devam et
+              // Hedef sayfaya tam yönlendirme ile git (state/cookie yenilensin)
+              const targetUrl = next && next.startsWith("/") ? next : "/dashboard";
+              window.location.href = targetUrl;
+            } catch (err) {
+              deepLinkProcessed.current = false;
             }
           }
         );
