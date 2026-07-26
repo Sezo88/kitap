@@ -77,6 +77,19 @@ export default function CapacitorBackButtonHandler() {
               // Token varsa WebView'de session'ı kur
               if (accessToken && refreshToken) {
                 const supabase = createClient();
+                
+                // Cookie'ye de manuel yazalım ki Next.js Middleware/SSR hemen algılasın
+                try {
+                  const maxAge = 60 * 60 * 24 * 365; // 1 yıl
+                  const tokenObj = JSON.stringify({
+                    access_token: accessToken,
+                    refresh_token: refreshToken,
+                  });
+                  document.cookie = `sb-oyp-auth-token=${encodeURIComponent(tokenObj)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+                } catch {
+                  // Cookie hatası olursa devam et
+                }
+
                 const { error } = await supabase.auth.setSession({
                   access_token: accessToken,
                   refresh_token: refreshToken,
@@ -85,7 +98,7 @@ export default function CapacitorBackButtonHandler() {
                 if (error) {
                   console.error("setSession error:", error.message);
                   deepLinkProcessed.current = false;
-                  router.push("/login?error=session_error");
+                  window.location.replace("/login?error=session_error");
                   return;
                 }
               }
@@ -97,7 +110,7 @@ export default function CapacitorBackButtonHandler() {
 
               // Hedef sayfaya tam yönlendirme ile git (state/cookie yenilensin)
               const targetUrl = next && next.startsWith("/") ? next : "/dashboard";
-              window.location.href = targetUrl;
+              window.location.replace(targetUrl);
             } catch (err) {
               deepLinkProcessed.current = false;
             }
