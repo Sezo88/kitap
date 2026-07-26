@@ -83,6 +83,9 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
   }
 
+  mainWindow.show();
+  mainWindow.focus();
+
   // Pencere kapatıldığında tray'e minimize et
   mainWindow.on('close', (event) => {
     if (!app.isQuitting) {
