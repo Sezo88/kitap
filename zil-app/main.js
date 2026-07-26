@@ -68,7 +68,7 @@ function createWindow() {
     minHeight: 700,
     show: true,
     title: 'Okul Zil Sistemi',
-    icon: path.join(__dirname, 'src', 'assets', 'icon.png'),
+    icon: path.join(app.getAppPath(), 'src', 'assets', 'icon.ico'),
     frame: false,
     titleBarStyle: 'hidden',
     backgroundColor: '#0a0e1a',
@@ -109,7 +109,7 @@ function createWindow() {
 
 function createTray() {
   // Basit bir tray ikonu oluştur
-  const iconPath = path.join(__dirname, 'src', 'assets', 'icon.png');
+  const iconPath = path.join(app.getAppPath(), 'src', 'assets', 'icon.ico');
   let trayIcon;
   
   if (fs.existsSync(iconPath)) {
@@ -844,55 +844,60 @@ ipcMain.handle('reconnect-supabase', async (event, schoolCode, pin) => {
 
 const { autoUpdater } = require('electron-updater');
 
+// Güncelleme Olayları (Global Tanımlama)
+autoUpdater.autoDownload = false;
+autoUpdater.autoInstallOnAppQuit = true;
+
+autoUpdater.on('update-available', (info) => {
+  console.log('Yeni sürüm bulundu:', info.version);
+  if (info.version === app.getVersion()) {
+    console.log('Sürüm aynı, güncelleme yok.');
+    return;
+  }
+  if (mainWindow) {
+    mainWindow.webContents.send('update-available', {
+      version: info.version,
+      notes: info.releaseNotes || 'Yeni özellikler ve hata düzeltmeleri içerir.'
+    });
+  }
+});
+
+autoUpdater.on('download-progress', (progressObj) => {
+  if (mainWindow) {
+    mainWindow.webContents.send('update-progress', {
+      percent: progressObj.percent,
+      bytesPerSecond: progressObj.bytesPerSecond
+    });
+  }
+});
+
+autoUpdater.on('update-downloaded', () => {
+  console.log('Güncelleme indirildi, kapanışta kurulacak.');
+  if (mainWindow) {
+    mainWindow.webContents.send('update-downloaded');
+  }
+});
+
 // Güncelleme Kontrolü Fonksiyonu (Katman 2 - Tam Sürüm)
 async function checkForUpdates(manualCheck = false) {
   const manifestUrl = 'https://oyp.vercel.app/downloads/renderer-manifest.json';
   
   try {
-    // Her event listener eklemeden önce eskileri temizle ki çoklu kayıt olmasın
-    autoUpdater.removeAllListeners('update-not-available');
-    autoUpdater.removeAllListeners('update-available');
-    autoUpdater.removeAllListeners('update-downloaded');
-    autoUpdater.removeAllListeners('download-progress');
-
     if (manualCheck) {
+      // update-not-available event'i checkForUpdates çağrısına özeldir, o yüzden once ile ekliyoruz
       autoUpdater.once('update-not-available', () => {
         if (mainWindow) {
           mainWindow.webContents.send('update-available', { version: 'Güncel' });
         }
       });
+      // Aynı sürüm bulunursa update-available tetiklenir ama yukarıda iptal ettik, kullanıcıya "Güncel" dememiz lazım
+      autoUpdater.once('update-available', (info) => {
+        if (info.version === app.getVersion() && mainWindow) {
+          mainWindow.webContents.send('update-available', { version: 'Güncel' });
+        }
+      });
     }
 
-    autoUpdater.once('update-available', (info) => {
-      console.log('Yeni sürüm bulundu:', info.version);
-      if (mainWindow) {
-        mainWindow.webContents.send('update-available', {
-          version: info.version,
-          notes: info.releaseNotes || 'Yeni sürüm indiriliyor...'
-        });
-      }
-    });
-
-    autoUpdater.on('download-progress', (progressObj) => {
-      if (mainWindow) {
-        mainWindow.webContents.send('update-progress', {
-          percent: progressObj.percent,
-          bytesPerSecond: progressObj.bytesPerSecond
-        });
-      }
-    });
-
-    autoUpdater.once('update-downloaded', () => {
-      console.log('Güncelleme indirildi, kapanışta kurulacak.');
-      if (mainWindow) {
-        mainWindow.webContents.send('update-downloaded');
-      }
-    });
-
-    // Otomatik indirmeyi kapat, kullanıcı butona basınca indireceğiz
-    autoUpdater.autoDownload = false;
-    autoUpdater.autoInstallOnAppQuit = true;
-    
     await autoUpdater.checkForUpdates();
   } catch (error) {
     console.error('Güncelleme kontrol hatası:', error.message);
