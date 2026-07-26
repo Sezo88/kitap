@@ -61,14 +61,22 @@ if (!gotTheLock) {
 }
 
 function createWindow() {
+  let windowIcon;
+  try {
+    const iconBuffer = fs.readFileSync(path.join(app.getAppPath(), 'src', 'assets', 'icon.ico'));
+    windowIcon = nativeImage.createFromBuffer(iconBuffer);
+  } catch (err) {
+    windowIcon = nativeImage.createEmpty();
+  }
+
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    minWidth: 1024,
+    width: 1000,
+    height: 700,
+    minWidth: 800,
     minHeight: 700,
     show: true,
     title: 'Okul Zil Sistemi',
-    icon: path.join(app.getAppPath(), 'src', 'assets', 'icon.ico'),
+    icon: windowIcon,
     frame: false,
     titleBarStyle: 'hidden',
     backgroundColor: '#0a0e1a',
@@ -112,10 +120,11 @@ function createTray() {
   const iconPath = path.join(app.getAppPath(), 'src', 'assets', 'icon.ico');
   let trayIcon;
   
-  if (fs.existsSync(iconPath)) {
-    trayIcon = nativeImage.createFromPath(iconPath);
-  } else {
-    // Fallback: 16x16 basit ikon
+  try {
+    const iconBuffer = fs.readFileSync(iconPath);
+    trayIcon = nativeImage.createFromBuffer(iconBuffer);
+  } catch (err) {
+    console.error('Tray icon yüklenemedi:', err);
     trayIcon = nativeImage.createEmpty();
   }
 

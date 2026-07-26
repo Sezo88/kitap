@@ -1,5 +1,5 @@
 {
-  "version": "1.0.4",
+  "version": "1.0.6",
   "url": "https://oyp.vercel.app/downloads/Okul_Zil_Sistemi_Setup.exe",
-  "notes": "İndirme ilerleme çubuğu, OTA güncelleme desteği ve simge onarımı eklendi."
+  "notes": "Görev çubuğu (tray) ve pencere ikonu görünmeme sorunu kökten çözüldü."
 }
