@@ -45,33 +45,54 @@ export function LoginForm() {
       typeof window !== "undefined" && "Capacitor" in window;
 
     const supabase = createClient();
+    
+    // Native Google Sign-In for Capacitor (Android/iOS)
+    if (isCapacitor) {
+      try {
+        const { GoogleSignIn } = await import("@capawesome/capacitor-google-sign-in");
+        
+        // Ensure initialized
+        await GoogleSignIn.initialize({
+          clientId: "516515680437-6s3kg74upeqau7eojdcu1t9di9ajnvha.apps.googleusercontent.com"
+        });
+
+        const result = await GoogleSignIn.signIn();
+        const idToken = result.authentication?.idToken;
+
+        if (!idToken) {
+          throw new Error("ID Token alınamadı.");
+        }
+
+        const { error } = await supabase.auth.signInWithIdToken({
+          provider: "google",
+          token: idToken,
+        });
+
+        if (error) throw error;
+        
+        window.location.replace("/dashboard");
+        return;
+      } catch (err: any) {
+        setError("Google yerel giriş hatası: " + err.message);
+        setLoading(false);
+        return;
+      }
+    }
+
+    // Web Fallback (Safari/Chrome/Desktop)
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: isCapacitor
-          ? `${window.location.origin}/callback?next=/dashboard&mobile=1`
-          : `${window.location.origin}/callback?next=/dashboard`,
+        redirectTo: `${window.location.origin}/callback?next=/dashboard`,
         queryParams: {
           prompt: "select_account",
         },
-        skipBrowserRedirect: isCapacitor,
       },
     });
 
     if (error) {
       setError("Google giriş hatası: " + error.message);
       setLoading(false);
-      return;
-    }
-
-    // Capacitor'da: Chrome Custom Tabs ile aç
-    if (isCapacitor && data?.url) {
-      try {
-        const { Browser } = await import("@capacitor/browser");
-        await Browser.open({ url: data.url });
-      } catch {
-        window.location.href = data.url;
-      }
     }
   }
 
