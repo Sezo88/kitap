@@ -846,7 +846,7 @@ const { autoUpdater } = require('electron-updater');
 
 // Güncelleme Kontrolü Fonksiyonu (Katman 2 - Tam Sürüm)
 async function checkForUpdates(manualCheck = false) {
-  const manifestUrl = 'https://kitapokuma.vercel.app/downloads/renderer-manifest.json';
+  const manifestUrl = 'https://oyp.vercel.app/downloads/renderer-manifest.json';
   
   try {
     if (manualCheck) {

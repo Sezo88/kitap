@@ -1,8 +1,8 @@
-version: 1.0.2
+version: 1.0.3
 files:
-  - url: Okul Zil Sistemi Setup 1.0.2.exe
-    sha512: jNkU8J8prg69spcGOvqGZ79TrYHnDjsK3tgAw0Nw2E6+q3yAxmZ6DW1LGLiTkTIMPqOozGShnmwtc5l0M/BXbA==
-    size: 97386775
-path: Okul Zil Sistemi Setup 1.0.2.exe
-sha512: jNkU8J8prg69spcGOvqGZ79TrYHnDjsK3tgAw0Nw2E6+q3yAxmZ6DW1LGLiTkTIMPqOozGShnmwtc5l0M/BXbA==
-releaseDate: '2026-07-26T08:38:43.791Z'
+  - url: Okul Zil Sistemi Setup 1.0.3.exe
+    sha512: UaOlX8OwG8GivJMeoieA1qk1esIAiIJJG4X+nmBxEIVMjUowzSi9PwMlsXnTEc3cH0+b15ZWZdZfbdZFRrAhzg==
+    size: 97386686
+path: Okul Zil Sistemi Setup 1.0.3.exe
+sha512: UaOlX8OwG8GivJMeoieA1qk1esIAiIJJG4X+nmBxEIVMjUowzSi9PwMlsXnTEc3cH0+b15ZWZdZfbdZFRrAhzg==
+releaseDate: '2026-07-26T08:43:59.454Z'
