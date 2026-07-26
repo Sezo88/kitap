@@ -93,7 +93,6 @@ function createWindow() {
 
   mainWindow.show();
   mainWindow.focus();
-  mainWindow.webContents.openDevTools(); // DEVELOPER MODE
 
   // Pencere kapatıldığında tray'e minimize et
   mainWindow.on('close', (event) => {

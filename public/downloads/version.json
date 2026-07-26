@@ -1,5 +1,5 @@
 {
-  "version": "1.0.1",
+  "version": "1.0.2",
   "url": "https://kitapokuma.vercel.app/downloads/Okul_Zil_Sistemi_Setup.exe",
-  "notes": "Güncelleme mekanizması test sürümü."
+  "notes": "Otomatik güncelleme, yeni logo ve performans yamaları içeren sürüm."
 }
