@@ -57,7 +57,7 @@ export function LoginForm() {
         });
 
         const result = await GoogleSignIn.signIn();
-        const idToken = result.authentication?.idToken;
+        const idToken = result.idToken;
 
         if (!idToken) {
           throw new Error("ID Token alınamadı.");
