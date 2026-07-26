@@ -1,5 +1,5 @@
 {
-  "renderer_version": 1,
-  "url": "https://kitapokuma.vercel.app/downloads/renderer_patch_v1.zip",
-  "notes": "İlk renderer yaması."
+  "renderer_version": 2,
+  "url": "https://oyp.vercel.app/downloads/renderer-patch.zip",
+  "notes": "Otomatik arayüz (UI) güncellemesi."
 }

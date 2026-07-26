@@ -68,7 +68,7 @@ function createWindow() {
     minHeight: 700,
     show: true,
     title: 'Okul Zil Sistemi',
-    icon: path.join(__dirname, 'build', 'icon.png'),
+    icon: path.join(__dirname, 'src', 'assets', 'icon.png'),
     frame: false,
     titleBarStyle: 'hidden',
     backgroundColor: '#0a0e1a',
@@ -109,7 +109,7 @@ function createWindow() {
 
 function createTray() {
   // Basit bir tray ikonu oluştur
-  const iconPath = path.join(__dirname, 'build', 'icon.png');
+  const iconPath = path.join(__dirname, 'src', 'assets', 'icon.png');
   let trayIcon;
   
   if (fs.existsSync(iconPath)) {
@@ -849,15 +849,16 @@ async function checkForUpdates(manualCheck = false) {
   const manifestUrl = 'https://oyp.vercel.app/downloads/renderer-manifest.json';
   
   try {
+    // Her event listener eklemeden önce eskileri temizle ki çoklu kayıt olmasın
+    autoUpdater.removeAllListeners('update-not-available');
+    autoUpdater.removeAllListeners('update-available');
+    autoUpdater.removeAllListeners('update-downloaded');
+    autoUpdater.removeAllListeners('download-progress');
+
     if (manualCheck) {
       autoUpdater.once('update-not-available', () => {
         if (mainWindow) {
           mainWindow.webContents.send('update-available', { version: 'Güncel' });
-          dialog.showMessageBox(mainWindow, {
-            type: 'info',
-            title: 'Güncelleme Kontrolü',
-            message: `Uygulamanız en güncel sürümde (v${app.getVersion()}).`
-          });
         }
       });
     }
@@ -872,34 +873,31 @@ async function checkForUpdates(manualCheck = false) {
       }
     });
 
-    autoUpdater.once('update-downloaded', () => {
-      console.log('Güncelleme indirildi, kapanışta kurulacak.');
+    autoUpdater.on('download-progress', (progressObj) => {
       if (mainWindow) {
-        dialog.showMessageBox(mainWindow, {
-          type: 'info',
-          title: 'Güncelleme Hazır',
-          message: 'Yeni sürüm arka planda indirildi. Uygulamayı yeniden başlattığınızda kurulacaktır.',
-          buttons: ['Tamam', 'Şimdi Yeniden Başlat']
-        }).then(result => {
-          if (result.response === 1) {
-            autoUpdater.quitAndInstall(false, true);
-          }
+        mainWindow.webContents.send('update-progress', {
+          percent: progressObj.percent,
+          bytesPerSecond: progressObj.bytesPerSecond
         });
       }
     });
 
-    autoUpdater.autoDownload = true;
+    autoUpdater.once('update-downloaded', () => {
+      console.log('Güncelleme indirildi, kapanışta kurulacak.');
+      if (mainWindow) {
+        mainWindow.webContents.send('update-downloaded');
+      }
+    });
+
+    // Otomatik indirmeyi kapat, kullanıcı butona basınca indireceğiz
+    autoUpdater.autoDownload = false;
     autoUpdater.autoInstallOnAppQuit = true;
     
-    await autoUpdater.checkForUpdatesAndNotify();
+    await autoUpdater.checkForUpdates();
   } catch (error) {
     console.error('Güncelleme kontrol hatası:', error.message);
     if (manualCheck && mainWindow) {
-      dialog.showMessageBox(mainWindow, {
-        type: 'error',
-        title: 'Güncelleme Kontrolü',
-        message: 'Güncelleme sunucusuna ulaşılamadı: ' + error.message
-      });
+      // Sessizce hatayı yoksayalım, console'da kalabilir
     }
   }
 
@@ -947,7 +945,19 @@ ipcMain.handle('check-for-updates', async () => {
 
 // Uygulama dosya yolunu al
 ipcMain.handle('get-app-path', () => {
-  return __dirname;
+  return app.getAppPath();
+});
+
+ipcMain.handle('start-download-update', () => {
+  try {
+    autoUpdater.downloadUpdate();
+    return true;
+  } catch (e) {
+    if (e.message && e.message.includes('update downloaded')) {
+      autoUpdater.quitAndInstall(false, true);
+    }
+    return false;
+  }
 });
 
 // ========== APP LIFECYCLE ==========

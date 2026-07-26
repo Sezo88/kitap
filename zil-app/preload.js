@@ -51,6 +51,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onRemoteCommand: (callback) => {
     ipcRenderer.on('remote-command', (event, cmd) => callback(cmd));
   },
+  // Güncelleme Olayları
+  startDownloadUpdate: () => ipcRenderer.invoke('start-download-update'),
+  onUpdateProgress: (callback) => {
+    ipcRenderer.on('update-progress', (event, info) => callback(info));
+  },
+  onUpdateDownloaded: (callback) => {
+    ipcRenderer.on('update-downloaded', (event, info) => callback(info));
+  },
   onUpdateAvailable: (callback) => {
     ipcRenderer.on('update-available', (event, info) => callback(info));
   },

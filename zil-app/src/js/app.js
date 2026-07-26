@@ -622,9 +622,82 @@ const App = {
     }
 
     // ===== GÜNCELLEME DİNLENİCİLERİ =====
+    const updateModal = document.getElementById('update-modal');
+    const updateModalClose = document.getElementById('update-modal-close');
+    const btnUpdateLater = document.getElementById('btn-update-later');
+    const btnUpdateNow = document.getElementById('btn-update-now');
+    const updateVersionTxt = document.getElementById('update-version');
+    const updateNotesTxt = document.getElementById('update-notes');
+    const updateInfo = document.getElementById('update-info');
+    const updateProgressContainer = document.getElementById('update-progress-container');
+    const updateProgressBar = document.getElementById('update-progress-bar');
+    const updateProgressText = document.getElementById('update-progress-text');
+    const updateSpeedText = document.getElementById('update-speed-text');
+
+    const closeUpdateModal = () => {
+      updateModal.classList.add('hidden');
+    };
+
+    if (updateModalClose) updateModalClose.addEventListener('click', closeUpdateModal);
+    if (btnUpdateLater) btnUpdateLater.addEventListener('click', closeUpdateModal);
+
+    if (btnUpdateNow) {
+      btnUpdateNow.addEventListener('click', () => {
+        updateInfo.classList.add('hidden');
+        updateProgressContainer.classList.remove('hidden');
+        btnUpdateNow.disabled = true;
+        btnUpdateLater.disabled = true;
+        if (window.electronAPI?.startDownloadUpdate) {
+          window.electronAPI.startDownloadUpdate();
+        }
+      });
+    }
+
     if (window.electronAPI?.onUpdateAvailable) {
       window.electronAPI.onUpdateAvailable((info) => {
-        UI.showToast(`🚀 Yeni sürüm mevcut (v${info.version})! Lütfen güncelleyin.`, 'info');
+        if (info.version === 'Güncel') {
+          UI.showToast('Uygulamanız en güncel sürümde.', 'info');
+          return;
+        }
+        updateVersionTxt.textContent = `v${info.version}`;
+        updateNotesTxt.innerHTML = info.notes || 'Yeni özellikler ve hata düzeltmeleri içerir.';
+        
+        updateInfo.classList.remove('hidden');
+        updateProgressContainer.classList.add('hidden');
+        btnUpdateNow.disabled = false;
+        btnUpdateLater.disabled = false;
+        btnUpdateNow.textContent = 'İndir ve Kur';
+        
+        updateModal.classList.remove('hidden');
+      });
+    }
+
+    if (window.electronAPI?.onUpdateProgress) {
+      window.electronAPI.onUpdateProgress((info) => {
+        const percent = Math.round(info.percent || 0);
+        const speed = ((info.bytesPerSecond || 0) / (1024 * 1024)).toFixed(2);
+        
+        updateProgressBar.style.width = `${percent}%`;
+        updateProgressText.textContent = `${percent}%`;
+        updateSpeedText.textContent = `${speed} MB/s`;
+      });
+    }
+
+    if (window.electronAPI?.onUpdateDownloaded) {
+      window.electronAPI.onUpdateDownloaded(() => {
+        btnUpdateNow.textContent = 'Yeniden Başlat';
+        btnUpdateNow.disabled = false;
+        updateProgressText.textContent = 'İndirme tamamlandı! Yeniden başlatılıyor...';
+        updateProgressBar.style.backgroundColor = '#10b981'; // success green
+        
+        // Yeniden başlat butonuna tıklandığında (veya otomatik) restart atmasını main'den ayarlayacağız, 
+        // ama biz de 2 saniye sonra otomatik diyelim
+        setTimeout(() => {
+          if (window.electronAPI?.startDownloadUpdate) {
+             // Main process'e yeniden başlatması için sinyal ver (aynı fonksiyonu tetikleyebiliriz)
+             window.electronAPI.startDownloadUpdate();
+          }
+        }, 3000);
       });
     }
 

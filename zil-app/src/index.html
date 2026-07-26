@@ -417,6 +417,39 @@
 
   </main>
 
+  <!-- ========== GÜNCELLEME MODAL ========== -->
+  <div id="update-modal" class="modal-overlay hidden">
+    <div class="modal" style="max-width: 450px;">
+      <div class="modal-header">
+        <h3 class="modal-title">✨ Yeni Güncelleme Bulundu</h3>
+        <button id="update-modal-close" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="update-info">
+          <p style="margin-bottom: 10px;">Harika haber! <strong id="update-version">v1.0.0</strong> sürümü indirilebilir durumda.</p>
+          <div id="update-notes" style="font-size: 13px; color: var(--text-muted); background: var(--bg-card); padding: 10px; border-radius: 6px; margin-bottom: 15px; border: 1px solid var(--border-color); max-height: 100px; overflow-y: auto;">
+            Sürüm notları yükleniyor...
+          </div>
+          <p style="font-size: 13px;">Şimdi indirip kurmak ister misiniz?</p>
+        </div>
+        <div id="update-progress-container" class="hidden">
+          <p style="font-size: 13px; margin-bottom: 10px;">Güncelleme indiriliyor, lütfen bekleyin...</p>
+          <div class="progress-bar-bg" style="width: 100%; height: 8px; background: var(--border-color); border-radius: 4px; overflow: hidden; margin-bottom: 10px;">
+            <div id="update-progress-bar" style="width: 0%; height: 100%; background: var(--primary-color); transition: width 0.3s ease;"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted);">
+            <span id="update-progress-text">0%</span>
+            <span id="update-speed-text">0 MB/s</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-update-later" class="btn-action btn-secondary">Daha Sonra</button>
+        <button id="btn-update-now" class="btn-action btn-primary">İndir ve Kur</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ========== ZİL EKLEME/DÜZENLEME MODAL ========== -->
   <div id="bell-modal" class="modal-overlay hidden">
     <div class="modal">
