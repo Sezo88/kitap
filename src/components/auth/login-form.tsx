@@ -64,9 +64,14 @@ export function LoginForm() {
       return;
     }
 
-    // Capacitor (Android) ortamında: URL'yi doğrudan WebView içinde aç (Dış tarayıcıya gitmeden!)
+    // Capacitor'da: Chrome Custom Tabs ile aç
     if (isCapacitor && data?.url) {
-      window.location.href = data.url;
+      try {
+        const { Browser } = await import("@capacitor/browser");
+        await Browser.open({ url: data.url });
+      } catch {
+        window.location.href = data.url;
+      }
     }
   }
 
