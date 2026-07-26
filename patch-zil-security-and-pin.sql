@@ -72,12 +72,12 @@ ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS bell_api_pin_hash text;
 
 -- 1.2 Güvenli Okul Kodu + PIN Eşleştirme RPC (SECURITY DEFINER)
 CREATE OR REPLACE FUNCTION public.resolve_school_code_secure(p_code text, p_pin text DEFAULT NULL)
-RETURNS TABLE (school_id uuid, school_name text, license_expires_at timestamptz, feature_bell boolean)
+RETURNS TABLE (id uuid, school_id uuid, name text, school_name text, license_expires_at timestamptz, feature_bell boolean)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
 AS $$
 BEGIN
   RETURN QUERY
-  SELECT s.id, s.name, s.license_expires_at, s.feature_bell
+  SELECT s.id, s.id AS school_id, s.name, s.name AS school_name, s.license_expires_at, s.feature_bell
   FROM public.schools s
   WHERE s.code = UPPER(TRIM(p_code))
     AND (

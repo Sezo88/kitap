@@ -189,7 +189,11 @@ ipcMain.handle('store-get', (event, key) => {
 });
 
 ipcMain.handle('store-set', (event, key, value) => {
-  store.set(key, value);
+  if (value === undefined || value === null) {
+    store.delete(key);
+  } else {
+    store.set(key, value);
+  }
   if (key === 'settings.bellsEnabled') {
     sendHeartbeat();
     updateTrayMenu();
@@ -807,15 +811,21 @@ ipcMain.handle('reconnect-supabase', async (event, schoolCode, pin) => {
     }
 
     const school = schoolsList[0];
+    const schoolId = school.school_id || school.id;
+    const schoolName = school.school_name || school.name || 'Okul';
+
+    if (!schoolId) {
+      return { success: false, error: 'Okul ID bilgisi alınamadı.' };
+    }
 
     // Okul ID ve Kodu kaydet
-    store.set('settings.schoolId', school.id);
+    store.set('settings.schoolId', schoolId);
     store.set('settings.schoolCode', schoolCode.trim().toUpperCase());
     
     // Supabase bağlantısını yeniden yükle
     setupSupabase();
     
-    return { success: true, schoolName: school.name };
+    return { success: true, schoolName: schoolName };
   } catch (err) {
     return { success: false, error: err.message };
   }
