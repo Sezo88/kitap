@@ -41,7 +41,6 @@ export function LoginForm() {
     setError("");
     setLoading(true);
 
-    // Capacitor ortamında mıyız?
     const isCapacitor =
       typeof window !== "undefined" && "Capacitor" in window;
 
@@ -55,6 +54,7 @@ export function LoginForm() {
         queryParams: {
           prompt: "select_account",
         },
+        skipBrowserRedirect: isCapacitor,
       },
     });
 
@@ -64,18 +64,10 @@ export function LoginForm() {
       return;
     }
 
-    // Capacitor'da: Chrome Custom Tabs ile aç (kullanıcının Google oturumu tarayıcıda hazır)
+    // Capacitor (Android) ortamında: URL'yi doğrudan WebView içinde aç (Dış tarayıcıya gitmeden!)
     if (isCapacitor && data?.url) {
-      try {
-        const { Browser } = await import("@capacitor/browser");
-        await Browser.open({ url: data.url });
-        // Tarayıcı açıldı — kullanıcı Google'da giriş yapacak,
-        // callback route'u deep link ile uygulamaya geri dönecek
-      } catch {
-        // Browser plugin yüklenemezse normal akışa bırak
-      }
+      window.location.href = data.url;
     }
-    // loading state kapanmaz — sayfa deep link ile yeniden yüklenecek
   }
 
   async function handleForgotPasswordSubmit(e: React.FormEvent) {
