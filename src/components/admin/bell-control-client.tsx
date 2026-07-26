@@ -92,6 +92,10 @@ export function BellControlClient({ schoolId, userId, initialCommands }: Props) 
     setSending(commandType);
     const supabase = createClient();
 
+    // Optimistic UI updates
+    if (commandType === "mute_bell") setBellActive(false);
+    if (commandType === "unmute_bell") setBellActive(true);
+
     const { data, error } = await supabase
       .from("bell_commands")
       .insert({
@@ -105,9 +109,14 @@ export function BellControlClient({ schoolId, userId, initialCommands }: Props) 
 
     if (error) {
       toast("Komut gönderilemedi: " + error.message, "error");
+      // Revert optimistic update on error
+      if (commandType === "mute_bell") setBellActive(true);
+      if (commandType === "unmute_bell") setBellActive(false);
     } else {
       toast(`${COMMAND_LABELS[commandType]?.label || commandType} komutu gönderildi!`, "success");
       if (data) setCommands([data, ...commands]);
+      // Anında veritabanından güncel durumu çek
+      setTimeout(checkOnlineStatus, 1000);
     }
     setSending(null);
   }

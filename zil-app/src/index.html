@@ -45,7 +45,11 @@
         <div id="next-bell-countdown" class="next-bell-countdown"></div>
       </div>
     </div>
-    <div class="status-bar-right">
+    <div class="status-bar-right" style="display: flex; align-items: center;">
+      <div id="supabase-status" class="supabase-status" style="margin-right: 20px; display: flex; align-items: center; font-size: 0.9em; font-weight: 600; padding: 5px 10px; background: rgba(0,0,0,0.2); border-radius: 20px;">
+        <span id="supabase-dot" style="display:inline-block; width: 10px; height: 10px; border-radius: 50%; background: #f44336; margin-right: 8px; box-shadow: 0 0 5px #f44336;"></span>
+        <span id="supabase-text">Bağlantı Yok</span>
+      </div>
       <div class="bell-master-switch">
         <label class="switch-label" for="bell-switch">Ziller</label>
         <label class="toggle-switch">

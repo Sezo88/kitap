@@ -9,6 +9,13 @@ const AdmZip = require('adm-zip');
 global.WebSocket = require('ws');
 const { createClient } = require('@supabase/supabase-js');
 
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 // electron-store yapılandırma
 const store = new Store({
   name: 'zil-sistemi-config',
@@ -59,6 +66,7 @@ function createWindow() {
     height: 800,
     minWidth: 1024,
     minHeight: 700,
+    show: true,
     title: 'Okul Zil Sistemi',
     icon: path.join(__dirname, 'build', 'icon.png'),
     frame: false,
@@ -85,6 +93,7 @@ function createWindow() {
 
   mainWindow.show();
   mainWindow.focus();
+  mainWindow.webContents.openDevTools(); // DEVELOPER MODE
 
   // Pencere kapatıldığında tray'e minimize et
   mainWindow.on('close', (event) => {
@@ -92,11 +101,6 @@ function createWindow() {
       event.preventDefault();
       mainWindow.hide();
     }
-  });
-
-  // Simge durumuna küçültüldüğünde görev çubuğundan gizle ve tepsiye al
-  mainWindow.on('minimize', () => {
-    mainWindow.hide();
   });
 
   mainWindow.on('closed', () => {
@@ -176,7 +180,7 @@ function updateTrayMenu() {
 // ========== IPC HANDLERS ==========
 
 // Pencere kontrolleri
-ipcMain.on('window-minimize', () => mainWindow?.minimize());
+ipcMain.on('window-minimize', () => mainWindow?.hide());
 ipcMain.on('window-maximize', () => {
   if (mainWindow?.isMaximized()) {
     mainWindow.unmaximize();
@@ -651,6 +655,9 @@ function setupSupabase() {
         listenToBellCommands();
         startHeartbeat();
         processPendingCommands();
+        
+        // Supabase Realtime'a ek olarak, gecikmeleri önlemek için 3 saniyede bir yedek kontrol (polling) yap
+        setInterval(processPendingCommands, 3000);
       } else {
         console.warn('School ID not set. Realtime listener, heartbeat, and pending checker not started.');
       }
@@ -781,6 +788,9 @@ function listenToBellCommands() {
     )
     .subscribe((status) => {
       console.log(`Supabase Realtime durum: ${status}`);
+      if (mainWindow) {
+        mainWindow.webContents.send('supabase-status', status === 'SUBSCRIBED');
+      }
     });
 }
 

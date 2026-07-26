@@ -757,6 +757,24 @@ const App = {
         }
       });
     }
+
+    if (window.electronAPI.onSupabaseStatus) {
+      window.electronAPI.onSupabaseStatus((isConnected) => {
+        const dot = document.getElementById('supabase-dot');
+        const text = document.getElementById('supabase-text');
+        if (dot && text) {
+          if (isConnected) {
+            dot.style.background = '#4CAF50';
+            dot.style.boxShadow = '0 0 5px #4CAF50';
+            text.textContent = 'Bağlantı Kuruldu';
+          } else {
+            dot.style.background = '#f44336';
+            dot.style.boxShadow = '0 0 5px #f44336';
+            text.textContent = 'Bağlantı Yok';
+          }
+        }
+      });
+    }
   }
 };
 

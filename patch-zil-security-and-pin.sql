@@ -46,21 +46,30 @@ CREATE POLICY "bell_commands_insert" ON public.bell_commands
     OR (public.get_my_role() = 'idareci' AND school_id = public.get_my_school_id())
   );
 
--- SELECT politikası
+-- SELECT politikası (Electron'un Realtime'da dinleyebilmesi için anon okumaya izin verilir)
 DROP POLICY IF EXISTS "bell_commands_select" ON public.bell_commands;
 CREATE POLICY "bell_commands_select" ON public.bell_commands
-  FOR SELECT USING (
-    public.get_my_role() = 'super_admin'
-    OR school_id = public.get_my_school_id()
-  );
+  FOR SELECT USING (true);
 
--- UPDATE politikası
+-- UPDATE politikası (Sadece web paneli idarecileri update edebilir)
 DROP POLICY IF EXISTS "bell_commands_update" ON public.bell_commands;
 CREATE POLICY "bell_commands_update" ON public.bell_commands
   FOR UPDATE USING (
     public.get_my_role() = 'super_admin'
     OR school_id = public.get_my_school_id()
   );
+
+-- Electron App'in (anon) bekleyen komutları 'alındı' (acknowledged) yapabilmesi için RPC
+CREATE OR REPLACE FUNCTION public.acknowledge_bell_commands(p_cmd_ids uuid[])
+RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
+AS $$
+BEGIN
+  UPDATE public.bell_commands
+  SET status = 'acknowledged'
+  WHERE id = ANY(p_cmd_ids) AND status = 'pending';
+END;
+$$;
 
 
 -- ----------------------------------------------------------------------------
@@ -71,6 +80,7 @@ CREATE POLICY "bell_commands_update" ON public.bell_commands
 ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS bell_api_pin_hash text;
 
 -- 1.2 Güvenli Okul Kodu + PIN Eşleştirme RPC (SECURITY DEFINER)
+DROP FUNCTION IF EXISTS public.resolve_school_code_secure(text, text);
 CREATE OR REPLACE FUNCTION public.resolve_school_code_secure(p_code text, p_pin text DEFAULT NULL)
 RETURNS TABLE (id uuid, school_id uuid, name text, school_name text, license_expires_at timestamptz, feature_bell boolean)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''

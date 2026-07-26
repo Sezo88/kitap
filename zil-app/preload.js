@@ -56,5 +56,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onRendererPatchAvailable: (callback) => {
     ipcRenderer.on('renderer-patch-available', (event, info) => callback(info));
+  },
+  onSupabaseStatus: (callback) => {
+    ipcRenderer.on('supabase-status', (event, isConnected) => callback(isConnected));
   }
 });
