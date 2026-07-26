@@ -72,7 +72,16 @@ function createWindow() {
     }
   });
 
-  mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
+  const customRendererPath = path.join(app.getPath('userData'), 'renderer', 'index.html');
+  if (fs.existsSync(customRendererPath)) {
+    console.log('OTA Renderer Yaması yükleniyor:', customRendererPath);
+    mainWindow.loadFile(customRendererPath).catch((err) => {
+      console.error('Yama yüklenemedi, orijinal src/index.html dosyasına dönülüyor:', err);
+      mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
+    });
+  } else {
+    mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
+  }
 
   // Pencere kapatıldığında tray'e minimize et
   mainWindow.on('close', (event) => {
@@ -140,6 +149,12 @@ function updateTrayMenu() {
         if (mainWindow) {
           mainWindow.webContents.send('bells-enabled-changed', menuItem.checked);
         }
+      }
+    },
+    {
+      label: 'Güncellemeleri Kontrol Et',
+      click: () => {
+        checkForUpdates(true);
       }
     },
     { type: 'separator' },
@@ -762,8 +777,8 @@ function listenToBellCommands() {
     });
 }
 
-// Reconnect ve Okul Kodu Çözümleme Handler'ı
-ipcMain.handle('reconnect-supabase', async (event, schoolCode) => {
+// Reconnect ve Okul Kodu + PIN Çözümleme Handler'ı
+ipcMain.handle('reconnect-supabase', async (event, schoolCode, pin) => {
   const supabaseUrl = store.get('settings.supabaseUrl');
   const supabaseKey = store.get('settings.supabaseKey');
 
@@ -780,19 +795,22 @@ ipcMain.handle('reconnect-supabase', async (event, schoolCode) => {
       return { success: false, error: 'Okul kodu boş olamaz.' };
     }
 
-    // Kodu eşleşen okulu getir (RPC üzerinden, RLS bypass eder)
+    // Okul kodu ve PIN doğrulaması yap (RPC resolve_school_code_secure)
     const { data: schoolsList, error: err } = await tempClient
-      .rpc('resolve_school_code', { p_code: schoolCode.toUpperCase() });
+      .rpc('resolve_school_code_secure', {
+        p_code: schoolCode.trim().toUpperCase(),
+        p_pin: pin ? pin.trim() : null
+      });
 
     if (err || !schoolsList || schoolsList.length === 0) {
-      return { success: false, error: 'Geçersiz Okul Kodu. Lütfen panodaki kodu girin.' };
+      return { success: false, error: 'Okul kodu veya PIN hatalı.' };
     }
 
     const school = schoolsList[0];
 
     // Okul ID ve Kodu kaydet
     store.set('settings.schoolId', school.id);
-    store.set('settings.schoolCode', schoolCode.toUpperCase());
+    store.set('settings.schoolCode', schoolCode.trim().toUpperCase());
     
     // Supabase bağlantısını yeniden yükle
     setupSupabase();
@@ -801,6 +819,86 @@ ipcMain.handle('reconnect-supabase', async (event, schoolCode) => {
   } catch (err) {
     return { success: false, error: err.message };
   }
+});
+
+// Güncelleme Kontrolü Fonksiyonu
+async function checkForUpdates(manualCheck = false) {
+  const versionUrl = 'https://kitapokuma.vercel.app/downloads/version.json';
+  const manifestUrl = 'https://kitapokuma.vercel.app/downloads/renderer-manifest.json';
+
+  try {
+    const res = await fetch(versionUrl);
+    if (res.ok) {
+      const data = await res.json();
+      const currentVersion = app.getVersion();
+      if (data.version && data.version !== currentVersion) {
+        console.log(`Yeni tam sürüm mevcut: ${data.version} (Mevcut: ${currentVersion})`);
+        if (mainWindow) {
+          mainWindow.webContents.send('update-available', {
+            version: data.version,
+            url: data.url,
+            notes: data.notes
+          });
+        }
+      } else if (manualCheck && mainWindow) {
+        dialog.showMessageBox(mainWindow, {
+          type: 'info',
+          title: 'Güncelleme Kontrolü',
+          message: `Uygulamanız en güncel sürümde (v${currentVersion}).`
+        });
+      }
+    }
+  } catch (err) {
+    console.error('Güncelleme kontrolü hatası:', err);
+    if (manualCheck && mainWindow) {
+      dialog.showMessageBox(mainWindow, {
+        type: 'error',
+        title: 'Güncelleme Kontrolü',
+        message: 'Güncelleme sunucusuna ulaşılamadı: ' + err.message
+      });
+    }
+  }
+
+  // Katman 1 (OTA Renderer Hot-Patch)
+  try {
+    const res = await fetch(manifestUrl);
+    if (res.ok) {
+      const data = await res.json();
+      const localRendererVer = store.get('settings.rendererVersion', 0);
+      if (data.renderer_version && data.renderer_version > localRendererVer && data.url) {
+        console.log(`Yeni renderer yaması bulundu: v${data.renderer_version} (Yerel: v${localRendererVer})`);
+        
+        const zipRes = await fetch(data.url);
+        if (zipRes.ok) {
+          const buffer = Buffer.from(await zipRes.arrayBuffer());
+          const tempZipPath = path.join(app.getPath('userData'), 'temp_renderer_patch.zip');
+          fs.writeFileSync(tempZipPath, buffer);
+
+          const rendererDir = path.join(app.getPath('userData'), 'renderer');
+          const zip = new AdmZip(tempZipPath);
+          zip.extractAllTo(rendererDir, true);
+          fs.unlinkSync(tempZipPath);
+
+          store.set('settings.rendererVersion', data.renderer_version);
+          console.log('Renderer yaması başarıyla uygulandı.');
+
+          if (mainWindow) {
+            mainWindow.webContents.send('renderer-patch-available', {
+              version: data.renderer_version,
+              notes: data.notes
+            });
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Renderer yama kontrolü hatası:', err);
+  }
+}
+
+ipcMain.handle('check-for-updates', async () => {
+  await checkForUpdates(true);
+  return { success: true };
 });
 
 // Uygulama dosya yolunu al
@@ -824,6 +922,10 @@ app.whenReady().then(() => {
   createWindow();
   createTray();
   rescheduleAllBells();
+
+  // Güncelleme kontrolünü başlat (açılışta + 24 saatte bir)
+  setTimeout(() => checkForUpdates(false), 5000);
+  setInterval(() => checkForUpdates(false), 24 * 60 * 60 * 1000);
 
   // Otomatik başlatma ayarla
   const autoStart = store.get('settings.autoStart', true);

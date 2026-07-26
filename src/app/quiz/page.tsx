@@ -23,12 +23,11 @@ export default function QuizPage() {
 
     const supabase = createClient();
 
-    // Once okulu bul
-    const { data: school } = await supabase
-      .from("schools")
-      .select("id, name")
-      .eq("code", schoolCode.trim())
-      .maybeSingle();
+    // Once okulu bul (RPC üzerinden)
+    const { data: schoolsList } = await supabase
+      .rpc("resolve_school_code", { p_code: schoolCode.trim() });
+
+    const school = schoolsList && schoolsList.length > 0 ? schoolsList[0] : null;
 
     if (!school) { setError("Geçersiz okul kodu!"); setLoading(false); return; }
 

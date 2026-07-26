@@ -603,20 +603,34 @@ const App = {
     if (btnSaveSupabase) {
       btnSaveSupabase.addEventListener('click', async () => {
         const schoolCode = document.getElementById('school-id')?.value?.trim() || '';
+        const pin = document.getElementById('school-pin')?.value?.trim() || '';
         
         if (!schoolCode) {
           UI.showToast('⚠️ Lütfen okul kodunu girin.', 'warning');
           return;
         }
         
-        UI.showToast('⏳ Okul kodu doğrulanıyor ve bağlanılıyor...', 'info');
+        UI.showToast('⏳ Okul kodu ve PIN doğrulanıyor ve bağlanılıyor...', 'info');
         
-        const res = await window.electronAPI.reconnectSupabase(schoolCode);
+        const res = await window.electronAPI.reconnectSupabase(schoolCode, pin);
         if (res.success) {
           UI.showToast(`✅ ${res.schoolName} okuluna başarıyla bağlanıldı!`, 'success');
         } else {
           UI.showToast(`❌ Hata: ${res.error}`, 'error');
         }
+      });
+    }
+
+    // ===== GÜNCELLEME DİNLENİCİLERİ =====
+    if (window.electronAPI?.onUpdateAvailable) {
+      window.electronAPI.onUpdateAvailable((info) => {
+        UI.showToast(`🚀 Yeni sürüm mevcut (v${info.version})! Lütfen güncelleyin.`, 'info');
+      });
+    }
+
+    if (window.electronAPI?.onRendererPatchAvailable) {
+      window.electronAPI.onRendererPatchAvailable((info) => {
+        UI.showToast(`✨ Arayüz yaması (v${info.version}) yüklendi. Bir sonraki açılışta aktif olacaktır.`, 'success');
       });
     }
     

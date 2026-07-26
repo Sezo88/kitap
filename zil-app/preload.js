@@ -32,8 +32,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Uygulama yolu
   getAppPath: () => ipcRenderer.invoke('get-app-path'),
 
-  // Supabase reconnect
-  reconnectSupabase: (schoolCode) => ipcRenderer.invoke('reconnect-supabase', schoolCode),
+  // Supabase reconnect (Okul Kodu + PIN)
+  reconnectSupabase: (schoolCode, pin) => ipcRenderer.invoke('reconnect-supabase', schoolCode, pin),
+
+  // Güncelleme Kontrolü
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
 
   // Olayları dinle
   onPlayScheduledBell: (callback) => {
@@ -47,5 +50,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onRemoteCommand: (callback) => {
     ipcRenderer.on('remote-command', (event, cmd) => callback(cmd));
+  },
+  onUpdateAvailable: (callback) => {
+    ipcRenderer.on('update-available', (event, info) => callback(info));
+  },
+  onRendererPatchAvailable: (callback) => {
+    ipcRenderer.on('renderer-patch-available', (event, info) => callback(info));
   }
 });

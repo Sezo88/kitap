@@ -14,16 +14,21 @@
     "@supabase/supabase-js": "^2.110.0",
     "adm-zip": "^0.5.17",
     "electron-store": "^8.2.0",
+    "electron-updater": "^6.3.9",
     "node-schedule": "^2.1.1",
     "ws": "^8.21.0"
   },
   "devDependencies": {
-    "electron": "^33.2.1",
+    "electron": "33.2.1",
     "electron-builder": "^25.1.8"
   },
   "build": {
     "appId": "com.okul.zilsistemi",
     "productName": "Okul Zil Sistemi",
+    "publish": {
+      "provider": "generic",
+      "url": "https://kitapokuma.vercel.app/downloads/"
+    },
     "directories": {
       "output": "dist"
     },

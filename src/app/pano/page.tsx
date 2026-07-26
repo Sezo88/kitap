@@ -197,11 +197,10 @@ export default function PanoPage() {
     setPinError("");
 
     const supabase = createClient();
-    const { data: school } = await supabase
-      .from("schools")
-      .select("id, name, pano_pin")
-      .eq("pano_pin", pin.trim())
-      .maybeSingle();
+    const { data: schools } = await supabase
+      .rpc("verify_pano_pin", { p_pin: pin.trim() });
+
+    const school = schools && schools.length > 0 ? schools[0] : null;
 
     if (school) {
       setSchoolId(school.id);

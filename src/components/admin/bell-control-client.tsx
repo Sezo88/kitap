@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
-import { Bell, Flag, Megaphone, History, Trash2, Square, BellOff } from "lucide-react";
+import { Bell, Flag, Megaphone, History, Trash2, Square, BellOff, Shield, Key, CheckCircle, AlertTriangle } from "lucide-react";
 
 interface Props {
   schoolId: string;
@@ -31,6 +31,9 @@ export function BellControlClient({ schoolId, userId, initialCommands }: Props) 
   const [clearing, setClearing] = useState(false);
   const [onlineStatus, setOnlineStatus] = useState<boolean>(false);
   const [bellActive, setBellActive] = useState<boolean>(true);
+  const [hasPin, setHasPin] = useState<boolean | null>(null);
+  const [pinInput, setPinInput] = useState<string>("");
+  const [pinSaving, setPinSaving] = useState<boolean>(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -44,7 +47,7 @@ export function BellControlClient({ schoolId, userId, initialCommands }: Props) 
     const supabase = createClient();
     const { data } = await supabase
       .from("schools")
-      .select("last_bell_heartbeat, bell_active")
+      .select("last_bell_heartbeat, bell_active, bell_api_pin_hash")
       .eq("id", schoolId)
       .single();
 
@@ -56,6 +59,32 @@ export function BellControlClient({ schoolId, userId, initialCommands }: Props) 
         setOnlineStatus(false);
       }
       setBellActive(data.bell_active !== false);
+      setHasPin(Boolean(data.bell_api_pin_hash));
+    }
+  }
+
+  async function handleSavePin(e: React.FormEvent) {
+    e.preventDefault();
+    if (!pinInput.trim() || pinInput.trim().length < 4) {
+      toast("PIN en az 4 karakter olmalıdır.", "error");
+      return;
+    }
+    setPinSaving(true);
+    try {
+      const res = await fetch("/api/panel/bell-pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ schoolId, pin: pinInput.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "PIN kaydedilemedi");
+      toast("Zil API PIN başarıyla kaydedildi!", "success");
+      setHasPin(true);
+      setPinInput("");
+    } catch (err: any) {
+      toast("Hata: " + err.message, "error");
+    } finally {
+      setPinSaving(false);
     }
   }
 
@@ -177,6 +206,47 @@ export function BellControlClient({ schoolId, userId, initialCommands }: Props) 
               ⬇️ Zil Programını İndir (.exe)
             </a>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Zil Uygulaması Güvenlik & PIN Ayarı */}
+      <Card>
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Shield className="h-5 w-5 text-primary" />
+            Zil Uygulaması Güvenlik PIN'i
+          </CardTitle>
+          <Badge
+            variant={hasPin ? "success" : "outline"}
+            className={hasPin ? "bg-emerald-100 text-emerald-800 border-emerald-300" : "bg-amber-100 text-amber-800 border-amber-300"}
+          >
+            {hasPin ? (
+              <span className="flex items-center gap-1"><CheckCircle className="h-3 w-3" /> PIN Belirlendi</span>
+            ) : (
+              <span className="flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> PIN Belirlenmedi (Güvenlik Riski)</span>
+            )}
+          </Badge>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSavePin} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="relative flex-1">
+              <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <input
+                type="password"
+                placeholder="4-6 Haneli PIN Giriniz (ör. 1234)"
+                value={pinInput}
+                onChange={(e) => setPinInput(e.target.value)}
+                maxLength={6}
+                className="w-full pl-9 pr-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+            <Button type="submit" size="sm" disabled={pinSaving} className="shrink-0 font-medium">
+              {pinSaving ? "Kaydediliyor..." : hasPin ? "PIN'i Güncelle" : "PIN Oluştur"}
+            </Button>
+          </form>
+          <p className="text-xs text-muted-foreground mt-2">
+            * Okul bilgisayarındaki Zil uygulaması ilk eşleştirme anında bu PIN'i soracaktır. PIN belirlenmezse geçiş döneminde sadece Okul Kodu ile bağlantı kurulabilir.
+          </p>
         </CardContent>
       </Card>
 
