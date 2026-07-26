@@ -36,9 +36,9 @@ export default function CapacitorBackButtonHandler() {
 
     // 2. Android geri tuşu + deep link handler
     import("@capacitor/app")
-      .then(({ App }) => {
+      .then(async ({ App }) => {
         // Geri tuşu
-        const backListener = App.addListener("backButton", ({ canGoBack }) => {
+        const backListener = await App.addListener("backButton", ({ canGoBack }) => {
           if (canGoBack || window.history.length > 1) {
             window.history.back();
           } else {
@@ -47,7 +47,7 @@ export default function CapacitorBackButtonHandler() {
         });
 
         // Deep link: Google OAuth'tan dönüş (kitappaneli://auth/callback?...)
-        const deepLinkListener = App.addListener("appUrlOpen", async (data) => {
+        const deepLinkListener = await App.addListener("appUrlOpen", async (data) => {
           try {
             const url = new URL(data.url);
 
