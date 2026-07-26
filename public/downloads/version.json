@@ -1,5 +1,5 @@
 {
-  "version": "1.0.3",
+  "version": "1.0.4",
   "url": "https://oyp.vercel.app/downloads/Okul_Zil_Sistemi_Setup.exe",
-  "notes": "Domain değişikliği yapıldı (oyp.vercel.app) ve hata düzeltmeleri."
+  "notes": "Otomatik güncelleme test (1.0.4) başarılı!"
 }
