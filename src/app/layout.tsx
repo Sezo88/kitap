@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ToastProvider } from "@/components/ui/toast";
+import CapacitorBackButtonHandler from "@/components/layout/CapacitorBackButtonHandler";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,6 +16,7 @@ export default function RootLayout({
   return (
     <html lang="tr" suppressHydrationWarning>
       <body className="min-h-screen bg-background antialiased">
+        <CapacitorBackButtonHandler />
         <ToastProvider>{children}</ToastProvider>
       </body>
     </html>

@@ -40,20 +40,42 @@ export function LoginForm() {
   async function handleGoogleLogin() {
     setError("");
     setLoading(true);
+
+    // Capacitor ortamında mıyız?
+    const isCapacitor =
+      typeof window !== "undefined" && "Capacitor" in window;
+
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { 
-        redirectTo: `${window.location.origin}/callback?next=/dashboard`,
+      options: {
+        redirectTo: isCapacitor
+          ? `${window.location.origin}/callback?next=/dashboard&mobile=1`
+          : `${window.location.origin}/callback?next=/dashboard`,
         queryParams: {
-          prompt: "select_account"
-        }
+          prompt: "select_account",
+        },
       },
     });
+
     if (error) {
       setError("Google giriş hatası: " + error.message);
       setLoading(false);
+      return;
     }
+
+    // Capacitor'da: Chrome Custom Tabs ile aç (kullanıcının Google oturumu tarayıcıda hazır)
+    if (isCapacitor && data?.url) {
+      try {
+        const { Browser } = await import("@capacitor/browser");
+        await Browser.open({ url: data.url });
+        // Tarayıcı açıldı — kullanıcı Google'da giriş yapacak,
+        // callback route'u deep link ile uygulamaya geri dönecek
+      } catch {
+        // Browser plugin yüklenemezse normal akışa bırak
+      }
+    }
+    // loading state kapanmaz — sayfa deep link ile yeniden yüklenecek
   }
 
   async function handleForgotPasswordSubmit(e: React.FormEvent) {
