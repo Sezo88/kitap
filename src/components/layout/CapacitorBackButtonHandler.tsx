@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -17,6 +17,7 @@ import { createClient } from "@/lib/supabase/client";
  */
 export default function CapacitorBackButtonHandler() {
   const router = useRouter();
+  const deepLinkProcessed = useRef(false);
 
   useEffect(() => {
     // Guard: yalnızca Capacitor ortamında çalış
@@ -38,53 +39,72 @@ export default function CapacitorBackButtonHandler() {
     import("@capacitor/app")
       .then(async ({ App }) => {
         // Geri tuşu
-        const backListener = await App.addListener("backButton", ({ canGoBack }) => {
-          if (canGoBack || window.history.length > 1) {
-            window.history.back();
-          } else {
-            App.exitApp();
+        const backListener = await App.addListener(
+          "backButton",
+          ({ canGoBack }) => {
+            if (canGoBack || window.history.length > 1) {
+              window.history.back();
+            } else {
+              App.exitApp();
+            }
           }
-        });
+        );
 
         // Deep link: Google OAuth'tan dönüş (kitappaneli://auth/callback?...)
-        const deepLinkListener = await App.addListener("appUrlOpen", async (data) => {
-          try {
-            const url = new URL(data.url);
+        const deepLinkListener = await App.addListener(
+          "appUrlOpen",
+          async (data) => {
+            // Tekrar işlemeyi engelle (döngü koruması)
+            if (deepLinkProcessed.current) return;
 
-            // Sadece auth/callback deep link'lerini yakala
-            if (url.protocol !== "kitappaneli:" || url.hostname !== "auth") {
-              return;
-            }
+            try {
+              const url = new URL(data.url);
 
-            const next = url.searchParams.get("next");
-            const accessToken = url.searchParams.get("at");
-            const refreshToken = url.searchParams.get("rt");
-
-            // Token varsa WebView'de session'ı kur
-            if (accessToken && refreshToken) {
-              const supabase = createClient();
-              const { error } = await supabase.auth.setSession({
-                access_token: accessToken,
-                refresh_token: refreshToken,
-              });
-
-              if (error) {
-                console.error("setSession error:", error.message);
-                router.push("/login?error=session_error");
+              // Sadece auth/callback deep link'lerini yakala
+              if (
+                url.protocol !== "kitappaneli:" ||
+                url.hostname !== "auth"
+              ) {
                 return;
               }
-            }
 
-            // Hedef sayfaya yönlendir
-            if (next) {
-              router.push(next);
-            } else {
-              router.push("/dashboard");
+              deepLinkProcessed.current = true;
+
+              const next = url.searchParams.get("next");
+              const accessToken = url.searchParams.get("at");
+              const refreshToken = url.searchParams.get("rt");
+
+              // Token varsa WebView'de session'ı kur
+              if (accessToken && refreshToken) {
+                const supabase = createClient();
+                const { error } = await supabase.auth.setSession({
+                  access_token: accessToken,
+                  refresh_token: refreshToken,
+                });
+
+                if (error) {
+                  console.error("setSession error:", error.message);
+                  router.push("/login?error=session_error");
+                  return;
+                }
+              }
+
+              // Chrome Custom Tab'ı kapat (uygulamaya geri dönüşü tamamla)
+              import("@capacitor/browser")
+                .then(({ Browser }) => Browser.close().catch(() => {}))
+                .catch(() => {});
+
+              // Hedef sayfaya yönlendir
+              if (next) {
+                router.push(next);
+              } else {
+                router.push("/dashboard");
+              }
+            } catch {
+              // Geçersiz URL, sessizce devam et
             }
-          } catch {
-            // Geçersiz URL, sessizce devam et
           }
-        });
+        );
 
         cleanups.push(() => {
           backListener.remove();
