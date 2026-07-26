@@ -9,13 +9,21 @@ export async function GET(request: Request) {
 
   const supabase = await createClient();
 
+  let currentSession: { access_token: string; refresh_token: string } | null = null;
+
   // Email/PW sifirlama veya OAuth icin code exchange
   if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { data: exchangeData, error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) {
       return isMobile
         ? mobileRedirect("auth_callback_error")
         : NextResponse.redirect(`${origin}/login?error=auth_callback_error`);
+    }
+    if (exchangeData?.session) {
+      currentSession = {
+        access_token: exchangeData.session.access_token,
+        refresh_token: exchangeData.session.refresh_token,
+      };
     }
   }
 
@@ -43,23 +51,34 @@ export async function GET(request: Request) {
 
     if (isIncomplete) {
       return isMobile
-        ? mobileRedirect("complete-registration")
+        ? mobileRedirect(
+            "complete-registration",
+            currentSession?.access_token,
+            currentSession?.refresh_token
+          )
         : NextResponse.redirect(`${origin}/complete-registration`);
     }
   }
 
   // Mobile (Capacitor): token'ları deep link ile uygulamaya taşı
-  // (Chrome'daki cookie'ler WebView'de görünmez, token'ları URL ile aktarıyoruz)
   if (isMobile) {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token && session?.refresh_token) {
+    if (!currentSession) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token && session?.refresh_token) {
+        currentSession = {
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        };
+      }
+    }
+
+    if (currentSession) {
       return mobileRedirect(
         next,
-        session.access_token,
-        session.refresh_token
+        currentSession.access_token,
+        currentSession.refresh_token
       );
     }
-    // Token alınamazsa yine de deep link'e yönlendir
     return mobileRedirect(next);
   }
 
