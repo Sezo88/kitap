@@ -1,6 +1,6 @@
 {
   "name": "okul-zil-sistemi",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Okul Zil Sistemi - Zamanlı zil çalma, tören yönetimi ve teneffüs müzik uygulaması",
   "main": "main.js",
   "scripts": {
@@ -14,7 +14,7 @@
     "@supabase/supabase-js": "^2.110.0",
     "adm-zip": "^0.5.17",
     "electron-store": "^8.2.0",
-    "electron-updater": "^6.3.9",
+    "electron-updater": "^6.8.9",
     "node-schedule": "^2.1.1",
     "ws": "^8.21.0"
   },

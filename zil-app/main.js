@@ -834,7 +834,6 @@ ipcMain.handle('reconnect-supabase', async (event, schoolCode, pin) => {
     // Okul ID ve Kodu kaydet
     store.set('settings.schoolId', schoolId);
     store.set('settings.schoolCode', schoolCode.trim().toUpperCase());
-    
     // Supabase bağlantısını yeniden yükle
     setupSupabase();
     
@@ -844,40 +843,63 @@ ipcMain.handle('reconnect-supabase', async (event, schoolCode, pin) => {
   }
 });
 
-// Güncelleme Kontrolü Fonksiyonu
-async function checkForUpdates(manualCheck = false) {
-  const versionUrl = 'https://kitapokuma.vercel.app/downloads/version.json';
-  const manifestUrl = 'https://kitapokuma.vercel.app/downloads/renderer-manifest.json';
+const { autoUpdater } = require('electron-updater');
 
+// Güncelleme Kontrolü Fonksiyonu (Katman 2 - Tam Sürüm)
+async function checkForUpdates(manualCheck = false) {
+  const manifestUrl = 'https://kitapokuma.vercel.app/downloads/renderer-manifest.json';
+  
   try {
-    const res = await fetch(versionUrl);
-    if (res.ok) {
-      const data = await res.json();
-      const currentVersion = app.getVersion();
-      if (data.version && data.version !== currentVersion) {
-        console.log(`Yeni tam sürüm mevcut: ${data.version} (Mevcut: ${currentVersion})`);
+    if (manualCheck) {
+      autoUpdater.once('update-not-available', () => {
         if (mainWindow) {
-          mainWindow.webContents.send('update-available', {
-            version: data.version,
-            url: data.url,
-            notes: data.notes
+          mainWindow.webContents.send('update-available', { version: 'Güncel' });
+          dialog.showMessageBox(mainWindow, {
+            type: 'info',
+            title: 'Güncelleme Kontrolü',
+            message: `Uygulamanız en güncel sürümde (v${app.getVersion()}).`
           });
         }
-      } else if (manualCheck && mainWindow) {
-        dialog.showMessageBox(mainWindow, {
-          type: 'info',
-          title: 'Güncelleme Kontrolü',
-          message: `Uygulamanız en güncel sürümde (v${currentVersion}).`
+      });
+    }
+
+    autoUpdater.once('update-available', (info) => {
+      console.log('Yeni sürüm bulundu:', info.version);
+      if (mainWindow) {
+        mainWindow.webContents.send('update-available', {
+          version: info.version,
+          notes: info.releaseNotes || 'Yeni sürüm indiriliyor...'
         });
       }
-    }
-  } catch (err) {
-    console.error('Güncelleme kontrolü hatası:', err);
+    });
+
+    autoUpdater.once('update-downloaded', () => {
+      console.log('Güncelleme indirildi, kapanışta kurulacak.');
+      if (mainWindow) {
+        dialog.showMessageBox(mainWindow, {
+          type: 'info',
+          title: 'Güncelleme Hazır',
+          message: 'Yeni sürüm arka planda indirildi. Uygulamayı yeniden başlattığınızda kurulacaktır.',
+          buttons: ['Tamam', 'Şimdi Yeniden Başlat']
+        }).then(result => {
+          if (result.response === 1) {
+            autoUpdater.quitAndInstall(false, true);
+          }
+        });
+      }
+    });
+
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
+    
+    await autoUpdater.checkForUpdatesAndNotify();
+  } catch (error) {
+    console.error('Güncelleme kontrol hatası:', error.message);
     if (manualCheck && mainWindow) {
       dialog.showMessageBox(mainWindow, {
         type: 'error',
         title: 'Güncelleme Kontrolü',
-        message: 'Güncelleme sunucusuna ulaşılamadı: ' + err.message
+        message: 'Güncelleme sunucusuna ulaşılamadı: ' + error.message
       });
     }
   }
