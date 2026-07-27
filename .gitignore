@@ -24,6 +24,9 @@
 .DS_Store
 *.pem
 
+# mcp
+.mcp.json
+
 # debug
 npm-debug.log*
 yarn-debug.log*

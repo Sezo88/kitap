@@ -69,6 +69,11 @@ export async function updateSession(request: NextRequest) {
       // If session is valid for more than 5 minutes, proceed without calling Supabase API
       if (payload.exp - now > 300) {
         if (session.user) {
+          // Pass user ID via header so layout/server components can skip auth.getUser()
+          const userId = payload.sub;
+          if (userId) {
+            supabaseResponse.headers.set("x-user-id", userId);
+          }
           return supabaseResponse;
         }
       }

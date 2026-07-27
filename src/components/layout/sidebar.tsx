@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
+import { PendingApprovalsBadge } from "@/components/layout/pending-approvals-badge";
 import {
   BookOpen,
   Clock,
@@ -42,7 +43,7 @@ interface SidebarProps {
     feature_lesson_schedule: boolean;
     feature_bell: boolean;
   };
-  pendingApprovalsCount?: number;
+  schoolId?: string;
   onClose?: () => void;
 }
 
@@ -73,7 +74,7 @@ const menuItems = [
   { href: "/dashboard/admin/sms-logs", label: "SMS Geçmişi", icon: FileText, roles: ["super_admin", "idareci"] },
 ];
 
-export function Sidebar({ role, schoolName, schoolFeatures, pendingApprovalsCount, onClose }: SidebarProps) {
+export function Sidebar({ role, schoolName, schoolFeatures, schoolId, onClose }: SidebarProps) {
   const pathname = usePathname();
   const filteredItems = menuItems.filter((item) => {
     if (!item.roles.includes(role)) return false;
@@ -132,11 +133,9 @@ export function Sidebar({ role, schoolName, schoolFeatures, pendingApprovalsCoun
                 >
                   <item.icon className="h-4 w-4 shrink-0" />
                   <span className="flex-1">{item.label}</span>
-                  {item.href === "/dashboard/admin/approvals" && pendingApprovalsCount && pendingApprovalsCount > 0 ? (
-                    <span className="bg-destructive text-destructive-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 animate-pulse">
-                      {pendingApprovalsCount}
-                    </span>
-                  ) : null}
+                  {item.href === "/dashboard/admin/approvals" && (
+                    <PendingApprovalsBadge role={role} schoolId={schoolId} />
+                  )}
                 </Link>
               </li>
             );
