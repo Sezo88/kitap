@@ -96,9 +96,9 @@ export function Sidebar({ role, schoolName, schoolFeatures, schoolId, onClose }:
         <div className="flex items-center gap-2">
           <GraduationCap className="h-5 w-5 text-primary shrink-0" />
           <div className="min-w-0">
-            <h1 className="font-bold text-sm leading-tight tracking-wider">O.Y.P.</h1>
+            <h1 className="font-bold text-base leading-tight tracking-wider">O.Y.P.</h1>
             {schoolName && (
-              <p className="text-xs text-sidebar-foreground/60 truncate max-w-[160px]">{schoolName}</p>
+              <p className="text-sm text-sidebar-foreground/60 truncate max-w-[200px]">{schoolName}</p>
             )}
           </div>
         </div>
@@ -125,13 +125,13 @@ export function Sidebar({ role, schoolName, schoolFeatures, schoolId, onClose }:
                   href={item.href}
                   onClick={onClose}
                   className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors active:scale-95",
+                    "flex items-center gap-3 px-3 py-3 rounded-lg text-base transition-colors active:scale-95",
                     isActive
                       ? "bg-sidebar-accent text-sidebar-foreground font-medium"
                       : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
                   )}
                 >
-                  <item.icon className="h-4 w-4 shrink-0" />
+                  <item.icon className="h-5 w-5 shrink-0" />
                   <span className="flex-1">{item.label}</span>
                   {item.href === "/dashboard/admin/approvals" && (
                     <PendingApprovalsBadge role={role} schoolId={schoolId} />
@@ -148,7 +148,7 @@ export function Sidebar({ role, schoolName, schoolFeatures, schoolId, onClose }:
         <Link
           href="/dashboard/profile/me"
           onClick={onClose}
-          className="flex items-center gap-2.5 text-sm text-sidebar-foreground/70 hover:text-sidebar-foreground transition-colors py-1"
+          className="flex items-center gap-2.5 text-base text-sidebar-foreground/70 hover:text-sidebar-foreground transition-colors py-1"
         >
           <UserCircle className="h-4 w-4 shrink-0" />
           <span>Profilim</span>
