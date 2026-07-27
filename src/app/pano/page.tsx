@@ -611,6 +611,12 @@ export default function PanoPage() {
   const cardBg = "rgba(255,255,255,0.1)";
   const cardBorder = "rgba(255,255,255,0.18)";
 
+  function handleLogout() {
+    sessionStorage.removeItem(STORAGE_KEY);
+    setAuthenticated(false);
+    window.location.reload();
+  }
+
   return (
     <div style={{
       width: "100vw",
@@ -655,6 +661,23 @@ export default function PanoPage() {
             <div style={{ fontSize: "1.8em", fontWeight: "bold", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{schoolName}</div>
             {config.school_motto && <div style={{ fontSize: "0.85em", opacity: 0.7, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{config.school_motto}</div>}
           </div>
+          <button
+            onClick={handleLogout}
+            title="PIN Oturumunu Kapat"
+            style={{
+              background: "rgba(255,255,255,0.15)",
+              border: "1px solid rgba(255,255,255,0.25)",
+              color: "white",
+              padding: "4px 10px",
+              borderRadius: 8,
+              fontSize: "0.75em",
+              cursor: "pointer",
+              marginLeft: 10,
+              whiteSpace: "nowrap",
+            }}
+          >
+            🚪 Çıkış
+          </button>
         </div>
 
         {/* MIDDLE - Period info */}
