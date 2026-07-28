@@ -27,7 +27,14 @@ export default function CapacitorBackButtonHandler() {
 
     const cleanups: (() => void)[] = [];
 
-    // 1. Status bar rengi — koyu tema ile uyumlu
+    // 1. Splash screen — sayfa render olunca kapat (siyah ekran fix)
+    import("@capacitor/splash-screen")
+      .then(({ SplashScreen }) => {
+        SplashScreen.hide().catch(() => {});
+      })
+      .catch(() => {});
+
+    // 2. Status bar rengi — koyu tema ile uyumlu
     import("@capacitor/status-bar")
       .then(({ StatusBar, Style }) => {
         StatusBar.setBackgroundColor({ color: "#0a0e1a" }).catch(() => {});
