@@ -1,7 +1,10 @@
 -- Migration: Ders ve Nöbet Programında İsimle Kayıt (Kayıtlı Olmayan Öğretmen Desteği)
 -- Tarih: 2026-09-05
 
--- 1. lesson_schedule tablosuna teacher_name kolonu ekleme
+-- 1. lesson_schedule tablosunda teacher_id zorunluluğunu esnetme ve teacher_name ekleme
+ALTER TABLE public.lesson_schedule 
+ALTER COLUMN teacher_id DROP NOT NULL;
+
 ALTER TABLE public.lesson_schedule 
 ADD COLUMN IF NOT EXISTS teacher_name text;
 
