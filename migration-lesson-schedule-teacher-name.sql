@@ -8,6 +8,10 @@ ALTER COLUMN teacher_id DROP NOT NULL;
 ALTER TABLE public.lesson_schedule 
 ADD COLUMN IF NOT EXISTS teacher_name text;
 
+-- Çift öğretmenli (özel eğitim) veya grup seçmeli derslerin girilebilmesi için tekil kısıtlamasını esnet
+ALTER TABLE public.lesson_schedule 
+DROP CONSTRAINT IF EXISTS lesson_schedule_school_id_class_id_day_of_week_period_no_key;
+
 -- 2. duty_schedule tablosunda teacher_id zorunluluğunu esnetme ve teacher_name ekleme
 ALTER TABLE public.duty_schedule 
 ALTER COLUMN teacher_id DROP NOT NULL;
