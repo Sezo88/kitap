@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
-import { Save, CalendarDays } from "lucide-react";
+import { Save, CalendarDays, FileSpreadsheet } from "lucide-react";
+import { LessonScheduleImportModal } from "./lesson-schedule-import-modal";
 import type { BellSchedule, LessonSchedule } from "@/lib/types/database";
 
 interface Props {
@@ -29,9 +31,11 @@ function buildKey(classId: string, day: number, period: number) {
 }
 
 export function LessonScheduleEditor({ classes, teachers, subjects, bellSchedule, initialSchedule, schoolId, initialTotalLessons }: Props) {
+  const router = useRouter();
   const [selectedClassId, setSelectedClassId] = useState(classes[0]?.id || "");
   const [totalLessons, setTotalLessons] = useState(initialTotalLessons);
   const [savingTotalLessons, setSavingTotalLessons] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [cells, setCells] = useState<Record<CellKey, CellValue>>(() => {
     const init: Record<CellKey, CellValue> = {};
     initialSchedule.forEach((ls) => {
@@ -150,11 +154,37 @@ export function LessonScheduleEditor({ classes, teachers, subjects, bellSchedule
           </Select>
         </div>
 
-        <Button type="button" onClick={handleSave} disabled={saving} size="sm" className="ml-auto">
-          <Save className="h-4 w-4 mr-1" />
-          {saving ? "Kaydediliyor..." : "Bu Sınıfı Kaydet"}
-        </Button>
+        <div className="flex items-center gap-2 ml-auto">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setIsImportOpen(true)}
+            className="border-emerald-600/30 text-emerald-600 hover:bg-emerald-500/10"
+          >
+            <FileSpreadsheet className="h-4 w-4 mr-1 text-emerald-600" />
+            Excel'den Aktar (.xls)
+          </Button>
+
+          <Button type="button" onClick={handleSave} disabled={saving} size="sm">
+            <Save className="h-4 w-4 mr-1" />
+            {saving ? "Kaydediliyor..." : "Bu Sınıfı Kaydet"}
+          </Button>
+        </div>
       </div>
+
+      <LessonScheduleImportModal
+        open={isImportOpen}
+        onOpenChange={setIsImportOpen}
+        classes={classes}
+        teachers={teachers}
+        subjects={subjects}
+        bellSchedule={bellSchedule}
+        schoolId={schoolId}
+        onImportComplete={() => {
+          router.refresh();
+        }}
+      />
 
       {/* Program tablosu */}
       <Card>
