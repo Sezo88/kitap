@@ -232,7 +232,8 @@ export interface LessonSchedule {
   id: string;
   school_id: string;
   class_id: string;
-  teacher_id: string;
+  teacher_id: string | null;
+  teacher_name?: string | null;
   subject_id: string;
   day_of_week: number;
   period_no: number;
@@ -248,7 +249,8 @@ export interface LessonScheduleWithDetails extends LessonSchedule {
 export interface DutySchedule {
   id: string;
   school_id: string;
-  teacher_id: string;
+  teacher_id: string | null;
+  teacher_name?: string | null;
   day_of_week: number;
   time_slot: string;
   location: string | null;

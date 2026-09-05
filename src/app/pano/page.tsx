@@ -254,8 +254,8 @@ export default function PanoPage() {
     ] = await Promise.all([
       supabase.from("panel_config").select("*").eq("school_id", schoolId).maybeSingle(),
       supabase.from("bell_schedule").select("*").eq("school_id", schoolId).order("period_no"),
-      supabase.from("lesson_schedule").select("day_of_week, period_no, subjects(name), profiles!lesson_schedule_teacher_id_fkey(full_name), classes(name)").eq("classes.school_id", schoolId).eq("day_of_week", dayOfWeek).order("period_no"),
-      supabase.from("duty_schedule").select("day_of_week, teacher_id, location, time_slot, profiles!duty_schedule_teacher_id_fkey(full_name)").eq("school_id", schoolId).eq("day_of_week", dayOfWeek),
+      supabase.from("lesson_schedule").select("day_of_week, period_no, teacher_name, subjects(name), profiles!lesson_schedule_teacher_id_fkey(full_name), classes(name)").eq("classes.school_id", schoolId).eq("day_of_week", dayOfWeek).order("period_no"),
+      supabase.from("duty_schedule").select("day_of_week, teacher_id, teacher_name, location, time_slot, profiles!duty_schedule_teacher_id_fkey(full_name)").eq("school_id", schoolId).eq("day_of_week", dayOfWeek),
       supabase.from("panel_announcements").select("*").eq("school_id", schoolId).eq("is_active", true).order("priority", { ascending: false }).order("display_order"),
       supabase.from("panel_gallery").select("*").eq("school_id", schoolId).eq("is_active", true).order("display_order"),
       supabase.from("students").select("full_name, class_id, dogum_tarihi, classes(name)").eq("school_id", schoolId).eq("is_active", true).not("dogum_tarihi", "is", null),
@@ -276,7 +276,7 @@ export default function PanoPage() {
         day_of_week: l.day_of_week,
         period_no: l.period_no,
         subject_name: Array.isArray(l.subjects) ? l.subjects[0]?.name : (l.subjects as any)?.name,
-        teacher_name: Array.isArray(l.profiles) ? l.profiles[0]?.full_name : (l.profiles as any)?.full_name,
+        teacher_name: (Array.isArray(l.profiles) ? l.profiles[0]?.full_name : (l.profiles as any)?.full_name) || l.teacher_name || "",
         class_name: Array.isArray(l.classes) ? l.classes[0]?.name : (l.classes as any)?.name,
       })));
     }
@@ -285,7 +285,7 @@ export default function PanoPage() {
     if (dutyData.data) {
       setDuties((dutyData.data as any[]).map((d) => ({
         day_of_week: d.day_of_week,
-        teacher_name: Array.isArray(d.profiles) ? d.profiles[0]?.full_name : (d.profiles as any)?.full_name,
+        teacher_name: (Array.isArray(d.profiles) ? d.profiles[0]?.full_name : (d.profiles as any)?.full_name) || d.teacher_name || "",
         location: d.location,
         time_slot: d.time_slot,
       })));

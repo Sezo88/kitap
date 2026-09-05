@@ -24,7 +24,7 @@ interface Props {
 const DAY_NAMES = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma"];
 
 type CellKey = string; // "classId-day-period"
-type CellValue = { teacher_id: string; subject_id: string };
+type CellValue = { teacher_id: string; teacher_name?: string; subject_id: string };
 
 function buildKey(classId: string, day: number, period: number) {
   return `${classId}-${day}-${period}`;
@@ -40,7 +40,8 @@ export function LessonScheduleEditor({ classes, teachers, subjects, bellSchedule
     const init: Record<CellKey, CellValue> = {};
     initialSchedule.forEach((ls) => {
       init[buildKey(ls.class_id, ls.day_of_week, ls.period_no)] = {
-        teacher_id: ls.teacher_id,
+        teacher_id: ls.teacher_id || "",
+        teacher_name: ls.teacher_name || "",
         subject_id: ls.subject_id,
       };
     });
@@ -68,17 +69,26 @@ export function LessonScheduleEditor({ classes, teachers, subjects, bellSchedule
 
   function updateCell(day: number, period: number, field: "teacher_id" | "subject_id", value: string) {
     const key = buildKey(selectedClassId, day, period);
-    setCells((prev) => ({
-      ...prev,
-      [key]: {
-        ...prev[key],
-        [field]: value,
-      },
-    }));
+    setCells((prev) => {
+      const current = prev[key] || { teacher_id: "", teacher_name: "", subject_id: "" };
+      let updatedTeacherName = current.teacher_name;
+      if (field === "teacher_id") {
+        const foundT = teachers.find((t) => t.id === value);
+        updatedTeacherName = foundT ? foundT.full_name : "";
+      }
+      return {
+        ...prev,
+        [key]: {
+          ...current,
+          [field]: value,
+          teacher_name: updatedTeacherName,
+        },
+      };
+    });
   }
 
   function getCell(day: number, period: number): CellValue {
-    return cells[buildKey(selectedClassId, day, period)] || { teacher_id: "", subject_id: "" };
+    return cells[buildKey(selectedClassId, day, period)] || { teacher_id: "", teacher_name: "", subject_id: "" };
   }
 
   async function handleSave() {
@@ -97,11 +107,12 @@ export function LessonScheduleEditor({ classes, teachers, subjects, bellSchedule
     for (let day = 1; day <= 5; day++) {
       for (let period = 1; period <= totalLessons; period++) {
         const cell = getCell(day, period);
-        if (cell.teacher_id && cell.subject_id) {
+        if ((cell.teacher_id || cell.teacher_name) && cell.subject_id) {
           insertData.push({
             school_id: schoolId,
             class_id: selectedClassId,
-            teacher_id: cell.teacher_id,
+            teacher_id: cell.teacher_id || null,
+            teacher_name: cell.teacher_name || null,
             subject_id: cell.subject_id,
             day_of_week: day,
             period_no: period,
@@ -236,7 +247,9 @@ export function LessonScheduleEditor({ classes, teachers, subjects, bellSchedule
                               value={cell.teacher_id}
                               onChange={(e) => updateCell(day, periodNo, "teacher_id", e.target.value)}
                             >
-                              <option value="">Öğretmen</option>
+                              <option value="">
+                                {cell.teacher_name ? `${cell.teacher_name} (Kayıtsız)` : "Öğretmen"}
+                              </option>
                               {teachers.map((t) => (
                                 <option key={t.id} value={t.id}>{t.full_name}</option>
                               ))}

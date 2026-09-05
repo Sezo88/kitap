@@ -6,9 +6,9 @@ import { Dialog, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
-import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, ArrowRight, RefreshCw, Info } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, ArrowRight, RefreshCw, Info, UserCheck, Plus } from "lucide-react";
 import { parseOgretmenElProgrami, type TeacherElProgramiParseResult } from "@/lib/utils/teacher-schedule-parser";
-import type { BellSchedule, LessonSchedule } from "@/lib/types/database";
+import type { BellSchedule } from "@/lib/types/database";
 
 interface Props {
   open: boolean;
@@ -43,6 +43,7 @@ export function LessonScheduleImportModal({
   const [fileName, setFileName] = useState<string>("");
   const [importing, setImporting] = useState(false);
   const [saveDuties, setSaveDuties] = useState(true);
+  const [createMissingClasses, setCreateMissingClasses] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -101,9 +102,10 @@ export function LessonScheduleImportModal({
   // Matched stats
   const teachersCount = parseResult?.teachers.length || 0;
   const matchedTeachersCount = parseResult?.teachers.filter(matchTeacher).length || 0;
+  const unregisteredTeachersCount = teachersCount - matchedTeachersCount;
 
   const classesCount = parseResult?.classes.length || 0;
-  const matchedClassesCount = parseResult?.classes.filter(matchClass).length || 0;
+  const unmatchedClasses = parseResult?.classes.filter((c) => !matchClass(c)) || [];
 
   async function handleConfirmImport() {
     if (!parseResult) return;
@@ -111,8 +113,37 @@ export function LessonScheduleImportModal({
     const supabase = createClient();
 
     try {
-      // 1. Missing subjects check and auto-create
-      const subjectMap = new Map<string, string>(); // fullName -> subject_id
+      // 1. Missing classes check and auto-create
+      const classMap = new Map<string, string>();
+      for (const c of existingClasses) {
+        classMap.set(c.name, c.id);
+      }
+
+      if (createMissingClasses && unmatchedClasses.length > 0) {
+        const newClassInserts = unmatchedClasses.map((name) => {
+          const matchGrade = name.match(/^(\d+)/);
+          const gradeLevel = matchGrade ? parseInt(matchGrade[1]) : 5;
+          return {
+            school_id: schoolId,
+            name,
+            grade_level: gradeLevel,
+          };
+        });
+
+        const { data: createdClasses, error: clsError } = await supabase
+          .from("classes")
+          .insert(newClassInserts)
+          .select("id, name");
+
+        if (clsError) {
+          console.error("Classes auto-create error:", clsError);
+        } else if (createdClasses) {
+          createdClasses.forEach((cc) => classMap.set(cc.name, cc.id));
+        }
+      }
+
+      // 2. Missing subjects check and auto-create
+      const subjectMap = new Map<string, string>();
       for (const s of existingSubjects) {
         subjectMap.set(s.name, s.id);
       }
@@ -145,34 +176,19 @@ export function LessonScheduleImportModal({
         }
       }
 
-      // 2. Prepare lesson_schedule records
-      const teacherMap = new Map<string, string>();
-      for (const t of existingTeachers) {
-        teacherMap.set(t.full_name, t.id);
-      }
-
-      const classMap = new Map<string, string>();
-      for (const c of existingClasses) {
-        classMap.set(c.name, c.id);
-      }
-
+      // 3. Prepare lesson_schedule records
       const lessonInserts: any[] = [];
       let skippedMissingClass = 0;
-      let skippedMissingTeacher = 0;
 
       for (const l of parseResult.lessons) {
         const matchedT = matchTeacher(l.teacherName);
-        const matchedC = matchClass(l.className);
+        const classId = classMap.get(l.className) || matchClass(l.className)?.id;
         const subjectId =
           subjectMap.get(l.subjectFullName) ||
           matchSubject(l.subjectFullName, l.shortCode)?.id;
 
-        if (!matchedC) {
+        if (!classId) {
           skippedMissingClass++;
-          continue;
-        }
-        if (!matchedT) {
-          skippedMissingTeacher++;
           continue;
         }
         if (!subjectId) {
@@ -181,8 +197,9 @@ export function LessonScheduleImportModal({
 
         lessonInserts.push({
           school_id: schoolId,
-          class_id: matchedC.id,
-          teacher_id: matchedT.id,
+          class_id: classId,
+          teacher_id: matchedT ? matchedT.id : null,
+          teacher_name: l.teacherName,
           subject_id: subjectId,
           day_of_week: l.day,
           period_no: l.period,
@@ -191,11 +208,11 @@ export function LessonScheduleImportModal({
 
       if (lessonInserts.length === 0) {
         throw new Error(
-          "Eşleşen sınıf veya öğretmen bulunamadığı için hiçbir ders kaydedilemedi. Lütfen sistemdeki sınıf ve öğretmen isimlerini kontrol edin."
+          "Dersler kaydedilemedi. Lütfen sınıfların sisteme eklendiğinden emin olun."
         );
       }
 
-      // 3. Clear existing lesson_schedule for this school
+      // 4. Clear existing lesson_schedule for this school
       const { error: delError } = await supabase
         .from("lesson_schedule")
         .delete()
@@ -205,7 +222,7 @@ export function LessonScheduleImportModal({
         throw new Error("Mevcut program silinirken hata: " + delError.message);
       }
 
-      // 4. Batch insert new lesson_schedule records (chunks of 100)
+      // 5. Batch insert new lesson_schedule records (chunks of 100)
       const chunkSize = 100;
       for (let i = 0; i < lessonInserts.length; i += chunkSize) {
         const chunk = lessonInserts.slice(i, i + chunkSize);
@@ -217,21 +234,20 @@ export function LessonScheduleImportModal({
         }
       }
 
-      // 5. Optionally save duties
+      // 6. Optionally save duties
       let savedDutiesCount = 0;
       if (saveDuties && parseResult.duties.length > 0) {
         const dutyInserts: any[] = [];
         for (const d of parseResult.duties) {
           const matchedT = matchTeacher(d.teacherName);
-          if (matchedT) {
-            dutyInserts.push({
-              school_id: schoolId,
-              teacher_id: matchedT.id,
-              day_of_week: d.day,
-              time_slot: d.location,
-              location: d.location,
-            });
-          }
+          dutyInserts.push({
+            school_id: schoolId,
+            teacher_id: matchedT ? matchedT.id : null,
+            teacher_name: d.teacherName,
+            day_of_week: d.day,
+            time_slot: d.location,
+            location: d.location,
+          });
         }
 
         if (dutyInserts.length > 0) {
@@ -241,7 +257,7 @@ export function LessonScheduleImportModal({
         }
       }
 
-      // 6. Update school total_lessons if needed
+      // 7. Update school total_lessons if needed
       if (parseResult.maxPeriod && parseResult.maxPeriod >= 4) {
         await supabase
           .from("schools")
@@ -250,8 +266,8 @@ export function LessonScheduleImportModal({
       }
 
       toast(
-        `${lessonInserts.length} ders saati başarıyla aktarıldı!${
-          savedDutiesCount > 0 ? ` (${savedDutiesCount} nöbet kaydı da aktarıldı)` : ""
+        `Harika! ${lessonInserts.length} ders saatinin tamamı aktarıldı.${
+          savedDutiesCount > 0 ? ` (${savedDutiesCount} nöbet kaydı da eklendi)` : ""
         }`,
         "success"
       );
@@ -285,9 +301,9 @@ export function LessonScheduleImportModal({
             <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-muted-foreground flex items-start gap-2">
               <Info className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
               <div>
-                Ders dağıtım programınızın (aSc Timetables, Dağıtım vb.) oluşturduğu{" "}
+                Ders dağıtım programınızın oluşturduğu{" "}
                 <span className="font-semibold text-foreground">OgretmenElProgrami.xls</span> dosyasını seçin.
-                Sistem tüm öğretmenlerin derslerini ve sınıflarını otomatik olarak eşleştirecektir.
+                Öğretmenler henüz sisteme kayıt olmamış olsa bile tüm dersler isimleriyle sisteme işlenecektir.
               </div>
             </div>
 
@@ -328,79 +344,66 @@ export function LessonScheduleImportModal({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <div className="p-3 rounded-lg bg-muted/40 border">
                 <div className="text-xs text-muted-foreground">Öğretmenler</div>
-                <div className="text-lg font-bold">
-                  {matchedTeachersCount} / {teachersCount}
+                <div className="text-lg font-bold text-emerald-600">
+                  {teachersCount} / {teachersCount}
                 </div>
                 <div className="text-[10px] text-muted-foreground">
-                  {matchedTeachersCount === teachersCount ? "Tümü eşleşti" : `${teachersCount - matchedTeachersCount} eksik`}
+                  {matchedTeachersCount} kayıtlı, {unregisteredTeachersCount} isimle
                 </div>
               </div>
 
               <div className="p-3 rounded-lg bg-muted/40 border">
                 <div className="text-xs text-muted-foreground">Sınıflar</div>
-                <div className="text-lg font-bold">
-                  {matchedClassesCount} / {classesCount}
+                <div className="text-lg font-bold text-emerald-600">
+                  {createMissingClasses ? classesCount : classesCount - unmatchedClasses.length} / {classesCount}
                 </div>
                 <div className="text-[10px] text-muted-foreground">
-                  {matchedClassesCount === classesCount ? "Tümü eşleşti" : `${classesCount - matchedClassesCount} eksik`}
+                  {unmatchedClasses.length > 0 && createMissingClasses ? "Eksikler eklenecek" : "Tümü hazır"}
                 </div>
               </div>
 
               <div className="p-3 rounded-lg bg-muted/40 border">
                 <div className="text-xs text-muted-foreground">Toplam Ders</div>
                 <div className="text-lg font-bold">{parseResult.lessons.length}</div>
-                <div className="text-[10px] text-muted-foreground">Haftalık saat</div>
+                <div className="text-[10px] text-muted-foreground">Eksiksiz aktarılacak</div>
               </div>
 
               <div className="p-3 rounded-lg bg-muted/40 border">
                 <div className="text-xs text-muted-foreground">Nöbet Kaydı</div>
                 <div className="text-lg font-bold">{parseResult.duties.length}</div>
-                <div className="text-[10px] text-muted-foreground">Öğretmen nöbeti</div>
+                <div className="text-[10px] text-muted-foreground">Nöbetçi öğretmen</div>
               </div>
             </div>
 
-            {/* Warning if any unmatched teachers */}
-            {matchedTeachersCount < teachersCount && (
-              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-400 space-y-1">
-                <div className="font-semibold flex items-center gap-1.5">
-                  <AlertTriangle className="h-4 w-4" />
-                  Eşleşmeyen Öğretmenler ({teachersCount - matchedTeachersCount}):
-                </div>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {parseResult.teachers
-                    .filter((t) => !matchTeacher(t))
-                    .map((t, idx) => (
-                      <Badge key={idx} variant="outline" className="text-[11px] bg-background">
-                        {t}
-                      </Badge>
-                    ))}
-                </div>
-                <div className="text-[11px] text-muted-foreground mt-1">
-                  * Sistemde bu isimle kayıtlı olmayan öğretmenlerin dersleri aktarılmayacaktır.
-                </div>
+            {/* Smart teacher info banner */}
+            <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-800 dark:text-emerald-300 space-y-1">
+              <div className="font-semibold flex items-center gap-1.5">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                Öğretmenler Kayıtlı Olmasa Bile Derslerin Tamamı Aktarılır:
               </div>
-            )}
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                Sistemde hesabı bulunan öğretmenlerin dersleri hesaplarına bağlanır. Henüz kayıt olmamış <strong>{unregisteredTeachersCount} öğretmenin</strong> dersleri isimleriyle sisteme kaydedilir. Öğretmenler daha sonra sisteme kayıt olduğunda sistem derslerini otomatik olarak hesaplarıyla eşleştirecektir.
+              </p>
+            </div>
 
-            {/* Warning if any unmatched classes */}
-            {matchedClassesCount < classesCount && (
-              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-400 space-y-1">
-                <div className="font-semibold flex items-center gap-1.5">
-                  <AlertTriangle className="h-4 w-4" />
-                  Eşleşmeyen Sınıflar ({classesCount - matchedClassesCount}):
+            {/* Auto-create missing classes checkbox if any */}
+            {unmatchedClasses.length > 0 && (
+              <label className="flex items-center gap-2 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 cursor-pointer hover:bg-blue-500/15">
+                <input
+                  type="checkbox"
+                  checked={createMissingClasses}
+                  onChange={(e) => setCreateMissingClasses(e.target.checked)}
+                  className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
+                />
+                <div className="text-xs">
+                  <span className="font-medium text-foreground">
+                    Eksik sınıfları sisteme otomatik ekle: {unmatchedClasses.join(", ")}
+                  </span>
+                  <div className="text-muted-foreground text-[11px]">
+                    İşaretlenirse bu özel eğitim sınıfları sisteme hemen eklenecek ve dersleri eksiksiz aktarılacaktır.
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {parseResult.classes
-                    .filter((c) => !matchClass(c))
-                    .map((c, idx) => (
-                      <Badge key={idx} variant="outline" className="text-[11px] bg-background">
-                        {c}
-                      </Badge>
-                    ))}
-                </div>
-                <div className="text-[11px] text-muted-foreground mt-1">
-                  * Sistemde bu isimle kayıtlı olmayan sınıfların dersleri aktarılmayacaktır.
-                </div>
-              </div>
+              </label>
             )}
 
             {/* Optional Duty Schedule Checkbox */}
@@ -416,22 +419,22 @@ export function LessonScheduleImportModal({
                   <span className="font-medium text-foreground">
                     Nöbet Çizelgesini de otomatik doldur ({parseResult.duties.length} nöbet)
                   </span>
-                  <div className="text-muted-foreground">
+                  <div className="text-muted-foreground text-[11px]">
                     Öğretmen el programında tespit edilen nöbet günleri ve yerleri nöbet tablosuna aktarılır.
                   </div>
                 </div>
               </label>
             )}
 
-            {/* Preview table (first 10 records) */}
+            {/* Preview table (first 8 records) */}
             <div className="border rounded-lg overflow-hidden">
               <div className="bg-muted/40 p-2 text-xs font-semibold border-b flex justify-between items-center">
                 <span>Önizleme (İlk 8 Ders Dağılımı)</span>
                 <span className="text-muted-foreground text-[11px]">
-                  Toplam {parseResult.lessons.length} kayıt
+                  Toplam {parseResult.lessons.length} kayıt aktarılacak
                 </span>
               </div>
-              <div className="max-h-48 overflow-y-auto">
+              <div className="max-h-44 overflow-y-auto">
                 <table className="w-full text-xs">
                   <thead className="bg-muted/20 text-muted-foreground sticky top-0">
                     <tr>
@@ -445,7 +448,14 @@ export function LessonScheduleImportModal({
                   <tbody className="divide-y">
                     {parseResult.lessons.slice(0, 8).map((l, idx) => (
                       <tr key={idx} className="hover:bg-muted/10">
-                        <td className="p-2 font-medium">{l.teacherName}</td>
+                        <td className="p-2 font-medium">
+                          {l.teacherName}
+                          {matchTeacher(l.teacherName) ? (
+                            <Badge variant="outline" className="ml-1.5 text-[9px] text-emerald-600 border-emerald-500/30">Kayıtlı</Badge>
+                          ) : (
+                            <Badge variant="outline" className="ml-1.5 text-[9px] text-muted-foreground">İsimle</Badge>
+                          )}
+                        </td>
                         <td className="p-2">
                           <Badge variant="outline" className="text-[10px]">
                             {l.className}
@@ -492,7 +502,7 @@ export function LessonScheduleImportModal({
                   disabled={importing}
                 >
                   <CheckCircle2 className="h-4 w-4 mr-1.5" />
-                  {importing ? "Aktarılıyor..." : "Tüm Programı Sisteme Aktar"}
+                  {importing ? "Aktarılıyor..." : `Tüm Programı Sisteme Aktar (${parseResult.lessons.length} Ders)`}
                 </Button>
               </div>
             </div>
