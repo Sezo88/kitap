@@ -36,37 +36,37 @@ const DAYS_MAP: Record<string, number> = {
 };
 
 const DEFAULT_CODE_MAP: Record<string, string> = {
-  "5-KMYV": "5- KÜLTÜR VE MEDENIYETE YÖN VERENLER",
-  "5-OYUN": "5-OYUN VE OYUN ETKINLIKLERI",
-  "6-GKVN": "6-GÖRGÜ KURALLARI VE NEZAKET",
-  "8-KMYV": "8-KÜLTÜR VE MEDENİYETE YÖN VERENLER",
-  AHLAK: "AHLAK VE VATANDAŞLK EĞİTİMİ",
-  BED: "BEDEN EĞİTİMİ",
-  BIL: "BILIŞIM TEKNOLOJILERI YAZıLıM",
-  DIN: "DIN KÜLTÜRÜ VE AHLAK BILGISI",
-  FEN: "FEN BILIMLERI",
-  GÖR: "GÖRSEL SANATLAR",
-  ING: "İNGILIZCE",
-  INGI: "İNGILIZCE",
-  MAT: "MATEMATİK",
-  MBİLM6: "6-MAT VE BİLİM",
-  MEDYA: "MEDYA OKUR YAZARLIĞI",
-  MÜZ: "MÜZIK",
-  PROJE: "PROJE TASARIMI VE UYGULAMALARI",
-  REH: "REHBERLİK",
-  "REH.": "REHBERLİK",
-  SOSBIL: "SOSYAL BILGILER",
-  TEK: "TEKNOLOJI VE TASARıM",
-  TUR: "TÜRKCE",
-  TÜR: "TÜRKCE",
-  "YAZ-MATB": "YAZARLIK BEC.-MAT.BİL.UYG",
-  "Ö H BD": "Ö HAFİF BEDEN",
-  ÖHM: "ÖZEL HAFİF MÜZİK",
-  ÖHR: "ÖZEL HAFİF RESİM",
-  ÖOBED: "ÖZEL ORTA BEDEN",
-  ÖOMÜZ: "ÖZEL ORTA MÜZK",
-  ÖORES: "ÖZEL ORTA RESİM",
-  İNK: "T.C.İNK.TAR.VE ATATÜRKÇÜLÜK",
+  "5-KMYV": "Kültür ve Medeniyetimize Yön Verenler (5)",
+  "5-OYUN": "Oyun ve Oyun Etkinlikleri (5)",
+  "6-GKVN": "Görgü Kuralları ve Nezaket (6)",
+  "8-KMYV": "Kültür ve Medeniyetimize Yön Verenler (8)",
+  AHLAK: "Ahlak ve Vatandaşlık Eğitimi",
+  BED: "Beden Eğitimi ve Spor",
+  BIL: "Bilişim Teknolojileri ve Yazılım",
+  DIN: "Din Kültürü ve Ahlak Bilgisi",
+  FEN: "Fen Bilimleri",
+  GÖR: "Görsel Sanatlar",
+  ING: "İngilizce",
+  INGI: "İngilizce",
+  MAT: "Matematik",
+  MBİLM6: "Matematik ve Bilim Uygulamaları (6)",
+  MEDYA: "Medya Okuryazarlığı",
+  MÜZ: "Müzik",
+  PROJE: "Proje Tasarımı ve Uygulamaları",
+  REH: "Rehberlik ve Yönlendirme",
+  "REH.": "Rehberlik ve Yönlendirme",
+  SOSBIL: "Sosyal Bilgiler",
+  TEK: "Teknoloji ve Tasarım",
+  TUR: "Türkçe",
+  TÜR: "Türkçe",
+  "YAZ-MATB": "Yazarlık Becerileri",
+  "Ö H BD": "Özel Eğitim Beden Eğitimi",
+  ÖHM: "Özel Eğitim Müzik",
+  ÖHR: "Özel Eğitim Görsel Sanatlar",
+  ÖOBED: "Özel Eğitim Beden Eğitimi",
+  ÖOMÜZ: "Özel Eğitim Müzik",
+  ÖORES: "Özel Eğitim Görsel Sanatlar",
+  İNK: "T.C. İnkılap Tarihi ve Atatürkçülük",
 };
 
 /**
@@ -180,14 +180,12 @@ export function parseOgretmenElProgrami(buffer: ArrayBuffer | Uint8Array): Teach
             const shortCode = parts.slice(1).join(" ") || className;
 
             // Determine best full name:
-            // 1. If teacherClassSubject has it
+            // 1. If DEFAULT_CODE_MAP has canonical name, prioritize it to unify casing
             const possibleNames = (teacherClassSubject[currentTeacher] && teacherClassSubject[currentTeacher][className]) || [];
             let subjectFullName = "";
-            if (possibleNames.length === 1) {
-              subjectFullName = possibleNames[0];
-            } else if (DEFAULT_CODE_MAP[shortCode]) {
+            if (DEFAULT_CODE_MAP[shortCode]) {
               subjectFullName = DEFAULT_CODE_MAP[shortCode];
-            } else if (possibleNames.length > 1) {
+            } else if (possibleNames.length > 0) {
               subjectFullName = possibleNames[0];
             } else {
               subjectFullName = shortCode;

@@ -41,7 +41,15 @@ SET is_active = true
 WHERE name NOT IN ('8/C', '8/D', '5-A', 'HAFİF ZİHİNSEL', 'ORTAAĞIR');
 
 -- ==============================================================================
--- 5. KONTROL SORGUSU (Son Durumu Görmek İçin)
+-- 5. DERS YÖNETİMİNDEKİ MÜKERRER VE ATIL DERSLERİ TEMİZLEME
+-- Herhangi bir ders programı veya proje kaydı bulunmayan fazlalık dersleri siler.
+-- ==============================================================================
+DELETE FROM public.subjects 
+WHERE NOT EXISTS (SELECT 1 FROM public.student_projects WHERE subject_id = subjects.id)
+  AND NOT EXISTS (SELECT 1 FROM public.lesson_schedule WHERE subject_id = subjects.id);
+
+-- ==============================================================================
+-- 6. KONTROL SORGUSU (Son Durumu Görmek İçin)
 -- ==============================================================================
 SELECT 
   name as sinif_adi, 
@@ -50,3 +58,5 @@ SELECT
   (SELECT count(*) FROM public.lesson_schedule WHERE class_id = classes.id) as ders_programi_sayisi
 FROM public.classes 
 ORDER BY is_active DESC, name;
+
+SELECT name as ders_adi FROM public.subjects ORDER BY name;

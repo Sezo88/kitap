@@ -44,6 +44,7 @@ export function LessonScheduleImportModal({
   const [importing, setImporting] = useState(false);
   const [saveDuties, setSaveDuties] = useState(true);
   const [createMissingClasses, setCreateMissingClasses] = useState(true);
+  const [syncSubjects, setSyncSubjects] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -142,24 +143,31 @@ export function LessonScheduleImportModal({
         }
       }
 
-      // 2. Missing subjects check and auto-create
+      // 2. Missing subjects check, auto-create and sync
       const subjectMap = new Map<string, string>();
-      for (const s of existingSubjects) {
-        subjectMap.set(s.name, s.id);
-      }
+      const usedExistingSubjectIds = new Set<string>();
 
-      const subjectsToCreate = new Set<string>();
+      // Bu Excel'de geçen tüm tekil dersleri topla
+      const excelSubjects = new Map<string, string>();
       for (const lesson of parseResult.lessons) {
-        const existing = matchSubject(lesson.subjectFullName, lesson.shortCode);
-        if (existing) {
-          subjectMap.set(lesson.subjectFullName, existing.id);
-        } else {
-          subjectsToCreate.add(lesson.subjectFullName);
+        if (lesson.subjectFullName) {
+          excelSubjects.set(lesson.subjectFullName, lesson.shortCode);
         }
       }
 
-      if (subjectsToCreate.size > 0) {
-        const newSubjectInserts = Array.from(subjectsToCreate).map((name) => ({
+      const subjectsToCreate: string[] = [];
+      for (const [fullName, shortCode] of excelSubjects.entries()) {
+        const existing = matchSubject(fullName, shortCode);
+        if (existing) {
+          subjectMap.set(fullName, existing.id);
+          usedExistingSubjectIds.add(existing.id);
+        } else {
+          subjectsToCreate.push(fullName);
+        }
+      }
+
+      if (subjectsToCreate.length > 0) {
+        const newSubjectInserts = subjectsToCreate.map((name) => ({
           school_id: schoolId,
           name,
         }));
@@ -172,7 +180,32 @@ export function LessonScheduleImportModal({
           throw new Error("Dersler oluşturulurken hata: " + subError.message);
         }
         if (createdSubjects) {
-          createdSubjects.forEach((cs) => subjectMap.set(cs.name, cs.id));
+          createdSubjects.forEach((cs) => {
+            subjectMap.set(cs.name, cs.id);
+            usedExistingSubjectIds.add(cs.id);
+          });
+        }
+      }
+
+      // Ders Yönetimi Senkronizasyonu: Bu programda yer almayan eski/kullanılmayan dersleri temizle
+      let deletedSubjectsCount = 0;
+      if (syncSubjects) {
+        const unusedSubjects = existingSubjects.filter(
+          (s) => !usedExistingSubjectIds.has(s.id)
+        );
+
+        if (unusedSubjects.length > 0) {
+          for (const us of unusedSubjects) {
+            try {
+              const { error: delSubErr } = await supabase
+                .from("subjects")
+                .delete()
+                .eq("id", us.id);
+              if (!delSubErr) deletedSubjectsCount++;
+            } catch (err) {
+              console.warn("Ders silinirken hata:", us.name, err);
+            }
+          }
         }
       }
 
@@ -268,6 +301,8 @@ export function LessonScheduleImportModal({
       toast(
         `Harika! ${lessonInserts.length} ders saatinin tamamı aktarıldı.${
           savedDutiesCount > 0 ? ` (${savedDutiesCount} nöbet kaydı da eklendi)` : ""
+        }${
+          deletedSubjectsCount > 0 ? ` (${deletedSubjectsCount} eski/kullanılmayan ders temizlendi)` : ""
         }`,
         "success"
       );
@@ -425,6 +460,24 @@ export function LessonScheduleImportModal({
                 </div>
               </label>
             )}
+
+            {/* Optional Sync Subjects Checkbox */}
+            <label className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 cursor-pointer hover:bg-amber-500/15">
+              <input
+                type="checkbox"
+                checked={syncSubjects}
+                onChange={(e) => setSyncSubjects(e.target.checked)}
+                className="rounded text-amber-600 focus:ring-amber-500 h-4 w-4"
+              />
+              <div className="text-xs">
+                <span className="font-medium text-foreground">
+                  Ders Yönetimini Senkronize Et (Programda olmayan eski/kullanılmayan dersleri temizle)
+                </span>
+                <div className="text-muted-foreground text-[11px]">
+                  İşaretlenirse bu ders programında yer almayan eski ve atıl dersler Ders Yönetimi bölümünden temizlenir; sadece bu programdaki güncel dersler kaydedilir. Proje atamalarında ders kalabalığı önlenir.
+                </div>
+              </div>
+            </label>
 
             {/* Preview table (first 8 records) */}
             <div className="border rounded-lg overflow-hidden">
