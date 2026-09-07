@@ -23,6 +23,8 @@ export interface Class {
   school_id: string;
   name: string;
   grade_level: number;
+  is_active?: boolean;
+  quiz_pin?: string | null;
   created_at: string;
 }
 

@@ -37,6 +37,7 @@ export default function QuizPage() {
       .select("id, name, school_id")
       .eq("school_id", school.id)
       .eq("quiz_pin", pin.trim())
+      .neq("is_active", false)
       .maybeSingle();
 
     if (clsErr || !cls) { setError("Geçersiz sınıf PIN'i! Öğretmeninize danışın."); setLoading(false); return; }

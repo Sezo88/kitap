@@ -18,7 +18,7 @@ export default async function LessonSchedulePage() {
     { data: lessonSchedule },
     { data: school }
   ] = await Promise.all([
-    supabase.from("classes").select("id, name").eq("school_id", profile.school_id).order("name"),
+    supabase.from("classes").select("id, name").eq("school_id", profile.school_id).neq("is_active", false).order("name"),
     supabase.from("profiles").select("id, full_name").eq("school_id", profile.school_id).eq("role", "ogretmen").eq("status", "active").order("full_name"),
     supabase.from("subjects").select("id, name").eq("school_id", profile.school_id).order("name"),
     supabase.from("bell_schedule").select("*").eq("school_id", profile.school_id).order("period_no"),

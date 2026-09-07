@@ -19,6 +19,7 @@ export default async function CleanlinessReportsPage() {
       .from("classes")
       .select("*")
       .match(schoolFilter)
+      .neq("is_active", false)
       .order("name"),
     supabase
       .from("cleanliness_criterias")

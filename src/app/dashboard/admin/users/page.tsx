@@ -34,6 +34,7 @@ export default async function AdminUsersPage() {
       .from("classes")
       .select("*")
       .match(schoolFilter)
+      .neq("is_active", false)
       .order("name"),
     supabase
       .from("teacher_classes")

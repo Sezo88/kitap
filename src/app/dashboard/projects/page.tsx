@@ -32,6 +32,7 @@ export default async function ProjectsPage() {
       .from("classes")
       .select("*")
       .in("id", classIds)
+      .neq("is_active", false)
       .order("name");
     const classes = assignedClasses || [];
 
@@ -63,6 +64,7 @@ export default async function ProjectsPage() {
       .from("classes")
       .select("*")
       .match(schoolFilter)
+      .neq("is_active", false)
       .order("name"),
     supabase
       .from("subjects")

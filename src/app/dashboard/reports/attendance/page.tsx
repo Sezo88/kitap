@@ -27,6 +27,7 @@ export default async function AttendanceReportsPage() {
       .from("classes")
       .select("*")
       .match(schoolFilter)
+      .neq("is_active", false)
       .order("name"),
     supabase
       .from("archive_seasons")

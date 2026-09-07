@@ -78,7 +78,7 @@ export function PDFImportClient({ schoolId, existingClasses }: Props) {
     setStep("importing");
     const supabase = createClient();
 
-    // First, create missing classes
+    // 1. PDF'te bulunan sınıfları oluştur veya aktif yap
     const classNameToId: Record<string, string> = {};
     const existingClassMap = new Map(existingClasses.map((c) => [c.name.toUpperCase(), c.id]));
 
@@ -86,13 +86,18 @@ export function PDFImportClient({ schoolId, existingClasses }: Props) {
       const existingId = existingClassMap.get(group.className.toUpperCase());
       if (existingId) {
         classNameToId[group.className] = existingId;
+        // Sınıfı aktif konuma getir
+        await supabase
+          .from("classes")
+          .update({ is_active: true })
+          .eq("id", existingId);
       } else {
-        // Create new class
+        // Yeni sınıf oluştur (aktif olarak)
         const gradeMatch = group.className.match(/(\d+)/);
         const grade = gradeMatch ? parseInt(gradeMatch[1]) : 1;
         const { data } = await supabase
           .from("classes")
-          .insert({ name: group.className, grade_level: grade, school_id: schoolId })
+          .insert({ name: group.className, grade_level: grade, school_id: schoolId, is_active: true })
           .select()
           .single();
         if (data) {
@@ -101,7 +106,18 @@ export function PDFImportClient({ schoolId, existingClasses }: Props) {
       }
     }
 
-    // Fetch existing students to detect duplicates
+    // 2. Bu yeni PDF listesinde OLMAYAN eski sınıfları (örn: 8/C, 8/D) otomatik pasife al
+    const importedClassIdSet = new Set(Object.values(classNameToId));
+    for (const cls of existingClasses) {
+      if (!importedClassIdSet.has(cls.id)) {
+        await supabase
+          .from("classes")
+          .update({ is_active: false })
+          .eq("id", cls.id);
+      }
+    }
+
+    // 3. Mevcut öğrencileri çek (mükerrer kontrolü için)
     const { data: existingStudents } = await supabase
       .from("students")
       .select("id, full_name, e_okul_no, class_id, is_active")
@@ -166,7 +182,7 @@ export function PDFImportClient({ schoolId, existingClasses }: Props) {
           skippedCount++;
         }
       } else {
-        // New student
+        // Yeni öğrenci
         const { data: newStudent, error } = await supabase
           .from("students")
           .insert({
@@ -174,6 +190,7 @@ export function PDFImportClient({ schoolId, existingClasses }: Props) {
             e_okul_no: s.studentNo,
             class_id: classId,
             school_id: schoolId,
+            is_active: true,
           })
           .select("id")
           .single();
@@ -189,12 +206,10 @@ export function PDFImportClient({ schoolId, existingClasses }: Props) {
       }
     }
 
-    // Archive (set is_active = false) students who are currently in the imported classes but NOT in the PDF lists
-    const importedClassIds = Object.values(classNameToId);
+    // 4. Bu PDF'te yer ALMAYAN tüm okul öğrencilerini (mezunlar, nakiller vb.) otomatik pasife al
     let deactivatedCount = 0;
-
     for (const s of existingStudents || []) {
-      if (s.is_active && importedClassIds.includes(s.class_id) && !importedStudentIds.has(s.id)) {
+      if (s.is_active && !importedStudentIds.has(s.id)) {
         await supabase
           .from("students")
           .update({ is_active: false })
@@ -205,7 +220,7 @@ export function PDFImportClient({ schoolId, existingClasses }: Props) {
 
     setResultCounts({ newCount, updatedCount, skippedCount, deactivatedCount });
     toast(
-      `${newCount} yeni eklendi, ${updatedCount} güncellendi, ${skippedCount} aynen kaldı, ${deactivatedCount} sınıf dışı arşivlendi`,
+      `${newCount} yeni eklendi, ${updatedCount} güncellendi, ${skippedCount} aynen kaldı, ${deactivatedCount} liste dışı öğrenci pasife alındı`,
       "success"
     );
     setStep("done");
@@ -274,6 +289,13 @@ export function PDFImportClient({ schoolId, existingClasses }: Props) {
               <Upload className="h-4 w-4 mr-2" />
               {allStudents.length} Öğrenciyi İçe Aktar
             </Button>
+          </div>
+
+          <div className="p-3.5 bg-blue-50/80 border border-blue-200 rounded-lg text-xs text-blue-900 flex items-start gap-2">
+            <AlertCircle className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold">Yeni Sezon Senkronizasyonu:</span> Bu listede yer alan sınıflar aktifleşecek; bu PDF'te <strong>bulunmayan eski şubeler (örn. 8/C, 8/D) ve liste dışı tüm öğrenciler (mezunlar, nakiller) otomatik olarak pasife (arşive) alınacaktır.</strong>
+            </div>
           </div>
 
           {groups.map((group) => (

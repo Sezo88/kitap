@@ -29,7 +29,7 @@ export default async function AttendancePage() {
     teacherClassIds = tc?.map((t) => t.class_id) || [];
   }
 
-  let classesQuery = supabase.from("classes").select("*").order("name");
+  let classesQuery = supabase.from("classes").select("*").neq("is_active", false).order("name");
   if (profile.role === "ogretmen" && teacherClassIds) {
     if (teacherClassIds.length > 0) {
       classesQuery = classesQuery.in("id", teacherClassIds);

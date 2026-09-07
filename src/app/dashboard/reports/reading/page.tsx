@@ -20,6 +20,7 @@ export default async function ReadingReportsPage() {
       .from("classes")
       .select("*")
       .match(schoolFilter)
+      .neq("is_active", false)
       .order("name"),
     supabase
       .from("profiles")

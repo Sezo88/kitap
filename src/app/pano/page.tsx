@@ -262,7 +262,7 @@ export default function PanoPage() {
       supabase.from("student_books").select("students!inner(full_name, class_id, classes!inner(name))").eq("status", "completed"),
       supabase.from("quiz_daily").select("id, quiz_questions(question, answer)").eq("school_id", schoolId).eq("question_date", today.toISOString().split("T")[0]).maybeSingle(),
       supabase.from("quiz_daily").select("id, question_date, quiz_questions(question, answer)").eq("school_id", schoolId).lt("question_date", today.toISOString().split("T")[0]).order("question_date", { ascending: false }).limit(1).maybeSingle(),
-      supabase.from("classes").select("id, name").eq("school_id", schoolId),
+      supabase.from("classes").select("id, name").eq("school_id", schoolId).neq("is_active", false),
       supabase.from("cleanliness_scores").select("class_id, score, classes!inner(name)").gte("score_date", weekMon).lte("score_date", weekFri),
       supabase.from("quiz_scores").select("score, class_name").eq("school_id", schoolId).order("score", { ascending: false }).limit(5)
     ]);

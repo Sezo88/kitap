@@ -28,7 +28,7 @@ export default async function StudentsPage() {
     { data: books }
   ] = await Promise.all([
     studentsQuery,
-    supabase.from("classes").select("*").match(schoolFilter).order("name"),
+    supabase.from("classes").select("*").match(schoolFilter).neq("is_active", false).order("name"),
     supabase.from("books").select("id, title").match(schoolFilter).order("title")
   ]);
 

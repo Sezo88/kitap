@@ -29,6 +29,8 @@ export function ClassList({ classes: initialClasses, teachers, role, schoolId }:
   const [gradeLevel, setGradeLevel] = useState(1);
   const [quizPin, setQuizPin] = useState("");
   const [assignedTeacher, setAssignedTeacher] = useState("");
+  const [showInactive, setShowInactive] = useState(false);
+  const [isActive, setIsActive] = useState(true);
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
@@ -43,6 +45,7 @@ export function ClassList({ classes: initialClasses, teachers, role, schoolId }:
     setName("");
     setGradeLevel(1);
     setQuizPin("");
+    setIsActive(true);
     setAssignedTeacher("");
     setDialogOpen(true);
   }
@@ -52,8 +55,21 @@ export function ClassList({ classes: initialClasses, teachers, role, schoolId }:
     setName(cls.name);
     setGradeLevel(cls.grade_level);
     setQuizPin((cls as any).quiz_pin || "");
+    setIsActive(cls.is_active !== false);
     setAssignedTeacher("");
     setDialogOpen(true);
+  }
+
+  async function toggleActive(cls: Class) {
+    const nextState = cls.is_active === false;
+    const supabase = createClient();
+    const { error } = await supabase.from("classes").update({ is_active: nextState }).eq("id", cls.id);
+    if (error) {
+      toast("Durum güncellenemedi: " + error.message, "error");
+      return;
+    }
+    setClasses((prev) => prev.map((c) => (c.id === cls.id ? { ...c, is_active: nextState } : c)));
+    toast(nextState ? `"${cls.name}" sınıfı aktifleştirildi` : `"${cls.name}" sınıfı pasife alındı`, "success");
   }
 
   async function handleSave() {
@@ -62,11 +78,22 @@ export function ClassList({ classes: initialClasses, teachers, role, schoolId }:
     const supabase = createClient();
 
     if (editingClass) {
-      await supabase.from("classes").update({ name, grade_level: gradeLevel, quiz_pin: quizPin || null }).eq("id", editingClass.id);
-      setClasses((prev) => prev.map((c) => (c.id === editingClass.id ? { ...c, name, grade_level: gradeLevel, quiz_pin: quizPin } : c)));
+      await supabase.from("classes").update({ 
+        name: name.trim(), 
+        grade_level: gradeLevel, 
+        quiz_pin: quizPin || null,
+        is_active: isActive
+      }).eq("id", editingClass.id);
+      setClasses((prev) => prev.map((c) => (c.id === editingClass.id ? { ...c, name: name.trim(), grade_level: gradeLevel, quiz_pin: quizPin, is_active: isActive } : c)));
       toast("Sınıf güncellendi", "success");
     } else {
-      const { data } = await supabase.from("classes").insert({ name, grade_level: gradeLevel, quiz_pin: quizPin || null, school_id: schoolId }).select().single();
+      const { data } = await supabase.from("classes").insert({ 
+        name: name.trim(), 
+        grade_level: gradeLevel, 
+        quiz_pin: quizPin || null, 
+        school_id: schoolId,
+        is_active: isActive 
+      }).select().single();
       if (data) {
         setClasses((prev) => [...prev, data as Class]);
         // Assign teacher if selected
@@ -82,17 +109,36 @@ export function ClassList({ classes: initialClasses, teachers, role, schoolId }:
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Bu sınıfı silmek istediğinize emin misiniz?")) return;
+    if (!confirm("Bu sınıfı silmek istediğinize emin misiniz? (Öğrenci veya ders programı varsa silinemez)")) return;
     const supabase = createClient();
-    await supabase.from("classes").delete().eq("id", id);
+    const { error } = await supabase.from("classes").delete().eq("id", id);
+    if (error) {
+      toast("Sınıf silinemedi (geçmiş kayıtlar olabilir, bunun yerine pasife alabilirsiniz): " + error.message, "error");
+      return;
+    }
     setClasses((prev) => prev.filter((c) => c.id !== id));
     toast("Sınıf silindi", "success");
   }
 
+  const displayedClasses = classes.filter((c) => showInactive || c.is_active !== false);
+
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-muted-foreground">{classes.length} sınıf</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-muted-foreground">
+            {displayedClasses.length} sınıf listeleniyor ({classes.filter(c => c.is_active !== false).length} aktif)
+          </p>
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showInactive}
+              onChange={(e) => setShowInactive(e.target.checked)}
+              className="rounded border-gray-300 text-primary focus:ring-primary"
+            />
+            Pasif sınıfları göster
+          </label>
+        </div>
         {canEdit && (
           <Button onClick={openCreate} size="sm">
             <Plus className="h-4 w-4 mr-1" /> Yeni Sınıf
@@ -107,37 +153,66 @@ export function ClassList({ classes: initialClasses, teachers, role, schoolId }:
               <TableRow>
                 <TableHead>Sınıf Adı</TableHead>
                 <TableHead>Seviye</TableHead>
+                <TableHead>Durum</TableHead>
                 {canEdit && <TableHead>Quiz PIN</TableHead>}
-                {canEdit && <TableHead className="w-24">İşlem</TableHead>}
+                {canEdit && <TableHead className="w-36 text-right">İşlem</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {classes.length === 0 && (
+              {displayedClasses.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={canEdit ? 3 : 2} className="text-center text-muted-foreground py-8">
-                    Henüz sınıf eklenmemiş
+                  <TableCell colSpan={canEdit ? 5 : 3} className="text-center text-muted-foreground py-8">
+                    Henüz sınıf bulunmuyor
                   </TableCell>
                 </TableRow>
               )}
-              {classes.map((cls) => (
-                <TableRow key={cls.id}>
-                  <TableCell className="font-medium">{cls.name}</TableCell>
-                  <TableCell><Badge variant="secondary">{cls.grade_level}. Sınıf</Badge></TableCell>
-                  {canEdit && <TableCell className="font-mono text-sm">{(cls as any).quiz_pin || "-"}</TableCell>}
-                  {canEdit && (
+              {displayedClasses.map((cls) => {
+                const active = cls.is_active !== false;
+                return (
+                  <TableRow key={cls.id} className={!active ? "opacity-60 bg-muted/20" : ""}>
+                    <TableCell className="font-semibold">{cls.name}</TableCell>
+                    <TableCell><Badge variant="secondary">{cls.grade_level}. Sınıf</Badge></TableCell>
                     <TableCell>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(cls)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(cls.id)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => canEdit && toggleActive(cls)}
+                        title={canEdit ? (active ? "Pasife almak için tıklayın" : "Aktifleştirmek için tıklayın") : ""}
+                        disabled={!canEdit}
+                        className={canEdit ? "cursor-pointer" : "cursor-default"}
+                      >
+                        <Badge 
+                          variant={active ? "success" : "outline"} 
+                          className={active ? "bg-emerald-100 text-emerald-800 border-emerald-300" : "bg-slate-100 text-slate-600 border-slate-300"}
+                        >
+                          {active ? "🟢 Aktif" : "⚪ Pasif"}
+                        </Badge>
+                      </button>
                     </TableCell>
-                  )}
-                </TableRow>
-              ))}
+                    {canEdit && <TableCell className="font-mono text-sm">{(cls as any).quiz_pin || "-"}</TableCell>}
+                    {canEdit && (
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-8 text-xs px-2"
+                            onClick={() => toggleActive(cls)}
+                            title={active ? "Pasife Al" : "Aktif Yap"}
+                          >
+                            {active ? "Pasife Al" : "Aktif Yap"}
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(cls)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDelete(cls.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>
@@ -151,7 +226,7 @@ export function ClassList({ classes: initialClasses, teachers, role, schoolId }:
         <div className="flex flex-col gap-4 mt-4">
           <div className="flex flex-col gap-2">
             <Label htmlFor="cname">Sınıf Adı</Label>
-            <Input id="cname" value={name} onChange={(e) => setName(e.target.value)} placeholder="örn. 5-A" />
+            <Input id="cname" value={name} onChange={(e) => setName(e.target.value)} placeholder="örn. 5/A" />
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="glevel">Seviye</Label>
@@ -164,6 +239,16 @@ export function ClassList({ classes: initialClasses, teachers, role, schoolId }:
           <div className="flex flex-col gap-2">
             <Label htmlFor="qpin">Quiz PIN (öğrenciler bu kodla cevap verir)</Label>
             <Input id="qpin" value={quizPin} onChange={(e) => setQuizPin(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="örn: 1234" maxLength={6} />
+          </div>
+          <div className="flex items-center gap-2 pt-1">
+            <input
+              type="checkbox"
+              id="cactive"
+              checked={isActive}
+              onChange={(e) => setIsActive(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+            />
+            <Label htmlFor="cactive" className="cursor-pointer text-sm font-medium">Bu sınıf aktif olarak kullanılsın</Label>
           </div>
           {!editingClass && teachers.length > 0 && (
             <div className="flex flex-col gap-2">
