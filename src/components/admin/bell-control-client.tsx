@@ -208,7 +208,7 @@ export function BellControlClient({ schoolId, userId, initialCommands }: Props) 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-muted-foreground mt-3 pt-3 border-t border-muted/50">
             <span>⚡ Bu butonlar Electron zil uygulamasına komut gönderir. Uygulama çalışıyorsa ilgili sesi otomatik çalar.</span>
             <a 
-              href="https://github.com/ihsanceliktenortaokulu35-dev/kitap/raw/main/public/downloads/Okul_Zil_Sistemi_Setup_1.0.7.exe" 
+              href="https://github.com/Sezo88/kitap/raw/main/public/downloads/Okul_Zil_Sistemi_Setup_1.0.7.exe" 
               className="inline-flex items-center gap-1.5 text-primary hover:underline font-semibold shrink-0"
               target="_blank"
               rel="noopener noreferrer"
