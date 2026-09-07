@@ -16,6 +16,7 @@ import Link from "next/link";
 import { getClassName, type Role, type Class, type Book, type StudentWithClass } from "@/lib/types/database";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+import { saveStudent, deleteStudent } from "@/lib/actions/students";
 
 interface Props {
   students: (StudentWithClass)[];
@@ -99,28 +100,32 @@ export function StudentList({ students: initialStudents, classes, books, role, s
   async function handleSave() {
     if (!fullName.trim() || !classId) return;
     setSaving(true);
-    const supabase = createClient();
+
+    const res = await saveStudent({
+      id: editingStudent?.id,
+      fullName: fullName.trim(),
+      classId,
+      eOkulNo: eOkulNo || null,
+      veliTelefon: veliTelefon || null,
+      veliTelefon2: veliTelefon2 || null,
+      veliSahip: veliSahip || null,
+      veliSahip2: veliSahip2 || null,
+      dogumTarihi: dogumTarihi || null,
+    });
+
+    if (!res.success) {
+      toast("Kayıt sırasında hata oluştu: " + res.error, "error");
+      setSaving(false);
+      return;
+    }
 
     if (editingStudent) {
-      await supabase
-        .from("students")
-        .update({
-          full_name: fullName,
-          class_id: classId,
-          e_okul_no: eOkulNo || null,
-          veli_telefon: veliTelefon || null,
-          veli_telefon_2: veliTelefon2 || null,
-          veli_telefon_sahip: veliSahip || null,
-          veli_telefon_2_sahip: veliSahip2 || null,
-          dogum_tarihi: dogumTarihi || null
-        })
-        .eq("id", editingStudent.id);
       setStudents((prev) =>
         prev.map((s) =>
           s.id === editingStudent.id
             ? {
                 ...s,
-                full_name: fullName,
+                full_name: fullName.trim(),
                 class_id: classId,
                 e_okul_no: eOkulNo || null,
                 veli_telefon: veliTelefon || null,
@@ -128,29 +133,14 @@ export function StudentList({ students: initialStudents, classes, books, role, s
                 veli_telefon_sahip: veliSahip || null,
                 veli_telefon_2_sahip: veliSahip2 || null,
                 dogum_tarihi: dogumTarihi || null,
-                classes: classes.find((c) => c.id === classId) || s.classes
+                classes: classes.find((c) => c.id === classId) || s.classes,
               }
             : s
         )
       );
       toast("Öğrenci güncellendi", "success");
-    } else {
-      const { data } = await supabase
-        .from("students")
-        .insert({
-          full_name: fullName,
-          class_id: classId,
-          school_id: schoolId,
-          e_okul_no: eOkulNo || null,
-          veli_telefon: veliTelefon || null,
-          veli_telefon_2: veliTelefon2 || null,
-          veli_telefon_sahip: veliSahip || null,
-          veli_telefon_2_sahip: veliSahip2 || null,
-          dogum_tarihi: dogumTarihi || null
-        })
-        .select("*, classes!inner(name)")
-        .single();
-      if (data) setStudents((prev) => [...prev, data as StudentWithClass]);
+    } else if (res.data) {
+      setStudents((prev) => [...prev, res.data as StudentWithClass]);
       toast("Öğrenci eklendi", "success");
     }
 
@@ -160,8 +150,11 @@ export function StudentList({ students: initialStudents, classes, books, role, s
 
   async function handleDelete(id: string) {
     if (!confirm("Bu öğrenciyi silmek istediğinize emin misiniz?")) return;
-    const supabase = createClient();
-    await supabase.from("students").update({ is_active: false }).eq("id", id);
+    const res = await deleteStudent(id);
+    if (!res.success) {
+      toast("Öğrenci silinemedi: " + res.error, "error");
+      return;
+    }
     setStudents((prev) => prev.filter((s) => s.id !== id));
     toast("Öğrenci pasife alındı", "success");
   }

@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { Plus, Pencil, Trash2 } from "lucide-react";
+import { toggleSchoolClassActive, saveSchoolClass, deleteSchoolClass } from "@/lib/actions/classes";
 import type { Role, Class, Profile } from "@/lib/types/database";
 
 interface Props {
@@ -62,45 +63,47 @@ export function ClassList({ classes: initialClasses, teachers, role, schoolId }:
 
   async function toggleActive(cls: Class) {
     const nextState = cls.is_active === false;
-    const supabase = createClient();
-    const { error } = await supabase.from("classes").update({ is_active: nextState }).eq("id", cls.id);
-    if (error) {
-      toast("Durum güncellenemedi: " + error.message, "error");
+    setClasses((prev) => prev.map((c) => (c.id === cls.id ? { ...c, is_active: nextState } : c)));
+
+    const res = await toggleSchoolClassActive(cls.id, nextState);
+    if (!res.success) {
+      setClasses((prev) => prev.map((c) => (c.id === cls.id ? { ...c, is_active: cls.is_active } : c)));
+      toast("Durum güncellenemedi: " + res.error, "error");
       return;
     }
-    setClasses((prev) => prev.map((c) => (c.id === cls.id ? { ...c, is_active: nextState } : c)));
     toast(nextState ? `"${cls.name}" sınıfı aktifleştirildi` : `"${cls.name}" sınıfı pasife alındı`, "success");
   }
 
   async function handleSave() {
     if (!name.trim()) return;
     setSaving(true);
-    const supabase = createClient();
+
+    const res = await saveSchoolClass({
+      id: editingClass?.id,
+      name: name.trim(),
+      gradeLevel,
+      quizPin: quizPin || null,
+      isActive,
+      assignedTeacher: assignedTeacher || undefined,
+    });
+
+    if (!res.success) {
+      toast("Kayıt sırasında hata oluştu: " + res.error, "error");
+      setSaving(false);
+      return;
+    }
 
     if (editingClass) {
-      await supabase.from("classes").update({ 
-        name: name.trim(), 
-        grade_level: gradeLevel, 
-        quiz_pin: quizPin || null,
-        is_active: isActive
-      }).eq("id", editingClass.id);
-      setClasses((prev) => prev.map((c) => (c.id === editingClass.id ? { ...c, name: name.trim(), grade_level: gradeLevel, quiz_pin: quizPin, is_active: isActive } : c)));
+      setClasses((prev) =>
+        prev.map((c) =>
+          c.id === editingClass.id
+            ? { ...c, name: name.trim(), grade_level: gradeLevel, quiz_pin: quizPin, is_active: isActive }
+            : c
+        )
+      );
       toast("Sınıf güncellendi", "success");
-    } else {
-      const { data } = await supabase.from("classes").insert({ 
-        name: name.trim(), 
-        grade_level: gradeLevel, 
-        quiz_pin: quizPin || null, 
-        school_id: schoolId,
-        is_active: isActive 
-      }).select().single();
-      if (data) {
-        setClasses((prev) => [...prev, data as Class]);
-        // Assign teacher if selected
-        if (assignedTeacher) {
-          await supabase.from("teacher_classes").insert({ teacher_id: assignedTeacher, class_id: data.id });
-        }
-      }
+    } else if (res.data) {
+      setClasses((prev) => [...prev, res.data as Class]);
       toast("Sınıf oluşturuldu", "success");
     }
 
@@ -110,10 +113,9 @@ export function ClassList({ classes: initialClasses, teachers, role, schoolId }:
 
   async function handleDelete(id: string) {
     if (!confirm("Bu sınıfı silmek istediğinize emin misiniz? (Öğrenci veya ders programı varsa silinemez)")) return;
-    const supabase = createClient();
-    const { error } = await supabase.from("classes").delete().eq("id", id);
-    if (error) {
-      toast("Sınıf silinemedi (geçmiş kayıtlar olabilir, bunun yerine pasife alabilirsiniz): " + error.message, "error");
+    const res = await deleteSchoolClass(id);
+    if (!res.success) {
+      toast("Sınıf silinemedi (geçmiş kayıtlar olabilir, bunun yerine pasife alabilirsiniz): " + res.error, "error");
       return;
     }
     setClasses((prev) => prev.filter((c) => c.id !== id));

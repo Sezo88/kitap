@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { parseSchoolPDF, type ParsedStudent } from "@/lib/pdf/parse-school-pdf";
+import { importSchoolStudents } from "@/lib/actions/students";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -76,151 +77,19 @@ export function PDFImportClient({ schoolId, existingClasses }: Props) {
 
   async function handleImport() {
     setStep("importing");
-    const supabase = createClient();
 
-    // 1. PDF'te bulunan sınıfları oluştur veya aktif yap
-    const classNameToId: Record<string, string> = {};
-    const existingClassMap = new Map(existingClasses.map((c) => [c.name.toUpperCase(), c.id]));
+    const res = await importSchoolStudents(allStudents);
 
-    for (const group of groups) {
-      const existingId = existingClassMap.get(group.className.toUpperCase());
-      if (existingId) {
-        classNameToId[group.className] = existingId;
-        // Sınıfı aktif konuma getir
-        await supabase
-          .from("classes")
-          .update({ is_active: true })
-          .eq("id", existingId);
-      } else {
-        // Yeni sınıf oluştur (aktif olarak)
-        const gradeMatch = group.className.match(/(\d+)/);
-        const grade = gradeMatch ? parseInt(gradeMatch[1]) : 1;
-        const { data } = await supabase
-          .from("classes")
-          .insert({ name: group.className, grade_level: grade, school_id: schoolId, is_active: true })
-          .select()
-          .single();
-        if (data) {
-          classNameToId[group.className] = data.id;
-        }
-      }
+    if (!res.success) {
+      toast("Öğrenciler kaydedilemedi: " + (res.error || "Bilinmeyen hata"), "error");
+      setStep("preview");
+      return;
     }
 
-    // 2. Bu yeni PDF listesinde OLMAYAN eski sınıfları (örn: 8/C, 8/D) otomatik pasife al
-    const importedClassIdSet = new Set(Object.values(classNameToId));
-    for (const cls of existingClasses) {
-      if (!importedClassIdSet.has(cls.id)) {
-        await supabase
-          .from("classes")
-          .update({ is_active: false })
-          .eq("id", cls.id);
-      }
-    }
-
-    // 3. Mevcut öğrencileri çek (mükerrer kontrolü için)
-    const { data: existingStudents } = await supabase
-      .from("students")
-      .select("id, full_name, e_okul_no, class_id, is_active")
-      .eq("school_id", schoolId);
-
-    const normalize = (str: string) =>
-      str.toLowerCase()
-        .replace(/ı/g, "i")
-        .replace(/ğ/g, "g")
-        .replace(/ü/g, "u")
-        .replace(/ş/g, "s")
-        .replace(/ö/g, "o")
-        .replace(/ç/g, "c")
-        .replace(/\s+/g, " ")
-        .trim();
-
-    const existingByNo = new Map<string, { id: string; class_id: string; is_active: boolean; full_name: string; e_okul_no: string | null }>();
-    const existingByName = new Map<string, { id: string; class_id: string; is_active: boolean; full_name: string; e_okul_no: string | null }>();
-
-    existingStudents?.forEach((s: any) => {
-      if (s.e_okul_no) {
-        existingByNo.set(s.e_okul_no, s);
-      }
-      if (s.full_name) {
-        existingByName.set(normalize(s.full_name), s);
-      }
-    });
-
-    const importedStudentIds = new Set<string>();
-    let newCount = 0;
-    let updatedCount = 0;
-    let skippedCount = 0;
-
-    for (const s of allStudents) {
-      const classId = classNameToId[s.className];
-      if (!classId) continue;
-
-      let existing = existingByNo.get(s.studentNo);
-      if (!existing) {
-        existing = existingByName.get(normalize(s.fullName));
-      }
-
-      if (existing) {
-        importedStudentIds.add(existing.id);
-        
-        const needsReactivate = !existing.is_active;
-        const needsClassUpdate = existing.class_id !== classId;
-        const needsNoUpdate = !existing.e_okul_no && s.studentNo;
-
-        if (needsReactivate || needsClassUpdate || needsNoUpdate) {
-          await supabase
-            .from("students")
-            .update({
-              is_active: true,
-              class_id: classId,
-              full_name: s.fullName,
-              e_okul_no: s.studentNo
-            })
-            .eq("id", existing.id);
-          updatedCount++;
-        } else {
-          skippedCount++;
-        }
-      } else {
-        // Yeni öğrenci
-        const { data: newStudent, error } = await supabase
-          .from("students")
-          .insert({
-            full_name: s.fullName,
-            e_okul_no: s.studentNo,
-            class_id: classId,
-            school_id: schoolId,
-            is_active: true,
-          })
-          .select("id")
-          .single();
-
-        if (error) {
-          toast(`Hata (${s.fullName}): ${error.message}`, "error");
-        } else {
-          if (newStudent) {
-            importedStudentIds.add(newStudent.id);
-          }
-          newCount++;
-        }
-      }
-    }
-
-    // 4. Bu PDF'te yer ALMAYAN tüm okul öğrencilerini (mezunlar, nakiller vb.) otomatik pasife al
-    let deactivatedCount = 0;
-    for (const s of existingStudents || []) {
-      if (s.is_active && !importedStudentIds.has(s.id)) {
-        await supabase
-          .from("students")
-          .update({ is_active: false })
-          .eq("id", s.id);
-        deactivatedCount++;
-      }
-    }
-
-    setResultCounts({ newCount, updatedCount, skippedCount, deactivatedCount });
+    const counts = res.counts || { newCount: 0, updatedCount: 0, skippedCount: 0, deactivatedCount: 0 };
+    setResultCounts(counts);
     toast(
-      `${newCount} yeni eklendi, ${updatedCount} güncellendi, ${skippedCount} aynen kaldı, ${deactivatedCount} liste dışı öğrenci pasife alındı`,
+      `${counts.newCount} yeni eklendi, ${counts.updatedCount} güncellendi, ${counts.skippedCount} aynen kaldı, ${counts.deactivatedCount} liste dışı öğrenci pasife alındı`,
       "success"
     );
     setStep("done");
