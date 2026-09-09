@@ -124,12 +124,12 @@ export async function GET() {
 
       classes.forEach((c) => classesSet.add(c));
 
-      // Maddeleri temizle ve diziye dök
+      // Maddeleri temizle ve diziye dök (1. veya - gibi maddeleri ayıkla, ama 80 yaprak gibi sayıları koru)
       const reqList = rawReqs
         .split('\n')
         .map((line) => line.trim())
         .filter(Boolean)
-        .map((line) => line.replace(/^[\*\-\•\d\.\)]\s*/, '').trim())
+        .map((line) => line.replace(/^(\d+[\.\)\-]\s*|[\*\-\•\–\—]\s*)/, '').trim())
         .filter(Boolean);
 
       allRows.push({
