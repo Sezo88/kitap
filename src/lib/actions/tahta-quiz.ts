@@ -54,7 +54,6 @@ export async function saveTahtaQuizSettings(schoolId: string, settings: TahtaQui
     tahta_quiz_duration: settings.duration,
     tahta_quiz_speed_bonus: settings.speedBonus,
     tahta_quiz_auto_close_seconds: settings.autoCloseSeconds,
-    updated_at: new Date().toISOString(),
   };
 
   if (existing) {
