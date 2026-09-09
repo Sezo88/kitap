@@ -35,6 +35,9 @@ if (!fs.existsSync(downloadsDir)) {
   fs.mkdirSync(downloadsDir, { recursive: true });
 }
 
+fs.copyFileSync(exePath, path.join(downloadsDir, exeName));
+console.log(`EXE public/downloads dizinine kopyalandı: ${exeName}`);
+
 fs.copyFileSync(zipPath, path.join(downloadsDir, zipName));
 console.log(`ZIP public/downloads dizinine kopyalandı.`);
 
