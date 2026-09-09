@@ -1,12 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUserAndProfile } from "@/lib/supabase/auth-cache";
 import { DutyScheduleEditor } from "@/components/admin/duty-schedule-editor";
+import { canAccessPage } from "@/lib/types/permissions";
 
 export default async function DutySchedulePage() {
   const supabase = await createClient();
   const { profile } = await getCachedUserAndProfile();
 
-  if (!profile || (profile.role !== "super_admin" && profile.role !== "idareci")) {
+  const allowed = await canAccessPage(profile, "duty_schedule");
+  if (!allowed) {
     return <div className="text-center py-8 text-muted-foreground">Bu sayfaya erişim yetkiniz yok.</div>;
   }
 

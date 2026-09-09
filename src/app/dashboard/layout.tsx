@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { DashboardLayoutClient } from "@/components/layout/dashboard-layout-client";
 import { getCachedUserAndProfile } from "@/lib/supabase/auth-cache";
 import { createClient } from "@/lib/supabase/server";
+import { getSchoolTeacherPermissions } from "@/lib/types/permissions";
 
 export default async function DashboardLayout({
   children,
@@ -63,6 +64,8 @@ export default async function DashboardLayout({
     feature_bell: school?.feature_bell !== false,
   };
 
+  const teacherPermissions = await getSchoolTeacherPermissions(profile?.school_id);
+
   return (
     <DashboardLayoutClient
       role={profile?.role || "ogretmen"}
@@ -70,6 +73,7 @@ export default async function DashboardLayout({
       schoolName={school?.name || null}
       schoolFeatures={schoolFeatures}
       schoolId={profile?.school_id}
+      teacherPermissions={teacherPermissions}
     >
       {children}
     </DashboardLayoutClient>

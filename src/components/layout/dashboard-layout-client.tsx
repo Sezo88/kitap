@@ -18,10 +18,11 @@ interface Props {
     feature_bell: boolean;
   };
   schoolId?: string;
+  teacherPermissions?: Record<string, boolean>;
   children: ReactNode;
 }
 
-export function DashboardLayoutClient({ role, fullName, schoolName, schoolFeatures, schoolId, children }: Props) {
+export function DashboardLayoutClient({ role, fullName, schoolName, schoolFeatures, schoolId, teacherPermissions, children }: Props) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
 
@@ -50,7 +51,7 @@ export function DashboardLayoutClient({ role, fullName, schoolName, schoolFeatur
     <div className="min-h-screen bg-background">
       {/* ── DESKTOP: static sidebar ───────────────────────── */}
       <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:flex lg:w-64">
-        <Sidebar role={role} schoolName={schoolName} schoolFeatures={schoolFeatures} schoolId={schoolId} />
+        <Sidebar role={role} schoolName={schoolName} schoolFeatures={schoolFeatures} schoolId={schoolId} teacherPermissions={teacherPermissions} />
       </div>
 
       {/* ── MOBILE: backdrop + drawer ─────────────────────── */}
@@ -68,7 +69,7 @@ export function DashboardLayoutClient({ role, fullName, schoolName, schoolFeatur
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <Sidebar role={role} schoolName={schoolName} schoolFeatures={schoolFeatures} schoolId={schoolId} onClose={closeSidebar} />
+        <Sidebar role={role} schoolName={schoolName} schoolFeatures={schoolFeatures} schoolId={schoolId} teacherPermissions={teacherPermissions} onClose={closeSidebar} />
       </div>
 
       {/* ── MAIN CONTENT ──────────────────────────────────── */}

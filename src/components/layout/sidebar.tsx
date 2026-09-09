@@ -30,8 +30,10 @@ import {
   Building,
   Archive,
   HelpCircle,
+  ShieldCheck,
 } from "lucide-react";
 import type { Role } from "@/lib/types/database";
+import { isMenuAllowedForTeacher } from "@/lib/types/permissions";
 
 interface SidebarProps {
   role: Role;
@@ -44,6 +46,7 @@ interface SidebarProps {
     feature_bell: boolean;
   };
   schoolId?: string;
+  teacherPermissions?: Record<string, boolean>;
   onClose?: () => void;
 }
 
@@ -66,6 +69,7 @@ const menuItems = [
   { href: "/dashboard/admin/duty-schedule", label: "Nöbet Programı", icon: Shield, roles: ["super_admin", "idareci"], feature: "feature_lesson_schedule" },
   { href: "/dashboard/admin/panel-settings", label: "Pano Ayarları", icon: Monitor, roles: ["super_admin", "idareci"] },
   { href: "/dashboard/admin/quiz", label: "Soru Bankası", icon: HelpCircle, roles: ["super_admin", "idareci"] },
+  { href: "/dashboard/admin/permissions", label: "Öğretmen Yetkileri", icon: ShieldCheck, roles: ["super_admin", "idareci"] },
   { href: "/dashboard/admin/archive", label: "Sezon Arşivleme", icon: Archive, roles: ["super_admin", "idareci"] },
   { href: "/dashboard/admin/approvals", label: "Bekleyen Onaylar", icon: Clock, roles: ["super_admin", "idareci"] },
   { href: "/dashboard/admin/users", label: "Kullanıcılar", icon: Settings, roles: ["super_admin", "idareci"] },
@@ -74,19 +78,28 @@ const menuItems = [
   { href: "/dashboard/admin/sms-logs", label: "SMS Geçmişi", icon: FileText, roles: ["super_admin", "idareci"] },
 ];
 
-export function Sidebar({ role, schoolName, schoolFeatures, schoolId, onClose }: SidebarProps) {
+export function Sidebar({ role, schoolName, schoolFeatures, schoolId, teacherPermissions, onClose }: SidebarProps) {
   const pathname = usePathname();
   const filteredItems = menuItems.filter((item) => {
-    if (!item.roles.includes(role)) return false;
-    
     // Süper admin her özelliği görebilir
     if (role === "super_admin") return true;
 
     // Lisans kısıtlamalarını kontrol et
     if (schoolFeatures && item.feature) {
-      return (schoolFeatures as any)[item.feature] !== false;
+      if ((schoolFeatures as any)[item.feature] === false) return false;
     }
-    return true;
+
+    // İdareci kendi yetkili olduğu sayfaları görür
+    if (role === "idareci") {
+      return item.roles.includes("idareci");
+    }
+
+    // Öğretmen için dinamik yetki kontrolü
+    if (role === "ogretmen") {
+      return isMenuAllowedForTeacher(item.href, teacherPermissions);
+    }
+
+    return false;
   });
 
   return (
