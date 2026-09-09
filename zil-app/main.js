@@ -88,6 +88,22 @@ function createWindow() {
     }
   });
 
+  // Yeni ana sürüm yüklendiğinde eski sürümden kalma renderer yamasını temizle
+  const lastKnownVer = store.get('app.lastKnownVersion');
+  const currentAppVer = app.getVersion();
+  if (lastKnownVer !== currentAppVer) {
+    store.set('app.lastKnownVersion', currentAppVer);
+    const rendererDir = path.join(app.getPath('userData'), 'renderer');
+    if (fs.existsSync(rendererDir)) {
+      try {
+        fs.rmSync(rendererDir, { recursive: true, force: true });
+        console.log('Yeni uygulama sürümü algılandı, eski renderer yaması temizlendi.');
+      } catch (e) {
+        console.error('Eski renderer temizleme hatası:', e);
+      }
+    }
+  }
+
   const customRendererPath = path.join(app.getPath('userData'), 'renderer', 'index.html');
   if (fs.existsSync(customRendererPath)) {
     console.log('OTA Renderer Yaması yükleniyor:', customRendererPath);
@@ -202,6 +218,11 @@ ipcMain.on('window-close', () => mainWindow?.close());
 ipcMain.handle('restart-app', () => {
   app.relaunch();
   app.quit();
+});
+
+// Uygulama versiyonunu al
+ipcMain.handle('get-app-version', () => {
+  return app.getVersion();
 });
 
 // Ayarları yükle/kaydet

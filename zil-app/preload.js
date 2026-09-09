@@ -35,7 +35,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Supabase reconnect (Okul Kodu + PIN)
   reconnectSupabase: (schoolCode, pin) => ipcRenderer.invoke('reconnect-supabase', schoolCode, pin),
 
-  // Güncelleme Kontrolü
+  // Güncelleme Kontrolü & Versiyon
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   restartApp: () => ipcRenderer.invoke('restart-app'),
 

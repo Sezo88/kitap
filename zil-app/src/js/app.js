@@ -56,6 +56,9 @@ const App = {
     // 11. Gün seçiciyi bugüne ayarla
     this._setDaySelector();
     
+    // 12. Versiyon bilgisini göster
+    this._loadAppVersion();
+    
     console.log('✅ Uygulama hazır!');
   },
   
@@ -751,6 +754,23 @@ const App = {
     }, 1000);
   },
   
+  /**
+   * Uygulama sürüm bilgisini dinamik olarak başlığa yaz
+   */
+  async _loadAppVersion() {
+    if (window.electronAPI?.getAppVersion) {
+      try {
+        const ver = await window.electronAPI.getAppVersion();
+        const badge = document.getElementById('app-version-badge');
+        if (badge && ver) {
+          badge.textContent = `v${ver}`;
+        }
+      } catch (err) {
+        console.error('Versiyon yüklenemedi:', err);
+      }
+    }
+  },
+
   /**
    * Sonraki zil güncelleyiciyi başlat
    */
