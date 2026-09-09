@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { DashboardLayoutClient } from "@/components/layout/dashboard-layout-client";
 import { getCachedUserAndProfile } from "@/lib/supabase/auth-cache";
 import { createClient } from "@/lib/supabase/server";
-import { getSchoolTeacherPermissions } from "@/lib/types/permissions";
+import { getSchoolTeacherPermissions } from "@/lib/server/permissions";
 
 export default async function DashboardLayout({
   children,

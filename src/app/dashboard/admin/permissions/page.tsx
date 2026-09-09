@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUserAndProfile } from "@/lib/supabase/auth-cache";
 import { TeacherPermissionsClient } from "@/components/admin/teacher-permissions-client";
-import { getSchoolTeacherPermissions } from "@/lib/types/permissions";
+import { getSchoolTeacherPermissions } from "@/lib/server/permissions";
 
 export default async function TeacherPermissionsPage() {
   const { user, profile } = await getCachedUserAndProfile();

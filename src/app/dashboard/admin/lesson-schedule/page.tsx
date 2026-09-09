@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUserAndProfile } from "@/lib/supabase/auth-cache";
 import { LessonScheduleEditor } from "@/components/admin/lesson-schedule-editor";
-import { canAccessPage } from "@/lib/types/permissions";
+import { canAccessPage } from "@/lib/server/permissions";
 
 export default async function LessonSchedulePage() {
   const supabase = await createClient();

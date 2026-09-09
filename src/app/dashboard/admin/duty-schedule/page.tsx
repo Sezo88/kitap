@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUserAndProfile } from "@/lib/supabase/auth-cache";
 import { DutyScheduleEditor } from "@/components/admin/duty-schedule-editor";
-import { canAccessPage } from "@/lib/types/permissions";
+import { canAccessPage } from "@/lib/server/permissions";
 
 export default async function DutySchedulePage() {
   const supabase = await createClient();
