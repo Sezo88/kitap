@@ -622,15 +622,22 @@ ipcMain.handle('get-auto-start', () => {
 // Supabase Değişkenleri
 let supabase = null;
 let schoolId = null;
+const DEFAULT_SUPABASE_URL = 'https://cfkyfqmruruwiyffossq.supabase.co';
+const DEFAULT_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNma3lmcW1ydXJ1d2l5ZmZvc3NxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzMDgxOTAsImV4cCI6MjA5Nzg4NDE5MH0.ZjFqPPiZOD6Bw0Ok8wiBfqgSjxYBebXsLayXJSMTw4Y';
+
 let bellCommandsSubscription = null;
 
 function setupSupabase() {
-  let supabaseUrl = store.get('settings.supabaseUrl');
-  let supabaseKey = store.get('settings.supabaseKey');
+  let supabaseUrl = store.get('settings.supabaseUrl') || DEFAULT_SUPABASE_URL;
+  let supabaseKey = store.get('settings.supabaseKey') || DEFAULT_SUPABASE_KEY;
   schoolId = store.get('settings.schoolId');
 
+  // Her zaman store'a kaydet (ilk calismada otomatik doldursun)
+  if (!store.get('settings.supabaseUrl')) store.set('settings.supabaseUrl', DEFAULT_SUPABASE_URL);
+  if (!store.get('settings.supabaseKey')) store.set('settings.supabaseKey', DEFAULT_SUPABASE_KEY);
+
   // Cihazdaki diğer projeden (C:\Projects\kitap\.env.local) otomatik okumaya çalış
-  if (!supabaseUrl || !supabaseKey) {
+  if (supabaseUrl === DEFAULT_SUPABASE_URL) {
     try {
       const peerEnvPath = path.join(__dirname, '..', 'kitap', '.env.local');
       if (fs.existsSync(peerEnvPath)) {
@@ -810,8 +817,11 @@ function listenToBellCommands() {
 
 // Reconnect ve Okul Kodu + PIN Çözümleme Handler'ı
 ipcMain.handle('reconnect-supabase', async (event, schoolCode, pin) => {
-  const supabaseUrl = store.get('settings.supabaseUrl');
-  const supabaseKey = store.get('settings.supabaseKey');
+  const supabaseUrl = store.get('settings.supabaseUrl') || DEFAULT_SUPABASE_URL;
+  const supabaseKey = store.get('settings.supabaseKey') || DEFAULT_SUPABASE_KEY;
+
+  if (!store.get('settings.supabaseUrl')) store.set('settings.supabaseUrl', DEFAULT_SUPABASE_URL);
+  if (!store.get('settings.supabaseKey')) store.set('settings.supabaseKey', DEFAULT_SUPABASE_KEY);
 
   if (!supabaseUrl || !supabaseKey) {
     return { success: false, error: 'Supabase URL veya Anon Key bilgileri eksik.' };
