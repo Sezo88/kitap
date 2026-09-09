@@ -67,6 +67,8 @@ export async function updateSession(request: NextRequest) {
     "/reset-password",
     "/downloads",
     "/gizlilik-politikasi",
+    "/ihtiyac",
+    "/api/ihtiyac",
   ];
   const isPublicPath = publicPaths.some((p) =>
     request.nextUrl.pathname.startsWith(p)
