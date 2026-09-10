@@ -15,7 +15,7 @@
     <div class="title-bar-left">
       <span class="title-bar-icon">🔔</span>
       <span class="title-bar-title">Okul Zil Sistemi - Sezai KAYA</span>
-      <span id="app-version-badge" style="font-size: 0.8em; opacity: 0.7; margin-left: 10px; font-family: monospace;">v1.1.0</span>
+      <span id="app-version-badge" style="font-size: 0.8em; opacity: 0.7; margin-left: 10px; font-family: monospace;">v1.1.1</span>
     </div>
     <div class="title-bar-controls">
       <button id="btn-minimize" class="title-btn" title="Küçült">
@@ -366,17 +366,29 @@
               </label>
             </div>
             
-            <h3 class="sub-title" style="margin-top:15px;">Uzaktan Kontrol Ayarları (Supabase)</h3>
+            <h3 class="sub-title" style="margin-top:15px;">Uzaktan Kontrol Ayarları (MEB Güvenli Proxy)</h3>
             <div class="setting-item">
               <span class="setting-label">Okul Kodu (School Code)</span>
-              <input type="text" id="school-id" class="setting-input" style="width: 250px;" placeholder="6 haneli kod (örn: XJ712B)">
+              <input type="text" id="school-id" class="setting-input" style="width: 250px;" placeholder="6 haneli kod (örn: 737454)">
             </div>
             <div class="setting-item">
               <span class="setting-label">Zil API PIN</span>
-              <input type="password" id="school-pin" class="setting-input" style="width: 250px;" placeholder="4-6 haneli PIN (varsa)">
+              <input type="password" id="school-pin" class="setting-input" style="width: 250px;" placeholder="PIN (belirlenmediyse boş bırakın)">
             </div>
-            <div class="setting-item" style="justify-content: flex-start;">
+            <div class="setting-item" style="justify-content: flex-start; gap: 8px;">
               <button id="btn-save-supabase" class="btn-action btn-primary" style="font-size: 12px; padding: 6px 12px; height: 32px;">Kaydet ve Bağlan</button>
+              <button id="btn-run-diagnostic" class="btn-action btn-secondary" style="font-size: 12px; padding: 6px 12px; height: 32px;">🔍 Bağlantıyı Test Et (Teşhis)</button>
+            </div>
+
+            <!-- Canlı Bağlantı Teşhis ve Log Kutusu -->
+            <div id="diagnostic-panel" class="hidden" style="margin-top: 12px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-size: 12px; font-weight: bold; color: var(--text-color);">📡 Bağlantı Teşhis Raporu & Loglar</span>
+                <button id="btn-copy-diagnostic-logs" class="btn-action btn-secondary" style="font-size: 11px; padding: 3px 8px; height: 24px;">📋 Logları Kopyala</button>
+              </div>
+              <div id="diagnostic-results" style="font-family: monospace; font-size: 11px; line-height: 1.6; max-height: 180px; overflow-y: auto; background: rgba(0,0,0,0.4); padding: 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); white-space: pre-wrap;">
+                Test başlatılmayı bekliyor...
+              </div>
             </div>
 
             <h3 class="sub-title" style="margin-top:15px;">Yedekleme</h3>

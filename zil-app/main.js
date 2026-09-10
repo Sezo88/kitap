@@ -1,19 +1,53 @@
-const { app, BrowserWindow, Tray, Menu, ipcMain, dialog, nativeImage, powerSaveBlocker } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, dialog, nativeImage, powerSaveBlocker, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const schedule = require('node-schedule');
 const Store = require('electron-store');
 const AdmZip = require('adm-zip');
 
+// MEB FATIH Ağı (Sertifika denetimi ve SSL vekil sunucu) Uyumluluğu
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+app.commandLine.appendSwitch('ignore-certificate-errors');
+app.commandLine.appendSwitch('allow-insecure-localhost', 'true');
+
 // Supabase Realtime için WebSocket ve Supabase istemcisi
 global.WebSocket = require('ws');
 const { createClient } = require('@supabase/supabase-js');
 
+// Canlı Loglama Sistemi (Hata ve Teşhis için)
+const connectionLogs = [];
+function addLog(type, message, details = null) {
+  const time = new Date().toLocaleTimeString('tr-TR');
+  const entry = { time, type, message, details: details ? (typeof details === 'object' ? JSON.stringify(details) : details) : null };
+  connectionLogs.push(entry);
+  if (connectionLogs.length > 100) connectionLogs.shift();
+  console.log(`[${time}] [${type}] ${message}`, entry.details || '');
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('connection-log', entry);
+  }
+}
+
+// MEB ve Sistem Vekil Sunucularıyla Uyumlu Güvenli Fetch
+async function safeFetch(url, options = {}) {
+  // 1. Chromium'un sistem sertifika deposunu ve vekil sunucusunu kullanan net.fetch
+  if (net && net.fetch) {
+    try {
+      return await net.fetch(url, options);
+    } catch (netErr) {
+      addLog('WARN', `net.fetch başarısız (${netErr.message}), global fetch deneniyor...`);
+    }
+  }
+  // 2. Global Node fetch (undici)
+  return await fetch(url, options);
+}
+
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
+  addLog('ERROR', 'uncaughtException: ' + error.message);
 });
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  addLog('ERROR', 'unhandledRejection: ' + (reason?.message || String(reason)));
 });
 
 // electron-store yapılandırma
@@ -744,7 +778,7 @@ async function sendHeartbeat() {
   // 1. MEB Güvenli Proxy (oyp.vercel.app) üzerinden dene (ÖNCELİKLİ)
   try {
     const apiUrl = getApiUrl();
-    const res = await fetch(`${apiUrl}/api/zil-proxy`, {
+    const res = await safeFetch(`${apiUrl}/api/zil-proxy`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -754,17 +788,17 @@ async function sendHeartbeat() {
       })
     });
     if (res.ok) {
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (data.success) {
-        console.log(`[MEB Proxy] Heartbeat başarıyla gönderildi (Ziller aktif: ${bellsEnabled}).`);
-        if (mainWindow) {
+        addLog('HEARTBEAT', `Heartbeat başarılı (Ziller: ${bellsEnabled})`);
+        if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('supabase-status', true);
         }
         return;
       }
     }
   } catch (proxyErr) {
-    console.warn('[MEB Proxy] Heartbeat başarısız, doğrudan Supabase deneniyor:', proxyErr.message);
+    addLog('WARN', 'Proxy Heartbeat başarısız, doğrudan Supabase deneniyor: ' + proxyErr.message);
   }
 
   // 2. Doğrudan Supabase İstemcisi üzerinden dene (FALLBACK)
@@ -775,15 +809,15 @@ async function sendHeartbeat() {
         p_bell_active: bellsEnabled
       });
       if (error) {
-        console.error('Doğrudan heartbeat hatası:', error.message);
+        addLog('ERROR', 'Doğrudan heartbeat hatası: ' + error.message);
       } else {
-        console.log(`[Doğrudan Supabase] Heartbeat başarıyla gönderildi.`);
-        if (mainWindow) {
+        addLog('HEARTBEAT', 'Doğrudan Supabase heartbeat başarılı');
+        if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('supabase-status', true);
         }
       }
     } catch (err) {
-      console.error('Doğrudan heartbeat sırasında istisna:', err.message);
+      addLog('ERROR', 'Doğrudan heartbeat istisnası: ' + err.message);
     }
   }
 }
@@ -794,7 +828,7 @@ async function processPendingCommands() {
   // 1. MEB Güvenli Proxy üzerinden bekleyen komutları çek (ÖNCELİKLİ)
   try {
     const apiUrl = getApiUrl();
-    const res = await fetch(`${apiUrl}/api/zil-proxy`, {
+    const res = await safeFetch(`${apiUrl}/api/zil-proxy`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -804,15 +838,15 @@ async function processPendingCommands() {
     });
 
     if (res.ok) {
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (data.success) {
-        if (mainWindow) {
+        if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('supabase-status', true);
         }
 
         if (data.latestCommand) {
-          console.log(`[MEB Proxy] Uzaktan komut tetiklendi:`, data.latestCommand.command_type);
-          if (mainWindow) {
+          addLog('CMD', `[MEB Proxy] Komut tetiklendi: ${data.latestCommand.command_type}`);
+          if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('remote-command', data.latestCommand);
           }
         }
@@ -919,11 +953,12 @@ ipcMain.handle('reconnect-supabase', async (event, schoolCode, pin) => {
   const cleanCode = schoolCode.trim().toUpperCase();
   const cleanPin = pin ? pin.trim() : null;
   const apiUrl = getApiUrl();
+  let proxyError = null;
 
   // 1. MEB Güvenli Proxy (oyp.vercel.app) üzerinden dene (MEB ağındaki filtreyi aşar)
   try {
-    console.log(`[MEB Proxy] Okul kodu ve PIN çözümleniyor (${apiUrl}/api/zil-proxy)...`);
-    const proxyRes = await fetch(`${apiUrl}/api/zil-proxy`, {
+    addLog('INFO', `[MEB Proxy] Okul kodu ve PIN çözümleniyor: Kod: ${cleanCode}, Hedef: ${apiUrl}`);
+    const proxyRes = await safeFetch(`${apiUrl}/api/zil-proxy`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -934,27 +969,28 @@ ipcMain.handle('reconnect-supabase', async (event, schoolCode, pin) => {
     });
 
     if (proxyRes.ok) {
-      const data = await proxyRes.json();
+      const data = await proxyRes.json().catch(() => ({}));
       if (data.success && data.schoolId) {
-        console.log(`[MEB Proxy] Okul başarıyla doğrulandı: ${data.schoolName} (${data.schoolId})`);
+        addLog('SUCCESS', `[MEB Proxy] Okul başarıyla doğrulandı: ${data.schoolName} (${data.schoolId})`);
         store.set('settings.schoolId', data.schoolId);
         store.set('settings.schoolCode', cleanCode);
         setupSupabase();
-        if (mainWindow) {
+        if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('supabase-status', true);
         }
         return { success: true, schoolName: data.schoolName };
       } else if (data.error) {
+        addLog('WARN', `[MEB Proxy] Doğrulama hatası: ${data.error}`);
         return { success: false, error: data.error };
       }
     } else {
       const errData = await proxyRes.json().catch(() => null);
-      if (errData && errData.error) {
-        return { success: false, error: errData.error };
-      }
+      proxyError = errData?.error || `HTTP ${proxyRes.status} ${proxyRes.statusText}`;
+      addLog('WARN', `[MEB Proxy] HTTP Hatası: ${proxyError}`);
     }
   } catch (proxyErr) {
-    console.warn('[MEB Proxy] Bağlantı kurulamadı, doğrudan Supabase deneniyor:', proxyErr.message);
+    proxyError = proxyErr.message;
+    addLog('WARN', `[MEB Proxy] İstek hatası: ${proxyErr.message}`);
   }
 
   // 2. Doğrudan Supabase İstemcisi ile Dene (FALLBACK - Ev / Mobil İnternet için)
@@ -976,25 +1012,161 @@ ipcMain.handle('reconnect-supabase', async (event, schoolCode, pin) => {
       });
 
     if (err || !schoolsList || schoolsList.length === 0) {
-      return { success: false, error: 'Okul kodu veya PIN hatalı (veya MEB internet engeli mevcut).' };
+      const msg = proxyError ? `MEB Proxy Hatası: ${proxyError}` : 'Okul kodu veya PIN hatalı (veya MEB internet engeli mevcut).';
+      addLog('ERROR', 'Doğrulama başarısız: ' + msg);
+      return { success: false, error: msg };
     }
 
     const school = schoolsList[0];
-    const schoolId = school.school_id || school.id;
+    const resolvedSchoolId = school.school_id || school.id;
     const schoolName = school.school_name || school.name || 'Okul';
 
-    if (!schoolId) {
+    if (!resolvedSchoolId) {
       return { success: false, error: 'Okul ID bilgisi alınamadı.' };
     }
 
-    store.set('settings.schoolId', schoolId);
+    store.set('settings.schoolId', resolvedSchoolId);
     store.set('settings.schoolCode', cleanCode);
     setupSupabase();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('supabase-status', true);
+    }
     
     return { success: true, schoolName: schoolName };
   } catch (err) {
-    return { success: false, error: 'Bağlantı kurulamadı: ' + err.message };
+    const finalErr = proxyError ? `MEB Proxy Hatası: ${proxyError} | Supabase Hatası: ${err.message}` : err.message;
+    addLog('ERROR', 'Bağlantı kurulamadı: ' + finalErr);
+    return { success: false, error: 'Bağlantı kurulamadı: ' + finalErr };
   }
+});
+
+// Bağlantı Teşhis ve Test Handler'ı
+ipcMain.handle('run-connection-diagnostic', async (event, testSchoolCode, testPin) => {
+  const code = (testSchoolCode || store.get('settings.schoolCode') || '737454').trim().toUpperCase();
+  const pin = testPin ? testPin.trim() : null;
+  const apiUrl = getApiUrl();
+  const results = [];
+
+  addLog('DIAG', `Teşhis başlatıldı. Hedef: ${apiUrl}, Kod: ${code}`);
+
+  // Test 1: Vercel Sunucu & Proxy Erişimi
+  try {
+    const t0 = Date.now();
+    const r1 = await safeFetch(`${apiUrl}/api/zil-proxy`, { method: 'GET' });
+    const duration = Date.now() - t0;
+    if (r1.ok) {
+      const data = await r1.json().catch(() => ({}));
+      results.push({
+        step: '1. Vercel Sunucu & Proxy Erişimi',
+        status: 'SUCCESS',
+        detail: `HTTP ${r1.status} (${duration}ms) - Servis Durumu: ${data.status || 'online'}`
+      });
+      addLog('DIAG', 'Adım 1 başarılı', { status: r1.status, duration });
+    } else {
+      results.push({
+        step: '1. Vercel Sunucu & Proxy Erişimi',
+        status: 'FAIL',
+        detail: `HTTP ${r1.status} ${r1.statusText} (${duration}ms)`
+      });
+      addLog('DIAG', 'Adım 1 HTTP Hatası', { status: r1.status });
+    }
+  } catch (err) {
+    results.push({
+      step: '1. Vercel Sunucu & Proxy Erişimi',
+      status: 'FAIL',
+      detail: `Ağ Hatası: ${err.message}`
+    });
+    addLog('DIAG', 'Adım 1 Ağ Hatası', { error: err.message });
+  }
+
+  // Test 2: Okul Eşleştirme (resolve-school)
+  try {
+    const t0 = Date.now();
+    const r2 = await safeFetch(`${apiUrl}/api/zil-proxy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'resolve-school',
+        schoolCode: code,
+        pin: pin
+      })
+    });
+    const duration = Date.now() - t0;
+    const data = await r2.json().catch(() => ({}));
+    if (r2.ok && data.success) {
+      results.push({
+        step: '2. Okul Eşleştirme (resolve-school)',
+        status: 'SUCCESS',
+        detail: `Okul: ${data.schoolName} (ID: ${data.schoolId}) (${duration}ms)`
+      });
+      addLog('DIAG', 'Adım 2 başarılı', data);
+    } else {
+      results.push({
+        step: '2. Okul Eşleştirme (resolve-school)',
+        status: 'FAIL',
+        detail: `Hata: ${data.error || 'Bilinmeyen yanıt'} (HTTP ${r2.status})`
+      });
+      addLog('DIAG', 'Adım 2 başarısız', { error: data.error, status: r2.status });
+    }
+  } catch (err) {
+    results.push({
+      step: '2. Okul Eşleştirme (resolve-school)',
+      status: 'FAIL',
+      detail: `Ağ Hatası: ${err.message}`
+    });
+    addLog('DIAG', 'Adım 2 Ağ Hatası', { error: err.message });
+  }
+
+  // Test 3: Canlı Durum (Heartbeat)
+  const currentSchoolId = store.get('settings.schoolId');
+  if (currentSchoolId) {
+    try {
+      const t0 = Date.now();
+      const r3 = await safeFetch(`${apiUrl}/api/zil-proxy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'heartbeat',
+          schoolId: currentSchoolId,
+          bellsEnabled: true
+        })
+      });
+      const duration = Date.now() - t0;
+      const data = await r3.json().catch(() => ({}));
+      if (r3.ok && data.success) {
+        results.push({
+          step: '3. Canlı Durum (Heartbeat)',
+          status: 'SUCCESS',
+          detail: `Sunucuya canlılık bildirildi (${duration}ms)`
+        });
+      } else {
+        results.push({
+          step: '3. Canlı Durum (Heartbeat)',
+          status: 'FAIL',
+          detail: `Hata: ${data.error || 'Başarısız'}`
+        });
+      }
+    } catch (err) {
+      results.push({
+        step: '3. Canlı Durum (Heartbeat)',
+        status: 'FAIL',
+        detail: `Ağ Hatası: ${err.message}`
+      });
+    }
+  } else {
+    results.push({
+      step: '3. Canlı Durum (Heartbeat)',
+      status: 'SKIP',
+      detail: 'Okul henüz eşleşmediği için atlandı.'
+    });
+  }
+
+  return results;
+});
+
+// Canlı Logları Getir
+ipcMain.handle('get-connection-logs', () => {
+  return connectionLogs;
 });
 
 const { autoUpdater } = require('electron-updater');

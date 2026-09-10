@@ -638,6 +638,82 @@ const App = {
           }
         } else {
           UI.showToast(`❌ Hata: ${res.error}`, 'error');
+          // Hata detayını teşhis kutusuna da yaz
+          const diagPanel = document.getElementById('diagnostic-panel');
+          const diagResults = document.getElementById('diagnostic-results');
+          if (diagPanel && diagResults) {
+            diagPanel.classList.remove('hidden');
+            diagResults.textContent = `[${new Date().toLocaleTimeString('tr-TR')}] ❌ BAĞLANTI HATASI:\n${res.error}\n\nDetaylı teşhis için 'Bağlantıyı Test Et' butonuna basabilirsiniz.`;
+          }
+        }
+      });
+    }
+
+    // ===== BAĞLANTI TEŞHİS VE TEST BUTONU =====
+    const btnRunDiagnostic = document.getElementById('btn-run-diagnostic');
+    const diagPanel = document.getElementById('diagnostic-panel');
+    const diagResults = document.getElementById('diagnostic-results');
+    const btnCopyLogs = document.getElementById('btn-copy-diagnostic-logs');
+
+    if (btnRunDiagnostic) {
+      btnRunDiagnostic.addEventListener('click', async () => {
+        const schoolCode = document.getElementById('school-id')?.value?.trim() || '';
+        const pin = document.getElementById('school-pin')?.value?.trim() || '';
+
+        if (diagPanel) diagPanel.classList.remove('hidden');
+        if (diagResults) diagResults.textContent = `⏳ Testler yürütülüyor (MEB Güvenli Proxy & Sistem Ağ Kontrolü)...\nLütfen bekleyin...\n`;
+
+        btnRunDiagnostic.disabled = true;
+        btnRunDiagnostic.textContent = '⏳ Test Ediliyor...';
+
+        try {
+          const results = await window.electronAPI.runConnectionDiagnostic(schoolCode, pin);
+          let report = `=== BAĞLANTI VE TEŞHİS RAPORU ===\n`;
+          report += `Tarih: ${new Date().toLocaleString('tr-TR')}\n`;
+          report += `Okul Kodu: ${schoolCode || 'Girilmedi'}\n\n`;
+
+          results.forEach((r) => {
+            const icon = r.status === 'SUCCESS' ? '✅' : r.status === 'SKIP' ? '⏭️' : '❌';
+            report += `${icon} ${r.step}\n   Durum: ${r.status}\n   Detay: ${r.detail}\n\n`;
+          });
+
+          // Geçmiş logları da ekle
+          if (window.electronAPI.getConnectionLogs) {
+            const logs = await window.electronAPI.getConnectionLogs();
+            if (logs && logs.length > 0) {
+              report += `--- SON AĞ LOGLARI (${logs.length} adet) ---\n`;
+              logs.slice(-10).forEach(l => {
+                report += `[${l.time}] [${l.type}] ${l.message} ${l.details ? `(${l.details})` : ''}\n`;
+              });
+            }
+          }
+
+          if (diagResults) diagResults.textContent = report;
+        } catch (diagErr) {
+          if (diagResults) diagResults.textContent += `\n❌ Teşhis çalıştırma hatası: ${diagErr.message}`;
+        } finally {
+          btnRunDiagnostic.disabled = false;
+          btnRunDiagnostic.textContent = '🔍 Bağlantıyı Test Et (Teşhis)';
+        }
+      });
+    }
+
+    if (btnCopyLogs) {
+      btnCopyLogs.addEventListener('click', () => {
+        if (diagResults && diagResults.textContent) {
+          navigator.clipboard.writeText(diagResults.textContent).then(() => {
+            UI.showToast('📋 Teşhis raporu panoya kopyalandı!', 'success');
+          }).catch(() => {
+            UI.showToast('Panoya kopyalanamadı, lütfen metni seçip kopyalayın.', 'warning');
+          });
+        }
+      });
+    }
+
+    if (window.electronAPI.onConnectionLog) {
+      window.electronAPI.onConnectionLog((log) => {
+        if (diagResults && diagPanel && !diagPanel.classList.contains('hidden')) {
+          diagResults.textContent += `[${log.time}] [${log.type}] ${log.message}\n`;
         }
       });
     }

@@ -69,5 +69,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onSupabaseStatus: (callback) => {
     ipcRenderer.on('supabase-status', (event, isConnected) => callback(isConnected));
+  },
+  // MEB Bağlantı Teşhisi ve Loglama
+  runConnectionDiagnostic: (schoolCode, pin) => ipcRenderer.invoke('run-connection-diagnostic', schoolCode, pin),
+  getConnectionLogs: () => ipcRenderer.invoke('get-connection-logs'),
+  onConnectionLog: (callback) => {
+    ipcRenderer.on('connection-log', (event, log) => callback(log));
   }
 });
