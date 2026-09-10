@@ -10,43 +10,21 @@ export default async function TrackingPage() {
 
   const today = new Date().toISOString().split("T")[0];
 
-  // Get classes relevant to this user
-  let teacherClassIds: string[] | null = null;
-  if (profile.role === "ogretmen") {
-    const { data: tc } = await supabase.from("teacher_classes").select("class_id").eq("teacher_id", user!.id);
-    teacherClassIds = tc?.map((t) => t.class_id) || [];
-  }
-
+  // Okuldaki tüm aktif sınıflar (her öğretmen tüm sınıflara erişebilir)
   let classesQuery = supabase.from("classes").select("*").neq("is_active", false).order("name");
-  if (profile.role === "ogretmen" && teacherClassIds) {
-    if (teacherClassIds.length > 0) {
-      classesQuery = classesQuery.in("id", teacherClassIds);
-    } else {
-      classesQuery = classesQuery.eq("id", "00000000-0000-0000-0000-000000000000");
-    }
-  } else if (profile.role !== "super_admin" && profile.school_id) {
+  if (profile.role !== "super_admin" && profile.school_id) {
     classesQuery = classesQuery.eq("school_id", profile.school_id);
   }
 
-  // Get students for those classes
+  // Okuldaki tüm aktif öğrenciler
   let studentsQuery = supabase
     .from("students")
     .select("*, classes!inner(name)")
     .eq("is_active", true)
     .order("full_name");
 
-  if (profile.role === "super_admin") {
-    // All active students
-  } else if (profile.school_id) {
+  if (profile.role !== "super_admin" && profile.school_id) {
     studentsQuery = studentsQuery.eq("school_id", profile.school_id);
-  }
-
-  if (profile.role === "ogretmen" && teacherClassIds) {
-    if (teacherClassIds.length > 0) {
-      studentsQuery = studentsQuery.in("class_id", teacherClassIds);
-    } else {
-      studentsQuery = studentsQuery.eq("class_id", "00000000-0000-0000-0000-000000000000");
-    }
   }
 
   // Get books for inline assignment
