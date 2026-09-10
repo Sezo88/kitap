@@ -118,6 +118,12 @@ function createWindow() {
   mainWindow.show();
   mainWindow.focus();
 
+  mainWindow.webContents.on('did-finish-load', () => {
+    if (schoolId) {
+      mainWindow.webContents.send('supabase-status', true);
+    }
+  });
+
   // Pencere kapatıldığında tray'e minimize et
   mainWindow.on('close', (event) => {
     if (!app.isQuitting) {
@@ -934,9 +940,17 @@ ipcMain.handle('reconnect-supabase', async (event, schoolCode, pin) => {
         store.set('settings.schoolId', data.schoolId);
         store.set('settings.schoolCode', cleanCode);
         setupSupabase();
+        if (mainWindow) {
+          mainWindow.webContents.send('supabase-status', true);
+        }
         return { success: true, schoolName: data.schoolName };
-      } else if (data.error && (data.error.includes('hatalı') || data.error.includes('Okul kodu'))) {
+      } else if (data.error) {
         return { success: false, error: data.error };
+      }
+    } else {
+      const errData = await proxyRes.json().catch(() => null);
+      if (errData && errData.error) {
+        return { success: false, error: errData.error };
       }
     }
   } catch (proxyErr) {

@@ -13,6 +13,8 @@ interface Props {
   schoolId: string;
   userId: string;
   initialCommands: any[];
+  schoolCode?: string;
+  schoolName?: string;
 }
 
 const COMMAND_LABELS: Record<string, { label: string; icon: typeof Bell; color: string }> = {
@@ -25,7 +27,7 @@ const COMMAND_LABELS: Record<string, { label: string; icon: typeof Bell; color: 
   unmute_bell: { label: "Uzaktan Zilleri Aç", icon: Bell, color: "text-emerald-600 bg-emerald-100" },
 };
 
-export function BellControlClient({ schoolId, userId, initialCommands }: Props) {
+export function BellControlClient({ schoolId, userId, initialCommands, schoolCode, schoolName }: Props) {
   const [commands, setCommands] = useState(initialCommands);
   const [sending, setSending] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
@@ -88,6 +90,27 @@ export function BellControlClient({ schoolId, userId, initialCommands }: Props) 
     }
   }
 
+  async function handleClearPin() {
+    if (!confirm("Zil API PIN korumasını kaldırmak istediğinize emin misiniz? PIN kaldırıldığında okul bilgisayarından sadece Okul Kodu ile bağlantı kurulabilecektir.")) return;
+    setPinSaving(true);
+    try {
+      const res = await fetch("/api/panel/bell-pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ schoolId, pin: "clear" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "PIN kaldırılamadı");
+      toast("Zil API PIN başarıyla kaldırıldı!", "success");
+      setHasPin(false);
+      setPinInput("");
+    } catch (err: any) {
+      toast("Hata: " + err.message, "error");
+    } finally {
+      setPinSaving(false);
+    }
+  }
+
   async function triggerCommand(commandType: string) {
     setSending(commandType);
     const supabase = createClient();
@@ -142,6 +165,33 @@ export function BellControlClient({ schoolId, userId, initialCommands }: Props) 
 
   return (
     <div className="space-y-6">
+      {/* Okul Zil Sistemi Bağlantı Bilgisi */}
+      <div className="p-4 rounded-xl border border-blue-500/20 bg-blue-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <span className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">🏫 Okul Zil Sistemi Masaüstü Bağlantısı</span>
+          <div className="flex items-center gap-3 mt-1.5">
+            <span className="text-sm font-semibold text-foreground">Okul Kodu:</span>
+            <code className="text-2xl font-black bg-background border border-border px-3.5 py-1 rounded-lg text-primary tracking-widest select-all shadow-sm">
+              {schoolCode || "Belirtilmedi"}
+            </code>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1.5">
+            Okul bilgisayarındaki zil programının <strong>Ayarlar</strong> sekmesindeki <strong>Okul Kodu</strong> alanına yukarıdaki <strong>{schoolCode || "kodu"}</strong> ve aşağıda belirlediğiniz PIN'i girin.
+          </p>
+        </div>
+        <div className="flex flex-col sm:items-end gap-1.5 shrink-0">
+          <Badge
+            variant={onlineStatus ? "success" : "outline"}
+            className={`text-xs py-1 px-2.5 ${onlineStatus ? "bg-emerald-100 text-emerald-800 border-emerald-300" : "bg-slate-100 text-slate-500 border-slate-300"}`}
+          >
+            {onlineStatus ? "🟢 Zil Programı Aktif" : "🔴 Zil Programı Çevrimdışı"}
+          </Badge>
+          <span className="text-[11px] text-muted-foreground">
+            {onlineStatus ? "Okul bilgisayarı canlı ve bağlı" : "Zil programı açık değil veya eşleşmedi"}
+          </span>
+        </div>
+      </div>
+
       {/* Komut Butonları */}
       <Card>
         <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3">
@@ -208,12 +258,12 @@ export function BellControlClient({ schoolId, userId, initialCommands }: Props) 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-muted-foreground mt-3 pt-3 border-t border-muted/50">
             <span>⚡ Bu butonlar Electron zil uygulamasına komut gönderir. Uygulama çalışıyorsa ilgili sesi otomatik çalar.</span>
             <a 
-              href="https://github.com/Sezo88/kitap/raw/main/public/downloads/Okul_Zil_Sistemi_Setup_1.0.9.exe" 
+              href="https://github.com/Sezo88/kitap/raw/main/public/downloads/Okul_Zil_Sistemi_Setup_1.1.0.exe" 
               className="inline-flex items-center gap-1.5 text-primary hover:underline font-semibold shrink-0"
               target="_blank"
               rel="noopener noreferrer"
             >
-              ⬇️ Zil Programını İndir (.exe) - v1.0.9 (MEB Güvenli Proxy)
+              ⬇️ Zil Programını İndir (.exe) - v1.1.0 (MEB Güvenli Proxy)
             </a>
           </div>
         </CardContent>
@@ -233,7 +283,7 @@ export function BellControlClient({ schoolId, userId, initialCommands }: Props) 
             {hasPin ? (
               <span className="flex items-center gap-1"><CheckCircle className="h-3 w-3" /> PIN Belirlendi</span>
             ) : (
-              <span className="flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> PIN Belirlenmedi (Güvenlik Riski)</span>
+              <span className="flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> PIN Belirlenmedi (Sadece Okul Kodu Yeterli)</span>
             )}
           </Badge>
         </CardHeader>
@@ -250,12 +300,26 @@ export function BellControlClient({ schoolId, userId, initialCommands }: Props) 
                 className="w-full pl-9 pr-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
-            <Button type="submit" size="sm" disabled={pinSaving} className="shrink-0 font-medium">
-              {pinSaving ? "Kaydediliyor..." : hasPin ? "PIN'i Güncelle" : "PIN Oluştur"}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button type="submit" size="sm" disabled={pinSaving} className="shrink-0 font-medium">
+                {pinSaving ? "Kaydediliyor..." : hasPin ? "PIN'i Güncelle" : "PIN Oluştur"}
+              </Button>
+              {hasPin && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={pinSaving}
+                  onClick={handleClearPin}
+                  className="shrink-0 font-medium text-destructive hover:text-destructive hover:bg-destructive/10"
+                >
+                  PIN'i Kaldır
+                </Button>
+              )}
+            </div>
           </form>
           <p className="text-xs text-muted-foreground mt-2">
-            * Okul bilgisayarındaki Zil uygulaması ilk eşleştirme anında bu PIN'i soracaktır. PIN belirlenmezse geçiş döneminde sadece Okul Kodu ile bağlantı kurulabilir.
+            * Okul bilgisayarındaki Zil uygulaması eşleştirme anında bu PIN'i soracaktır. PIN kaldırılırsa bilgisayardan sadece <strong>Okul Kodu ({schoolCode || "737454"})</strong> ile bağlanılabilir.
           </p>
         </CardContent>
       </Card>

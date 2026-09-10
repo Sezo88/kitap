@@ -33,32 +33,103 @@ export async function POST(req: NextRequest) {
     if (action === "resolve-school") {
       const { schoolCode, pin } = body;
       if (!schoolCode) {
-        return NextResponse.json({ success: false, error: "Okul kodu boş olamaz." }, { status: 400 });
+        return NextResponse.json({ success: false, error: "Okul kodu veya adı boş olamaz." }, { status: 400 });
       }
 
-      const { data: schoolsList, error: err } = await supabase.rpc(
-        "resolve_school_code_secure",
-        {
-          p_code: String(schoolCode).trim().toUpperCase(),
-          p_pin: pin ? String(pin).trim() : null,
-        }
-      );
+      const cleanCode = String(schoolCode).trim();
+      const cleanPin = pin ? String(pin).trim() : null;
 
-      if (err || !schoolsList || schoolsList.length === 0) {
+      // 1. Okulu Esnek Ara (Okul Kodu, UUID veya Okul Adı)
+      let school: any = null;
+
+      // a) Önce code ile tam eşleşme ara (örn: 737454)
+      const { data: byCode } = await supabase
+        .from("schools")
+        .select("id, name, code, bell_api_pin_hash, pano_pin, license_expires_at, feature_bell")
+        .eq("code", cleanCode.toUpperCase())
+        .limit(1);
+
+      if (byCode && byCode.length > 0) {
+        school = byCode[0];
+      }
+
+      // b) Bulunamadıysa UUID ile ara
+      if (!school && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanCode)) {
+        const { data: byId } = await supabase
+          .from("schools")
+          .select("id, name, code, bell_api_pin_hash, pano_pin, license_expires_at, feature_bell")
+          .eq("id", cleanCode)
+          .limit(1);
+        if (byId && byId.length > 0) {
+          school = byId[0];
+        }
+      }
+
+      // c) Bulunamadıysa Okul İsmi ile ara
+      if (!school) {
+        const { data: byName } = await supabase
+          .from("schools")
+          .select("id, name, code, bell_api_pin_hash, pano_pin, license_expires_at, feature_bell")
+          .ilike("name", `%${cleanCode}%`)
+          .limit(1);
+        if (byName && byName.length > 0) {
+          school = byName[0];
+        }
+      }
+
+      if (!school) {
         return NextResponse.json({
           success: false,
-          error: "Okul kodu veya PIN hatalı.",
+          error: `'${cleanCode}' bilgisine ait okul bulunamadı. Lütfen web panelindeki Okul Kodunu (örn: 737454) girin.`,
         });
       }
 
-      const school = schoolsList[0];
-      const schoolId = school.school_id || school.id;
-      const schoolName = school.school_name || school.name || "Okul";
+      // 2. PIN Doğrulama
+      let pinValid = false;
+      const hasPinHash = Boolean(school.bell_api_pin_hash && school.bell_api_pin_hash.trim().length > 0);
+
+      if (!hasPinHash) {
+        // Okul için PIN belirlenmemiş -> Girişe izin ver
+        pinValid = true;
+      } else {
+        if (!cleanPin) {
+          return NextResponse.json({
+            success: false,
+            error: `Bu okul (${school.name}) için güvenlik PIN'i belirlenmiştir. Lütfen zil uygulamasında Zil API PIN alanını da doldurun.`,
+          });
+        }
+
+        // Pano PIN'i ile eşleşiyorsa izin ver
+        if (school.pano_pin && cleanPin === school.pano_pin) {
+          pinValid = true;
+        }
+
+        // resolve_school_code_secure RPC ile dene
+        if (!pinValid) {
+          const { data: rpcList } = await supabase.rpc(
+            "resolve_school_code_secure",
+            {
+              p_code: school.code,
+              p_pin: cleanPin,
+            }
+          );
+          if (rpcList && rpcList.length > 0) {
+            pinValid = true;
+          }
+        }
+      }
+
+      if (!pinValid) {
+        return NextResponse.json({
+          success: false,
+          error: `Okul bulundu (${school.name}), ancak girdiğiniz PIN eşleşmedi. Lütfen web panelinde belirlediğiniz PIN'i girin.`,
+        });
+      }
 
       return NextResponse.json({
         success: true,
-        schoolId,
-        schoolName,
+        schoolId: school.id,
+        schoolName: school.name,
       });
     }
 

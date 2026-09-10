@@ -135,8 +135,19 @@ const App = {
 
     // Supabase ayarlarını yükle
     const schoolCode = await Storage.get('settings.schoolCode');
+    const schoolId = await Storage.get('settings.schoolId');
     const inputSchool = document.getElementById('school-id');
     if (inputSchool && schoolCode) inputSchool.value = schoolCode;
+
+    if (schoolId) {
+      const dot = document.getElementById('supabase-dot');
+      const text = document.getElementById('supabase-text');
+      if (dot && text) {
+        dot.style.background = '#4CAF50';
+        dot.style.boxShadow = '0 0 5px #4CAF50';
+        text.textContent = 'Bağlantı Kuruldu';
+      }
+    }
   },
   
   /**
@@ -618,6 +629,13 @@ const App = {
         const res = await window.electronAPI.reconnectSupabase(schoolCode, pin);
         if (res.success) {
           UI.showToast(`✅ ${res.schoolName} okuluna başarıyla bağlanıldı!`, 'success');
+          const dot = document.getElementById('supabase-dot');
+          const text = document.getElementById('supabase-text');
+          if (dot && text) {
+            dot.style.background = '#4CAF50';
+            dot.style.boxShadow = '0 0 5px #4CAF50';
+            text.textContent = 'Bağlantı Kuruldu';
+          }
         } else {
           UI.showToast(`❌ Hata: ${res.error}`, 'error');
         }

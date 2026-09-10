@@ -34,6 +34,8 @@ export default async function BellControlPage() {
         schoolId={profile.school_id}
         userId={user!.id}
         initialCommands={recentCommands || []}
+        schoolCode={school?.code || ""}
+        schoolName={school?.name || "Okul"}
       />
     </div>
   );
