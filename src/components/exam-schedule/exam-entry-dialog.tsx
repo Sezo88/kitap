@@ -42,7 +42,7 @@ export function ExamEntryDialog({
   role,
   onSaved,
 }: Props) {
-  const [gradeLevel, setGradeLevel] = useState<number>(defaultGrade || gradeLevels[0] || 5);
+  const [gradeLevel, setGradeLevel] = useState<number | "ALL">(defaultGrade || gradeLevels[0] || 5);
   const [subjectId, setSubjectId] = useState<string>("");
   const [examDate, setExamDate] = useState<string>(defaultDate || "");
   const [lessonPeriod, setLessonPeriod] = useState<number>(2);
@@ -66,33 +66,50 @@ export function ExamEntryDialog({
       setNotes(editingSchedule.notes || "");
       setDeleteConfirm(false);
     } else {
-      setGradeLevel(defaultGrade || gradeLevels[0] || 5);
+      setGradeLevel(defaultGrade || (gradeLevels.length > 1 ? "ALL" : gradeLevels[0]) || 5);
       setSubjectId(subjects[0]?.id || "");
       setExamDate(defaultDate || allowedDates[0] || "");
       setLessonPeriod(2);
       setNotes("");
       setDeleteConfirm(false);
     }
-  }, [editingSchedule, defaultGrade, defaultDate, subjects, allowedDates, open]);
+  }, [editingSchedule, defaultGrade, defaultDate, subjects, allowedDates, gradeLevels, open]);
 
-  // Seçilen kademenin seçilen tarihteki mevcut sınavları (düzenlenen hariç)
-  const currentGradeExamsOnDate = useMemo(() => {
-    if (!examDate || !gradeLevel) return [];
-    return existingSchedules.filter(
-      (s) =>
-        s.period_id === period.id &&
-        s.grade_level === Number(gradeLevel) &&
-        s.exam_date === examDate &&
-        s.id !== editingSchedule?.id
-    );
-  }, [existingSchedules, period.id, gradeLevel, examDate, editingSchedule]);
+  // Çakışan kademeleri kontrol et
+  const targetGrades = useMemo(() => {
+    return gradeLevel === "ALL" ? gradeLevels : [Number(gradeLevel)];
+  }, [gradeLevel, gradeLevels]);
 
-  const isDayFull = currentGradeExamsOnDate.length >= (period.max_exams_per_day || 2);
+  const gradesWithFullDay = useMemo(() => {
+    if (!examDate) return [];
+    return targetGrades.filter((g) => {
+      const count = existingSchedules.filter(
+        (s) =>
+          s.period_id === period.id &&
+          s.grade_level === g &&
+          s.exam_date === examDate &&
+          s.id !== editingSchedule?.id
+      ).length;
+      return count >= (period.max_exams_per_day || 2);
+    });
+  }, [existingSchedules, period.id, period.max_exams_per_day, targetGrades, examDate, editingSchedule]);
 
-  // Aynı ders saatinde başka bir sınav var mı?
-  const isLessonPeriodConflict = currentGradeExamsOnDate.some(
-    (s) => s.lesson_period === Number(lessonPeriod)
-  );
+  const gradesWithPeriodConflict = useMemo(() => {
+    if (!examDate) return [];
+    return targetGrades.filter((g) => {
+      return existingSchedules.some(
+        (s) =>
+          s.period_id === period.id &&
+          s.grade_level === g &&
+          s.exam_date === examDate &&
+          s.lesson_period === Number(lessonPeriod) &&
+          s.id !== editingSchedule?.id
+      );
+    });
+  }, [existingSchedules, period.id, targetGrades, examDate, lessonPeriod, editingSchedule]);
+
+  const isDayFull = gradesWithFullDay.length > 0;
+  const isLessonPeriodConflict = gradesWithPeriodConflict.length > 0;
 
   async function handleSave() {
     if (!subjectId) {
@@ -111,7 +128,7 @@ export function ExamEntryDialog({
     // Kota kontrolü
     if (isDayFull) {
       toast(
-        `Bu tarihte ${gradeLevel}. sınıflar için maksimum sınav limitine (${period.max_exams_per_day} sınav) ulaşıldı! Lütfen başka bir gün seçin.`,
+        `Bu tarihte ${gradesWithFullDay.join(", ")}. sınıflar için maksimum sınav limitine (${period.max_exams_per_day} sınav) ulaşıldı! Lütfen başka bir gün seçin.`,
         "error"
       );
       return;
@@ -119,7 +136,7 @@ export function ExamEntryDialog({
 
     if (isLessonPeriodConflict) {
       toast(
-        `Bu tarihte ${gradeLevel}. sınıflar için ${lessonPeriod}. derste zaten başka bir sınav planlanmış!`,
+        `Bu tarihte ${gradesWithPeriodConflict.join(", ")}. sınıflar için ${lessonPeriod}. derste zaten başka bir sınav planlanmış!`,
         "error"
       );
       return;
@@ -129,19 +146,19 @@ export function ExamEntryDialog({
     const supabase = createClient();
 
     try {
-      const payload = {
-        school_id: schoolId,
-        period_id: period.id,
-        grade_level: Number(gradeLevel),
-        subject_id: subjectId,
-        exam_date: examDate,
-        lesson_period: Number(lessonPeriod),
-        teacher_id: userId,
-        notes: notes.trim() || null,
-        updated_at: new Date().toISOString(),
-      };
-
       if (editingSchedule) {
+        const payload = {
+          school_id: schoolId,
+          period_id: period.id,
+          grade_level: Number(gradeLevel),
+          subject_id: subjectId,
+          exam_date: examDate,
+          lesson_period: Number(lessonPeriod),
+          teacher_id: userId,
+          notes: notes.trim() || null,
+          updated_at: new Date().toISOString(),
+        };
+
         const { data, error } = await supabase
           .from("exam_schedules")
           .update(payload)
@@ -152,7 +169,64 @@ export function ExamEntryDialog({
         if (error) throw error;
         toast("Sınav tarihi başarıyla güncellendi", "success");
         onSaved(data as ExamScheduleWithDetails);
+      } else if (gradeLevel === "ALL") {
+        // Tüm kademeler için toplu kaydet
+        let savedCount = 0;
+        for (const g of gradeLevels) {
+          const payload = {
+            school_id: schoolId,
+            period_id: period.id,
+            grade_level: g,
+            subject_id: subjectId,
+            exam_date: examDate,
+            lesson_period: Number(lessonPeriod),
+            teacher_id: userId,
+            notes: notes.trim() || null,
+            updated_at: new Date().toISOString(),
+          };
+
+          // Var olan varsa güncelle, yoksa ekle
+          const existing = existingSchedules.find(
+            (s) => s.period_id === period.id && s.grade_level === g && s.subject_id === subjectId
+          );
+
+          if (existing) {
+            const { data, error } = await supabase
+              .from("exam_schedules")
+              .update(payload)
+              .eq("id", existing.id)
+              .select("*, subjects(name), profiles(full_name)")
+              .single();
+            if (!error && data) {
+              onSaved(data as ExamScheduleWithDetails);
+              savedCount++;
+            }
+          } else {
+            const { data, error } = await supabase
+              .from("exam_schedules")
+              .insert(payload)
+              .select("*, subjects(name), profiles(full_name)")
+              .single();
+            if (!error && data) {
+              onSaved(data as ExamScheduleWithDetails);
+              savedCount++;
+            }
+          }
+        }
+        toast(`Tüm kademeler (${gradeLevels.join(", ")}. Sınıflar) için sınav takvime eklendi (${savedCount} kayıt)`, "success");
       } else {
+        const payload = {
+          school_id: schoolId,
+          period_id: period.id,
+          grade_level: Number(gradeLevel),
+          subject_id: subjectId,
+          exam_date: examDate,
+          lesson_period: Number(lessonPeriod),
+          teacher_id: userId,
+          notes: notes.trim() || null,
+          updated_at: new Date().toISOString(),
+        };
+
         const { data, error } = await supabase
           .from("exam_schedules")
           .insert(payload)
@@ -234,10 +308,15 @@ export function ExamEntryDialog({
             </Label>
             <Select
               value={String(gradeLevel)}
-              onChange={(e) => setGradeLevel(Number(e.target.value))}
+              onChange={(e) => setGradeLevel(e.target.value === "ALL" ? "ALL" : Number(e.target.value))}
               disabled={!!editingSchedule}
-              className="h-10"
+              className="h-10 font-medium"
             >
+              {!editingSchedule && (
+                <option value="ALL">
+                  🌟 Tüm Kademeler ({gradeLevels.join(", ")}. Sınıflar)
+                </option>
+              )}
               {gradeLevels.map((gl) => (
                 <option key={gl} value={gl}>
                   {gl}. Sınıflar (Tüm Şubeler)
@@ -281,15 +360,22 @@ export function ExamEntryDialog({
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto p-2 bg-slate-50 dark:bg-slate-900/40 rounded-xl border">
             {allowedDates.map((dateStr) => {
-              const count = existingSchedules.filter(
-                (s) =>
-                  s.period_id === period.id &&
-                  s.grade_level === Number(gradeLevel) &&
-                  s.exam_date === dateStr &&
-                  s.id !== editingSchedule?.id
-              ).length;
+              const targetGradesList = gradeLevel === "ALL" ? gradeLevels : [Number(gradeLevel)];
+              const maxCountInGrades = Math.max(
+                0,
+                ...targetGradesList.map((g) =>
+                  existingSchedules.filter(
+                    (s) =>
+                      s.period_id === period.id &&
+                      s.grade_level === g &&
+                      s.exam_date === dateStr &&
+                      s.id !== editingSchedule?.id
+                  ).length
+                )
+              );
               const isSelected = examDate === dateStr;
-              const full = count >= (period.max_exams_per_day || 2);
+              const full = maxCountInGrades >= (period.max_exams_per_day || 2);
+              const count = maxCountInGrades;
 
               return (
                 <button

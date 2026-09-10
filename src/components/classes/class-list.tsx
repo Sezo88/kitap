@@ -31,9 +31,12 @@ export function ClassList({ classes: initialClasses, teachers, role, schoolId }:
   const [quizPin, setQuizPin] = useState("");
   const [assignedTeacher, setAssignedTeacher] = useState("");
   const [showInactive, setShowInactive] = useState(false);
+  const [selectedGradeFilter, setSelectedGradeFilter] = useState<string>("ALL");
   const [isActive, setIsActive] = useState(true);
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
+
+  const uniqueGrades = Array.from(new Set(classes.map((c) => c.grade_level))).sort((a, b) => a - b);
 
   const canEdit = role === "super_admin" || role === "idareci";
 
@@ -122,15 +125,32 @@ export function ClassList({ classes: initialClasses, teachers, role, schoolId }:
     toast("Sınıf silindi", "success");
   }
 
-  const displayedClasses = classes.filter((c) => showInactive || c.is_active !== false);
+  const displayedClasses = classes.filter((c) => {
+    if (!showInactive && c.is_active === false) return false;
+    if (selectedGradeFilter !== "ALL" && c.grade_level !== Number(selectedGradeFilter)) return false;
+    return true;
+  });
 
   return (
     <>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <p className="text-sm text-muted-foreground">
             {displayedClasses.length} sınıf listeleniyor ({classes.filter(c => c.is_active !== false).length} aktif)
           </p>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground font-medium">Kademe:</span>
+            <Select
+              value={selectedGradeFilter}
+              onChange={(e) => setSelectedGradeFilter(e.target.value)}
+              className="h-8 text-xs w-36 font-semibold"
+            >
+              <option value="ALL">Tüm Kademeler</option>
+              {uniqueGrades.map((g) => (
+                <option key={g} value={g}>{g}. Sınıf</option>
+              ))}
+            </Select>
+          </div>
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
             <input
               type="checkbox"
