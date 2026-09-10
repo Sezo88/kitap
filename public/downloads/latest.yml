@@ -1,8 +1,8 @@
-version: 1.0.8
+version: 1.0.9
 files:
-  - url: Okul_Zil_Sistemi_Setup_1.0.8.exe
-    sha512: nVpUKpVLZGRTQq0btIMflU3d9ECHlp43fYrLgzvkUOQo2odQIhdhNnvEe1q0B5i6+UOQeFfxD8L3nGAnppA0/A==
-    size: 97722187
-path: Okul_Zil_Sistemi_Setup_1.0.8.exe
-sha512: nVpUKpVLZGRTQq0btIMflU3d9ECHlp43fYrLgzvkUOQo2odQIhdhNnvEe1q0B5i6+UOQeFfxD8L3nGAnppA0/A==
-releaseDate: '2026-09-09T14:35:44.015Z'
+  - url: Okul_Zil_Sistemi_Setup_1.0.9.exe
+    sha512: BewZFBeuVHSH9gy31ZlNWbVV2/41fEDj5A2KceGrRgbGF4L6bOs7csgSxvp4Tr8gHgmxbmnkOHS8gygzwNRPqw==
+    size: 97722802
+path: Okul_Zil_Sistemi_Setup_1.0.9.exe
+sha512: BewZFBeuVHSH9gy31ZlNWbVV2/41fEDj5A2KceGrRgbGF4L6bOs7csgSxvp4Tr8gHgmxbmnkOHS8gygzwNRPqw==
+releaseDate: '2026-09-10T07:41:23.797Z'

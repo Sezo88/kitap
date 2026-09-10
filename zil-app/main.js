@@ -640,13 +640,16 @@ ipcMain.handle('get-auto-start', () => {
   return store.get('settings.autoStart', true);
 });
 
-// Supabase Değişkenleri
+// Supabase & MEB Proxy Değişkenleri
 let supabase = null;
 let schoolId = null;
+const DEFAULT_API_URL = 'https://oyp.vercel.app';
+const getApiUrl = () => store.get('settings.apiUrl') || DEFAULT_API_URL;
 const DEFAULT_SUPABASE_URL = 'https://cfkyfqmruruwiyffossq.supabase.co';
 const DEFAULT_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNma3lmcW1ydXJ1d2l5ZmZvc3NxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzMDgxOTAsImV4cCI6MjA5Nzg4NDE5MH0.ZjFqPPiZOD6Bw0Ok8wiBfqgSjxYBebXsLayXJSMTw4Y';
 
 let bellCommandsSubscription = null;
+let commandPollingInterval = null;
 
 function setupSupabase() {
   let supabaseUrl = store.get('settings.supabaseUrl') || DEFAULT_SUPABASE_URL;
@@ -687,27 +690,30 @@ function setupSupabase() {
     }
   }
 
+  // 1. Doğrudan Supabase İstemcisi Başlatmayı Dene (Engelsiz ağlarda WebSocket Realtime için)
   if (supabaseUrl && supabaseKey) {
     try {
       supabase = createClient(supabaseUrl, supabaseKey, {
         auth: { persistSession: false }
       });
       console.log('Supabase client initialized.');
-      if (schoolId) {
-        listenToBellCommands();
-        startHeartbeat();
-        processPendingCommands();
-        
-        // Supabase Realtime'a ek olarak, gecikmeleri önlemek için 3 saniyede bir yedek kontrol (polling) yap
-        setInterval(processPendingCommands, 3000);
-      } else {
-        console.warn('School ID not set. Realtime listener, heartbeat, and pending checker not started.');
-      }
     } catch (err) {
-      console.error('Supabase initialization failed:', err);
+      console.warn('Supabase direct client initialization warning:', err.message);
+    }
+  }
+
+  // 2. Okul ID kayıtlı ise Heartbeat ve Komut Dinlemeyi Başlat (MEB Proxy hem de Realtime üzerinden)
+  if (schoolId) {
+    listenToBellCommands();
+    startHeartbeat();
+    processPendingCommands();
+    
+    // MEB ağlarında Realtime engelli olabileceğinden, 3 saniyede bir MEB Proxy polling çalıştır
+    if (!commandPollingInterval) {
+      commandPollingInterval = setInterval(processPendingCommands, 3000);
     }
   } else {
-    console.warn('Supabase credentials not configured.');
+    console.warn('School ID not set. Realtime listener, heartbeat, and pending checker not started.');
   }
 }
 
@@ -726,28 +732,94 @@ function startHeartbeat() {
 }
 
 async function sendHeartbeat() {
+  if (!schoolId) return;
+  const bellsEnabled = store.get('settings.bellsEnabled', true);
+
+  // 1. MEB Güvenli Proxy (oyp.vercel.app) üzerinden dene (ÖNCELİKLİ)
+  try {
+    const apiUrl = getApiUrl();
+    const res = await fetch(`${apiUrl}/api/zil-proxy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'heartbeat',
+        schoolId: schoolId,
+        bellsEnabled: bellsEnabled
+      })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success) {
+        console.log(`[MEB Proxy] Heartbeat başarıyla gönderildi (Ziller aktif: ${bellsEnabled}).`);
+        if (mainWindow) {
+          mainWindow.webContents.send('supabase-status', true);
+        }
+        return;
+      }
+    }
+  } catch (proxyErr) {
+    console.warn('[MEB Proxy] Heartbeat başarısız, doğrudan Supabase deneniyor:', proxyErr.message);
+  }
+
+  // 2. Doğrudan Supabase İstemcisi üzerinden dene (FALLBACK)
   if (supabase && schoolId) {
     try {
-      const bellsEnabled = store.get('settings.bellsEnabled', true);
       const { error } = await supabase.rpc('bell_heartbeat', { 
         p_school_id: schoolId,
         p_bell_active: bellsEnabled
       });
       if (error) {
-        console.error('Heartbeat gönderim hatası:', error.message);
+        console.error('Doğrudan heartbeat hatası:', error.message);
       } else {
-        console.log(`Heartbeat başarıyla gönderildi (Ziller aktif: ${bellsEnabled}).`);
+        console.log(`[Doğrudan Supabase] Heartbeat başarıyla gönderildi.`);
+        if (mainWindow) {
+          mainWindow.webContents.send('supabase-status', true);
+        }
       }
     } catch (err) {
-      console.error('Heartbeat gönderimi sırasında istisna:', err.message);
+      console.error('Doğrudan heartbeat sırasında istisna:', err.message);
     }
   }
 }
 
 async function processPendingCommands() {
+  if (!schoolId) return;
+
+  // 1. MEB Güvenli Proxy üzerinden bekleyen komutları çek (ÖNCELİKLİ)
+  try {
+    const apiUrl = getApiUrl();
+    const res = await fetch(`${apiUrl}/api/zil-proxy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'poll-commands',
+        schoolId: schoolId
+      })
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success) {
+        if (mainWindow) {
+          mainWindow.webContents.send('supabase-status', true);
+        }
+
+        if (data.latestCommand) {
+          console.log(`[MEB Proxy] Uzaktan komut tetiklendi:`, data.latestCommand.command_type);
+          if (mainWindow) {
+            mainWindow.webContents.send('remote-command', data.latestCommand);
+          }
+        }
+        return; // Proxy başarılıysa doğrudan sorgulamaya gerek yok
+      }
+    }
+  } catch (proxyErr) {
+    // Proxy ulaşılamadıysa alttaki doğrudan Supabase denenecek
+  }
+
+  // 2. Doğrudan Supabase üzerinden çek (FALLBACK)
   if (!supabase || !schoolId) return;
 
-  console.log('Bekleyen komutlar kontrol ediliyor...');
   try {
     const { data: pendingCmds, error } = await supabase
       .from('bell_commands')
@@ -764,26 +836,20 @@ async function processPendingCommands() {
     if (pendingCmds && pendingCmds.length > 0) {
       console.log(`${pendingCmds.length} adet bekleyen komut onaylanıyor (acknowledged)...`);
       
-      // Tüm bekleyen komutların ID'lerini al
       const cmdIds = pendingCmds.map(cmd => cmd.id);
-      
-      // Hepsini tek seferde onaylanmış yap (RPC üzerinden)
       const { error: ackErr } = await supabase.rpc('acknowledge_bell_commands', { p_cmd_ids: cmdIds });
       if (ackErr) {
         console.error('Bekleyen komutlar onaylanırken hata:', ackErr.message);
       }
 
-      // Sadece en son gönderilen komutu çal (ve sadece son 2 dakika içinde gönderildiyse)
       const latestCmd = pendingCmds[pendingCmds.length - 1];
       const diff = Date.now() - new Date(latestCmd.triggered_at || latestCmd.created_at).getTime();
       
-      if (diff < 120000) { // 2 dakika (120 saniye)
+      if (diff < 120000) { // 2 dakika
         console.log(`En son bekleyen komut çalınıyor: ${latestCmd.command_type}`);
         if (mainWindow) {
           mainWindow.webContents.send('remote-command', latestCmd);
         }
-      } else {
-        console.log('Bekleyen komutlar eski olduğu için çalınmadı, sadece alındı olarak işaretlendi.');
       }
     }
   } catch (err) {
@@ -800,72 +866,103 @@ function listenToBellCommands() {
 
   console.log(`Supabase Realtime dinlemesi başlatılıyor. Okul ID: ${schoolId}`);
 
-  bellCommandsSubscription = supabase
-    .channel('public:bell_commands')
-    .on(
-      'postgres_changes',
-      {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'bell_commands',
-        filter: `school_id=eq.${schoolId}`
-      },
-      async (payload) => {
-        const cmd = payload.new;
-        if (cmd && cmd.status === 'pending') {
-          console.log('Uzaktan komut tetiklendi:', cmd.command_type);
-          
-          if (mainWindow) {
-            mainWindow.webContents.send('remote-command', cmd);
-          }
+  try {
+    bellCommandsSubscription = supabase
+      .channel('public:bell_commands')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'bell_commands',
+          filter: `school_id=eq.${schoolId}`
+        },
+        async (payload) => {
+          const cmd = payload.new;
+          if (cmd && cmd.status === 'pending') {
+            console.log('[Realtime] Uzaktan komut tetiklendi:', cmd.command_type);
+            
+            if (mainWindow) {
+              mainWindow.webContents.send('remote-command', cmd);
+            }
 
-          // Komutu 'acknowledged' olarak işaretle (RPC üzerinden)
-          const { error } = await supabase.rpc('acknowledge_bell_commands', { p_cmd_ids: [cmd.id] });
-
-          if (error) {
-            console.error('Komut durumu güncellenirken hata:', error.message);
+            const { error } = await supabase.rpc('acknowledge_bell_commands', { p_cmd_ids: [cmd.id] });
+            if (error) {
+              console.error('Komut durumu güncellenirken hata:', error.message);
+            }
           }
         }
-      }
-    )
-    .subscribe((status) => {
-      console.log(`Supabase Realtime durum: ${status}`);
-      if (mainWindow) {
-        mainWindow.webContents.send('supabase-status', status === 'SUBSCRIBED');
-      }
-    });
+      )
+      .subscribe((status) => {
+        console.log(`Supabase Realtime durum: ${status}`);
+        if (status === 'SUBSCRIBED' && mainWindow) {
+          mainWindow.webContents.send('supabase-status', true);
+        }
+      });
+  } catch (err) {
+    console.warn('Realtime subscription kurulamadı (MEB ağında normaldir):', err.message);
+  }
 }
 
-// Reconnect ve Okul Kodu + PIN Çözümleme Handler'ı
+// Reconnect ve Okul Kodu + PIN Çözümleme Handler'ı (MEB Güvenli Proxy Öncelikli)
 ipcMain.handle('reconnect-supabase', async (event, schoolCode, pin) => {
+  if (!schoolCode) {
+    return { success: false, error: 'Okul kodu boş olamaz.' };
+  }
+
+  const cleanCode = schoolCode.trim().toUpperCase();
+  const cleanPin = pin ? pin.trim() : null;
+  const apiUrl = getApiUrl();
+
+  // 1. MEB Güvenli Proxy (oyp.vercel.app) üzerinden dene (MEB ağındaki filtreyi aşar)
+  try {
+    console.log(`[MEB Proxy] Okul kodu ve PIN çözümleniyor (${apiUrl}/api/zil-proxy)...`);
+    const proxyRes = await fetch(`${apiUrl}/api/zil-proxy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'resolve-school',
+        schoolCode: cleanCode,
+        pin: cleanPin
+      })
+    });
+
+    if (proxyRes.ok) {
+      const data = await proxyRes.json();
+      if (data.success && data.schoolId) {
+        console.log(`[MEB Proxy] Okul başarıyla doğrulandı: ${data.schoolName} (${data.schoolId})`);
+        store.set('settings.schoolId', data.schoolId);
+        store.set('settings.schoolCode', cleanCode);
+        setupSupabase();
+        return { success: true, schoolName: data.schoolName };
+      } else if (data.error && (data.error.includes('hatalı') || data.error.includes('Okul kodu'))) {
+        return { success: false, error: data.error };
+      }
+    }
+  } catch (proxyErr) {
+    console.warn('[MEB Proxy] Bağlantı kurulamadı, doğrudan Supabase deneniyor:', proxyErr.message);
+  }
+
+  // 2. Doğrudan Supabase İstemcisi ile Dene (FALLBACK - Ev / Mobil İnternet için)
   const supabaseUrl = store.get('settings.supabaseUrl') || DEFAULT_SUPABASE_URL;
   const supabaseKey = store.get('settings.supabaseKey') || DEFAULT_SUPABASE_KEY;
 
   if (!store.get('settings.supabaseUrl')) store.set('settings.supabaseUrl', DEFAULT_SUPABASE_URL);
   if (!store.get('settings.supabaseKey')) store.set('settings.supabaseKey', DEFAULT_SUPABASE_KEY);
 
-  if (!supabaseUrl || !supabaseKey) {
-    return { success: false, error: 'Supabase URL veya Anon Key bilgileri eksik.' };
-  }
-
   try {
     const tempClient = createClient(supabaseUrl, supabaseKey, {
       auth: { persistSession: false }
     });
 
-    if (!schoolCode) {
-      return { success: false, error: 'Okul kodu boş olamaz.' };
-    }
-
-    // Okul kodu ve PIN doğrulaması yap (RPC resolve_school_code_secure)
     const { data: schoolsList, error: err } = await tempClient
       .rpc('resolve_school_code_secure', {
-        p_code: schoolCode.trim().toUpperCase(),
-        p_pin: pin ? pin.trim() : null
+        p_code: cleanCode,
+        p_pin: cleanPin
       });
 
     if (err || !schoolsList || schoolsList.length === 0) {
-      return { success: false, error: 'Okul kodu veya PIN hatalı.' };
+      return { success: false, error: 'Okul kodu veya PIN hatalı (veya MEB internet engeli mevcut).' };
     }
 
     const school = schoolsList[0];
@@ -876,15 +973,13 @@ ipcMain.handle('reconnect-supabase', async (event, schoolCode, pin) => {
       return { success: false, error: 'Okul ID bilgisi alınamadı.' };
     }
 
-    // Okul ID ve Kodu kaydet
     store.set('settings.schoolId', schoolId);
-    store.set('settings.schoolCode', schoolCode.trim().toUpperCase());
-    // Supabase bağlantısını yeniden yükle
+    store.set('settings.schoolCode', cleanCode);
     setupSupabase();
     
     return { success: true, schoolName: schoolName };
   } catch (err) {
-    return { success: false, error: err.message };
+    return { success: false, error: 'Bağlantı kurulamadı: ' + err.message };
   }
 });
 

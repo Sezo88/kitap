@@ -69,6 +69,7 @@ export async function updateSession(request: NextRequest) {
     "/gizlilik-politikasi",
     "/ihtiyac",
     "/api/ihtiyac",
+    "/api/zil-proxy",
   ];
   const isPublicPath = publicPaths.some((p) =>
     request.nextUrl.pathname.startsWith(p)
