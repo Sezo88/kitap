@@ -66,7 +66,15 @@ export const MANAGEABLE_PERMISSIONS: TeacherPermissionConfig[] = [
     defaultAllowed: true,
   },
 
-  // Akademik & Program (Varsayılan Kapalı - İdare Açabilir)
+  // Akademik & Program
+  {
+    key: "exam_schedule",
+    label: "Ortak Sınavlar",
+    category: "Akademik & Program",
+    description: "Ortak sınav takvimi görüntüleme ve sınav tarihi belirleme",
+    href: "/dashboard/exam-schedule",
+    defaultAllowed: true,
+  },
   {
     key: "duty_schedule",
     label: "Nöbet Programı",

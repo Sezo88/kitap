@@ -286,4 +286,40 @@ export interface PanelAnnouncement {
   created_at: string;
 }
 
+// ── Ortak Sınav Tipleri ──────────────────────────────────────
 
+export interface ExamPeriod {
+  id: string;
+  school_id: string;
+  name: string;
+  academic_year: string;
+  start_date: string;
+  end_date: string;
+  allowed_dates: string[];
+  max_exams_per_day: number;
+  is_active: boolean;
+  is_published: boolean;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExamSchedule {
+  id: string;
+  school_id: string;
+  period_id: string;
+  grade_level: number;
+  subject_id: string;
+  exam_date: string;
+  lesson_period: number;
+  teacher_id: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExamScheduleWithDetails extends ExamSchedule {
+  subjects?: { name: string } | null;
+  profiles?: { full_name: string } | null;
+}
