@@ -149,18 +149,26 @@ export function ExamScheduleManager({
   }
 
   // Sınav Girişi Kaydedildiğinde
-  function handleScheduleSaved(saved: ExamScheduleWithDetails, isDelete?: boolean) {
-    if (isDelete) {
-      setSchedules(schedules.filter((s) => s.id !== saved.id));
+  function handleScheduleSaved(
+    saved: ExamScheduleWithDetails | ExamScheduleWithDetails[],
+    isDelete?: boolean
+  ) {
+    if (isDelete && !Array.isArray(saved)) {
+      setSchedules((prev) => prev.filter((s) => s.id !== saved.id));
     } else {
-      const index = schedules.findIndex((s) => s.id === saved.id);
-      if (index >= 0) {
-        const updated = [...schedules];
-        updated[index] = saved;
-        setSchedules(updated);
-      } else {
-        setSchedules([saved, ...schedules]);
-      }
+      const items = Array.isArray(saved) ? saved : [saved];
+      setSchedules((prev) => {
+        const updated = [...prev];
+        for (const item of items) {
+          const index = updated.findIndex((s) => s.id === item.id);
+          if (index >= 0) {
+            updated[index] = item;
+          } else {
+            updated.push(item);
+          }
+        }
+        return updated;
+      });
     }
   }
 

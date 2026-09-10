@@ -29,15 +29,28 @@ export function ExamPrintView({
   onOpenWhatsApp,
 }: Props) {
   const [viewMode, setViewMode] = useState<"matrix" | "cards">("matrix");
+  const [hideEmptyDays, setHideEmptyDays] = useState(true);
 
+  // Boş günleri atla veya tüm günleri göster
   const dates = useMemo(() => {
+    // Sınav planlanmış günleri topla
+    const datesWithExams = Array.from(
+      new Set(
+        schedules
+          .filter((s) => s.period_id === period.id)
+          .map((s) => s.exam_date)
+      )
+    ).sort();
+
+    if (hideEmptyDays && datesWithExams.length > 0) {
+      return datesWithExams;
+    }
+
     if (Array.isArray(period.allowed_dates) && period.allowed_dates.length > 0) {
       return period.allowed_dates;
     }
-    // Eğer allowed_dates boşsa takvimdeki tüm tarihleri topla
-    const unique = Array.from(new Set(schedules.map((s) => s.exam_date))).sort();
-    return unique;
-  }, [period.allowed_dates, schedules]);
+    return datesWithExams.length > 0 ? datesWithExams : [];
+  }, [hideEmptyDays, period.allowed_dates, period.id, schedules]);
 
   function handlePrint() {
     window.print();
@@ -58,12 +71,23 @@ export function ExamPrintView({
               Veli Grubu & Baskı Önizleme
             </h3>
             <p className="text-xs text-muted-foreground">
-              Standart excel tablosu yerine velilere ve panoya özel modern tasarım
+              A4 yatay tam sayfa optimizasyonu — boş günler atlanarak sayfaya sığdırılır
             </p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Boş Günleri Gizle Switch */}
+          <label className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer font-bold select-none bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg border">
+            <input
+              type="checkbox"
+              checked={hideEmptyDays}
+              onChange={(e) => setHideEmptyDays(e.target.checked)}
+              className="rounded border-gray-300 text-primary focus:ring-primary w-3.5 h-3.5"
+            />
+            Boş Günleri Atla ({dates.length} Gün Sınavlı)
+          </label>
+
           <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border">
             <button
               type="button"
@@ -120,7 +144,7 @@ export function ExamPrintView({
           }
           @page {
             size: A4 landscape;
-            margin: 8mm 8mm 8mm 8mm;
+            margin: 5mm 5mm 5mm 5mm !important;
           }
           .no-print {
             display: none !important;
@@ -133,6 +157,14 @@ export function ExamPrintView({
             border: none !important;
             box-shadow: none !important;
             background: transparent !important;
+          }
+          table {
+            table-layout: fixed !important;
+            width: 100% !important;
+          }
+          th, td {
+            padding: 3px 4px !important;
+            word-wrap: break-word !important;
           }
           .avoid-break {
             break-inside: avoid !important;
@@ -177,18 +209,18 @@ export function ExamPrintView({
             <table className="w-full border-collapse text-left">
               <thead>
                 <tr className="bg-slate-100/90 dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-800">
-                  <th className="p-3.5 text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider w-32 border-r border-slate-200 dark:border-slate-800 text-center">
+                  <th className="p-3.5 print:p-1 text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider w-32 print:w-20 border-r border-slate-200 dark:border-slate-800 text-center">
                     Sınıf Düzeyi
                   </th>
                   {dates.map((dateStr) => (
                     <th
                       key={dateStr}
-                      className="p-3 text-center border-r last:border-r-0 border-slate-200 dark:border-slate-800 min-w-[130px]"
+                      className="p-3 print:p-1 text-center border-r last:border-r-0 border-slate-200 dark:border-slate-800 min-w-[130px] print:min-w-0 print:w-auto"
                     >
-                      <div className="text-[11px] font-extrabold text-slate-800 dark:text-slate-200 uppercase tracking-tight">
+                      <div className="text-[11px] print:text-[10px] font-extrabold text-slate-800 dark:text-slate-200 uppercase tracking-tight">
                         {formatDayName(dateStr)}
                       </div>
-                      <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                      <div className="text-[10px] print:text-[9px] font-medium text-slate-500 dark:text-slate-400">
                         {dateStr.split("-")[2]} {formatTurkishDate(dateStr).split(" ")[1]}
                       </div>
                     </th>
@@ -203,11 +235,11 @@ export function ExamPrintView({
                       className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"
                     >
                       {/* Sol Kademe Başlığı */}
-                      <td className="p-3.5 border-r border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 text-center">
-                        <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-primary text-primary-foreground font-black text-base shadow-sm">
+                      <td className="p-3.5 print:p-1 border-r border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 text-center">
+                        <div className="inline-flex items-center justify-center w-10 h-10 print:w-7 print:h-7 rounded-xl print:rounded-md bg-primary text-primary-foreground font-black text-base print:text-xs shadow-sm">
                           {grade}
                         </div>
-                        <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300 mt-1">
+                        <div className="text-[11px] print:text-[9px] font-bold text-slate-700 dark:text-slate-300 mt-1 print:mt-0.5">
                           {grade}. Sınıflar
                         </div>
                       </td>
@@ -226,7 +258,7 @@ export function ExamPrintView({
                         return (
                           <td
                             key={dateStr}
-                            className="p-2 border-r last:border-r-0 border-slate-200 dark:border-slate-800 align-top"
+                            className="p-2 print:p-1 border-r last:border-r-0 border-slate-200 dark:border-slate-800 align-top"
                           >
                             {exams.length > 0 ? (
                               <div className="space-y-1.5">

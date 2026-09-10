@@ -267,10 +267,10 @@ export function ExamPeriodDialog({ open, onOpenChange, period, schoolId, onSaved
             <div className="flex items-center justify-between">
               <div>
                 <Label className="text-sm font-bold text-blue-950 dark:text-blue-200">
-                  Günlük Sınav Limiti
+                  Günlük Sınav Limiti (Sınıf Başına)
                 </Label>
                 <p className="text-[11px] text-blue-700 dark:text-blue-300">
-                  Bir sınıfın aynı gün girebileceği en fazla sınav
+                  Bir sınıfın (örn. 6/B) 1 günde girebileceği en fazla sınav
                 </p>
               </div>
               <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-lg border shadow-sm">
@@ -294,7 +294,7 @@ export function ExamPeriodDialog({ open, onOpenChange, period, schoolId, onSaved
               </div>
             </div>
             <p className="text-[10px] text-muted-foreground italic">
-              * MEB standartlarında kademe başına günde en fazla 2 sınav yapılması önerilir.
+              * MEB standartlarında bir sınıf/şube (örn: 6/B, 8/A) günde en fazla 2 sınava girebilir.
             </p>
           </div>
 
