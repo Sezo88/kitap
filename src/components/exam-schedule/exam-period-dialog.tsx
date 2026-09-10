@@ -239,7 +239,7 @@ export function ExamPeriodDialog({ open, onOpenChange, period, schoolId, onSaved
         </div>
 
         {/* Tarih Aralığı */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-border">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl bg-muted/40 border border-border">
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold">Sınav Başlangıç Tarihi *</Label>
             <Input
@@ -266,18 +266,18 @@ export function ExamPeriodDialog({ open, onOpenChange, period, schoolId, onSaved
           <div className="p-4 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 space-y-2">
             <div className="flex items-center justify-between">
               <div>
-                <Label className="text-sm font-bold text-blue-950 dark:text-blue-200">
+                <Label className="text-sm font-bold text-foreground">
                   Günlük Sınav Limiti (Sınıf Başına)
                 </Label>
-                <p className="text-[11px] text-blue-700 dark:text-blue-300">
+                <p className="text-[11px] text-blue-600 dark:text-blue-300">
                   Bir sınıfın (örn. 6/B) 1 günde girebileceği en fazla sınav
                 </p>
               </div>
-              <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-lg border shadow-sm">
+              <div className="flex items-center gap-1.5 bg-card px-3 py-1.5 rounded-lg border border-border shadow-xs">
                 <button
                   type="button"
                   onClick={() => setMaxExamsPerDay(Math.max(1, maxExamsPerDay - 1))}
-                  className="w-6 h-6 flex items-center justify-center font-bold text-base hover:bg-slate-100 rounded"
+                  className="w-6 h-6 flex items-center justify-center font-bold text-base hover:bg-muted text-foreground rounded"
                 >
                   -
                 </button>
@@ -287,7 +287,7 @@ export function ExamPeriodDialog({ open, onOpenChange, period, schoolId, onSaved
                 <button
                   type="button"
                   onClick={() => setMaxExamsPerDay(Math.min(5, maxExamsPerDay + 1))}
-                  className="w-6 h-6 flex items-center justify-center font-bold text-base hover:bg-slate-100 rounded"
+                  className="w-6 h-6 flex items-center justify-center font-bold text-base hover:bg-muted text-foreground rounded"
                 >
                   +
                 </button>
@@ -299,7 +299,7 @@ export function ExamPeriodDialog({ open, onOpenChange, period, schoolId, onSaved
           </div>
 
           {/* Tarih Ekleme Aktif / Pasif */}
-          <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-border flex items-center justify-between">
+          <div className="p-4 rounded-xl bg-muted/40 border border-border flex items-center justify-between">
             <div className="space-y-0.5">
               <Label className="text-sm font-bold">Öğretmen Seçimi</Label>
               <p className="text-[11px] text-muted-foreground">
@@ -349,7 +349,7 @@ export function ExamPeriodDialog({ open, onOpenChange, period, schoolId, onSaved
                 </Button>
               </div>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 max-h-40 overflow-y-auto p-2 bg-slate-50 dark:bg-slate-900/40 rounded-xl border">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 max-h-40 overflow-y-auto p-2 bg-muted/40 rounded-xl border border-border">
               {allPossibleDays.map((dateStr) => {
                 const isSelected = allowedDates.includes(dateStr);
                 return (
@@ -366,7 +366,7 @@ export function ExamPeriodDialog({ open, onOpenChange, period, schoolId, onSaved
                     <span className="text-[10px] uppercase font-semibold">
                       {formatDayName(dateStr)}
                     </span>
-                    <span className="text-sm font-black">
+                    <span className="text-sm font-black text-foreground">
                       {dateStr.split("-")[2]} {formatTurkishDate(dateStr).split(" ")[1]}
                     </span>
                   </button>

@@ -59,7 +59,7 @@ export function ExamPrintView({
   return (
     <div className="space-y-6">
       {/* ── Üst Kontrol Paneli (Yazdırmada Gizlenir: no-print) ── */}
-      <div className="no-print flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-white dark:bg-slate-900 border shadow-sm">
+      <div className="no-print flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-card text-card-foreground border border-border shadow-sm">
         <div className="flex items-center gap-3">
           <Button variant="outline" size="sm" onClick={onBack} className="h-9">
             <ArrowLeft className="w-4 h-4 mr-1.5" />
@@ -78,23 +78,23 @@ export function ExamPrintView({
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Boş Günleri Gizle Switch */}
-          <label className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer font-bold select-none bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg border">
+          <label className="flex items-center gap-1.5 text-xs text-foreground cursor-pointer font-bold select-none bg-muted px-3 py-1.5 rounded-lg border border-border">
             <input
               type="checkbox"
               checked={hideEmptyDays}
               onChange={(e) => setHideEmptyDays(e.target.checked)}
-              className="rounded border-gray-300 text-primary focus:ring-primary w-3.5 h-3.5"
+              className="rounded border-border text-primary focus:ring-primary w-3.5 h-3.5"
             />
             Boş Günleri Atla ({dates.length} Gün Sınavlı)
           </label>
 
-          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border">
+          <div className="flex items-center bg-muted p-1 rounded-lg border border-border">
             <button
               type="button"
               onClick={() => setViewMode("matrix")}
               className={`px-3 py-1 text-xs font-semibold rounded-md flex items-center gap-1.5 transition-all ${
                 viewMode === "matrix"
-                  ? "bg-white dark:bg-slate-900 text-primary shadow-sm"
+                  ? "bg-card text-primary shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -106,7 +106,7 @@ export function ExamPrintView({
               onClick={() => setViewMode("cards")}
               className={`px-3 py-1 text-xs font-semibold rounded-md flex items-center gap-1.5 transition-all ${
                 viewMode === "cards"
-                  ? "bg-white dark:bg-slate-900 text-primary shadow-sm"
+                  ? "bg-card text-primary shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -174,7 +174,7 @@ export function ExamPrintView({
       `}} />
 
       {/* ── BASKI & VELİ GÖRÜNÜMÜ ALANI (print-container) ── */}
-      <div className="print-container bg-white dark:bg-slate-950 p-6 sm:p-8 rounded-3xl border shadow-md space-y-6 text-slate-900 dark:text-slate-100">
+      <div className="print-container bg-card text-card-foreground p-6 sm:p-8 rounded-3xl border border-border shadow-md space-y-6">
         
         {/* 1. ÜST BAŞLIK (OFFICIAL MEB & SCHOOL BANNER) */}
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-6 shadow-inner border border-slate-800">
@@ -205,41 +205,41 @@ export function ExamPrintView({
 
         {/* 2. GÖRÜNÜM 1: TÜM KADEMELER MATRİS TABLOSU (PREMIUM GRID) */}
         {viewMode === "matrix" && (
-          <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900">
+          <div className="overflow-x-auto rounded-2xl border border-border shadow-sm bg-card text-card-foreground">
             <table className="w-full border-collapse text-left">
               <thead>
-                <tr className="bg-slate-100/90 dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-800">
-                  <th className="p-3.5 print:p-1 text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider w-32 print:w-20 border-r border-slate-200 dark:border-slate-800 text-center">
+                <tr className="bg-muted/70 border-b border-border">
+                  <th className="p-3.5 print:p-1 text-xs font-black text-foreground uppercase tracking-wider w-32 print:w-20 border-r border-border text-center">
                     Sınıf Düzeyi
                   </th>
                   {dates.map((dateStr) => (
                     <th
                       key={dateStr}
-                      className="p-3 print:p-1 text-center border-r last:border-r-0 border-slate-200 dark:border-slate-800 min-w-[130px] print:min-w-0 print:w-auto"
+                      className="p-3 print:p-1 text-center border-r border-border last:border-r-0 min-w-[130px] print:min-w-0 print:w-auto"
                     >
-                      <div className="text-[11px] print:text-[10px] font-extrabold text-slate-800 dark:text-slate-200 uppercase tracking-tight">
+                      <div className="text-[11px] print:text-[10px] font-extrabold text-foreground uppercase tracking-tight">
                         {formatDayName(dateStr)}
                       </div>
-                      <div className="text-[10px] print:text-[9px] font-medium text-slate-500 dark:text-slate-400">
+                      <div className="text-[10px] print:text-[9px] font-medium text-muted-foreground">
                         {dateStr.split("-")[2]} {formatTurkishDate(dateStr).split(" ")[1]}
                       </div>
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+              <tbody className="divide-y divide-border">
                 {gradeLevels.map((grade) => {
                   return (
                     <tr
                       key={grade}
-                      className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"
+                      className="hover:bg-muted/30 transition-colors"
                     >
                       {/* Sol Kademe Başlığı */}
-                      <td className="p-3.5 print:p-1 border-r border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 text-center">
+                      <td className="p-3.5 print:p-1 border-r border-border bg-muted/30 text-center">
                         <div className="inline-flex items-center justify-center w-10 h-10 print:w-7 print:h-7 rounded-xl print:rounded-md bg-primary text-primary-foreground font-black text-base print:text-xs shadow-sm">
                           {grade}
                         </div>
-                        <div className="text-[11px] print:text-[9px] font-bold text-slate-700 dark:text-slate-300 mt-1 print:mt-0.5">
+                        <div className="text-[11px] print:text-[9px] font-bold text-foreground mt-1 print:mt-0.5">
                           {grade}. Sınıflar
                         </div>
                       </td>
@@ -258,7 +258,7 @@ export function ExamPrintView({
                         return (
                           <td
                             key={dateStr}
-                            className="p-2 print:p-1 border-r last:border-r-0 border-slate-200 dark:border-slate-800 align-top"
+                            className="p-2 print:p-1 border-r border-border last:border-r-0 align-top"
                           >
                             {exams.length > 0 ? (
                               <div className="space-y-1.5">
@@ -270,7 +270,7 @@ export function ExamPrintView({
                                       className={`p-2 rounded-xl border shadow-xs transition-all ${theme.badgeBg} ${theme.badgeBorder} avoid-break`}
                                     >
                                       <div className="flex items-center justify-between gap-1 mb-0.5">
-                                        <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded-md bg-white/80 dark:bg-black/40 text-slate-700 dark:text-slate-300 shadow-2xs">
+                                        <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-background/90 text-foreground border border-border/50 shadow-xs">
                                           {exam.lesson_period}. Ders
                                         </span>
                                       </div>
@@ -278,7 +278,7 @@ export function ExamPrintView({
                                         {exam.subjects?.name || "Ders"}
                                       </div>
                                       {exam.notes && (
-                                        <div className="text-[9px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                                        <div className="text-[9px] text-muted-foreground truncate mt-0.5">
                                           {exam.notes}
                                         </div>
                                       )}
@@ -287,7 +287,7 @@ export function ExamPrintView({
                                 })}
                               </div>
                             ) : (
-                              <div className="h-14 flex items-center justify-center rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-[10px] text-slate-400 dark:text-slate-600 font-medium select-none">
+                              <div className="h-14 flex items-center justify-center rounded-xl border border-dashed border-border text-[10px] text-muted-foreground/50 font-medium select-none">
                                 —
                               </div>
                             )}
@@ -313,7 +313,7 @@ export function ExamPrintView({
               return (
                 <div
                   key={grade}
-                  className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm avoid-break"
+                  className="rounded-2xl border border-border bg-card text-card-foreground overflow-hidden shadow-sm avoid-break"
                 >
                   {/* Kart Başlığı */}
                   <div className="p-4 bg-gradient-to-r from-slate-900 to-indigo-950 text-white flex items-center justify-between">
@@ -333,7 +333,7 @@ export function ExamPrintView({
                   </div>
 
                   {/* Sınav Listesi */}
-                  <div className="p-4 divide-y divide-slate-100 dark:divide-slate-800">
+                  <div className="p-4 divide-y divide-border">
                     {gradeExams.length === 0 ? (
                       <div className="py-6 text-center text-xs text-muted-foreground">
                         Bu kademe için henüz sınav tarihi girilmedi.
@@ -348,11 +348,11 @@ export function ExamPrintView({
                           >
                             <div className="flex items-center gap-3">
                               {/* Tarih Rozeti */}
-                              <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex flex-col items-center justify-center shrink-0 border border-slate-200 dark:border-slate-700">
-                                <span className="text-[9px] font-bold uppercase text-slate-500">
+                              <div className="w-12 h-12 rounded-xl bg-muted flex flex-col items-center justify-center shrink-0 border border-border">
+                                <span className="text-[9px] font-bold uppercase text-muted-foreground">
                                   {formatShortDate(exam.exam_date).split(" ")[1]}
                                 </span>
-                                <span className="text-base font-black leading-none text-slate-900 dark:text-slate-100">
+                                <span className="text-base font-black leading-none text-foreground">
                                   {exam.exam_date.split("-")[2]}
                                 </span>
                               </div>
@@ -362,7 +362,7 @@ export function ExamPrintView({
                                   <span className={`text-xs font-black tracking-tight ${theme.badgeText}`}>
                                     {exam.subjects?.name}
                                   </span>
-                                  <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-muted text-foreground border border-border">
                                     {exam.lesson_period}. Ders
                                   </span>
                                 </div>
@@ -373,7 +373,7 @@ export function ExamPrintView({
                             </div>
 
                             {exam.notes && (
-                              <span className="text-[10px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded-lg border max-w-[120px] truncate">
+                              <span className="text-[10px] text-muted-foreground bg-muted px-2 py-1 rounded-lg border border-border max-w-[120px] truncate">
                                 {exam.notes}
                               </span>
                             )}
@@ -389,26 +389,26 @@ export function ExamPrintView({
         )}
 
         {/* 4. ALT BİLGİLENDİRME & VELİ NOTU KUTUSU */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40 text-amber-950 dark:text-amber-200 text-xs space-y-2 avoid-break">
-          <div className="font-bold text-sm flex items-center gap-1.5 text-amber-900 dark:text-amber-300">
+        <div className="p-4 sm:p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-100 text-xs space-y-2 avoid-break">
+          <div className="font-bold text-sm flex items-center gap-1.5 text-amber-800 dark:text-amber-300">
             <span>📌</span>
             <span>Önemli Veli ve Öğrenci Bilgilendirmesi</span>
           </div>
-          <p className="leading-relaxed">
+          <p className="leading-relaxed font-medium">
             {period.notes ||
               "Sınavlar ilan edilen ders saatinde sınıflarda uygulanacaktır. Öğrencilerimizin sınav saatlerinde eksiksiz olarak sınıflarında hazır bulunmaları ve gerekli araç-gereçlerini yanlarında bulundurmaları önemle rica olunur."}
           </p>
         </div>
 
         {/* 5. RESMÎ İMZA ALANI (YAZDIRILDIĞINDA GÖRÜNÜR) */}
-        <div className="pt-6 flex items-center justify-between border-t border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 avoid-break">
+        <div className="pt-6 flex items-center justify-between border-t border-border text-xs text-muted-foreground avoid-break">
           <div>
-            <div className="font-semibold">{schoolName}</div>
+            <div className="font-semibold text-foreground">{schoolName}</div>
             <div className="text-[11px] text-muted-foreground">Sınav Yürütme Komisyonu</div>
           </div>
           <div className="text-center">
-            <div className="font-bold text-slate-800 dark:text-slate-200">UYGUNDUR</div>
-            <div className="text-[11px] mt-4 font-semibold">Okul Müdürü</div>
+            <div className="font-bold text-foreground">UYGUNDUR</div>
+            <div className="text-[11px] mt-4 font-semibold text-foreground">Okul Müdürü</div>
           </div>
         </div>
 

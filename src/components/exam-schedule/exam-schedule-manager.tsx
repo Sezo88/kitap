@@ -207,14 +207,14 @@ export function ExamScheduleManager({
   return (
     <div className="space-y-6">
       {/* ── Üst Başlık & Kontrol Çubuğu ── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-3xl bg-white dark:bg-slate-900 border shadow-xs">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-3xl bg-card text-card-foreground border border-border shadow-xs">
         <div className="flex items-center gap-3.5">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/20 via-primary/10 to-indigo-500/10 flex items-center justify-center text-primary border border-primary/20 shadow-xs">
             <CalendarCheck2 className="w-6 h-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-xl sm:text-2xl font-black tracking-tight">
+              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
                 Ortak Sınav Takvimi
               </h2>
               {currentPeriod && (
@@ -315,12 +315,12 @@ export function ExamScheduleManager({
 
       {/* ── Eğer Hiç Sınav Dönemi Yoksa ── */}
       {periods.length === 0 ? (
-        <div className="text-center py-16 px-6 bg-white dark:bg-slate-900 rounded-3xl border shadow-xs space-y-4 max-w-lg mx-auto">
+        <div className="text-center py-16 px-6 bg-card text-card-foreground rounded-3xl border border-border shadow-xs space-y-4 max-w-lg mx-auto">
           <div className="w-16 h-16 rounded-3xl bg-primary/10 text-primary flex items-center justify-center mx-auto shadow-inner">
             <CalendarCheck2 className="w-8 h-8" />
           </div>
           <div>
-            <h3 className="text-lg font-bold">Ortak Sınav Dönemi Tanımlanmamış</h3>
+            <h3 className="text-lg font-bold text-foreground">Ortak Sınav Dönemi Tanımlanmamış</h3>
             <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
               Öğretmenlerin sınav tarihlerini belirleyebilmesi için önce idare tarafından sınav dönemi ve tarih aralığı açılmalıdır.
             </p>
@@ -358,7 +358,7 @@ export function ExamScheduleManager({
           {/* ── Dönem Seçim ve Özet Bilgi Kartı ── */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Dönem Seçici */}
-            <div className="md:col-span-2 p-4 rounded-2xl bg-white dark:bg-slate-900 border shadow-2xs flex flex-col justify-between space-y-2">
+            <div className="md:col-span-2 p-4 rounded-2xl bg-card text-card-foreground border border-border shadow-2xs flex flex-col justify-between space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
                   Aktif Sınav Dönemi
@@ -370,7 +370,7 @@ export function ExamScheduleManager({
               <Select
                 value={selectedPeriodId}
                 onChange={(e) => setSelectedPeriodId(e.target.value)}
-                className="h-11 font-bold text-sm bg-slate-50 dark:bg-slate-800 border-none"
+                className="h-11 font-bold text-sm bg-muted text-foreground border-none"
               >
                 {periods.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -388,7 +388,7 @@ export function ExamScheduleManager({
             </div>
 
             {/* İstatistik 1: Planlanan Sınavlar */}
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border shadow-2xs flex items-center gap-4">
+            <div className="p-4 rounded-2xl bg-card text-card-foreground border border-border shadow-2xs flex items-center gap-4">
               <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center font-black text-xl border border-blue-100 dark:border-blue-900/40">
                 {currentSchedules.length}
               </div>
@@ -396,17 +396,17 @@ export function ExamScheduleManager({
                 <div className="text-xs font-bold text-muted-foreground uppercase">
                   Planlanan Sınav
                 </div>
-                <div className="text-base font-black text-slate-800 dark:text-slate-100">
+                <div className="text-base font-black text-foreground">
                   {currentSchedules.length} Ders Sınavı
                 </div>
-                <div className="text-[11px] text-slate-500">
+                <div className="text-[11px] text-muted-foreground">
                   {gradeLevels.length} Kademede Dağılım
                 </div>
               </div>
             </div>
 
             {/* İstatistik 2: Günlük Kota & Durum */}
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border shadow-2xs flex items-center gap-4">
+            <div className="p-4 rounded-2xl bg-card text-card-foreground border border-border shadow-2xs flex items-center gap-4">
               <div className="w-12 h-12 rounded-2xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center font-black text-xl border border-purple-100 dark:border-purple-900/40">
                 {currentPeriod?.max_exams_per_day || 2}
               </div>
@@ -414,7 +414,7 @@ export function ExamScheduleManager({
                 <div className="text-xs font-bold text-muted-foreground uppercase">
                   Günlük Limit
                 </div>
-                <div className="text-base font-black text-slate-800 dark:text-slate-100">
+                <div className="text-base font-black text-foreground">
                   Maks. {currentPeriod?.max_exams_per_day || 2} Sınav
                 </div>
                 <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">
@@ -436,7 +436,7 @@ export function ExamScheduleManager({
                   className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
                     selectedGradeFilter === "ALL"
                       ? "bg-primary text-primary-foreground shadow-xs"
-                      : "bg-white dark:bg-slate-900 text-muted-foreground hover:text-foreground border"
+                      : "bg-card text-muted-foreground hover:text-foreground border border-border"
                   }`}
                 >
                   Tümü ({gradeLevels.length} Kademe)
@@ -449,7 +449,7 @@ export function ExamScheduleManager({
                     className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
                       selectedGradeFilter === String(g)
                         ? "bg-primary text-primary-foreground shadow-xs"
-                        : "bg-white dark:bg-slate-900 text-muted-foreground hover:text-foreground border"
+                        : "bg-card text-muted-foreground hover:text-foreground border border-border"
                     }`}
                   >
                     {g}. Sınıf
@@ -467,19 +467,19 @@ export function ExamScheduleManager({
           </div>
 
           {/* ── İNTERAKTİF MATRİS TAKVİMİ ── */}
-          <div className="overflow-x-auto rounded-3xl border bg-white dark:bg-slate-900 shadow-xs">
+          <div className="overflow-x-auto rounded-3xl border border-border bg-card shadow-xs">
             <table className="w-full border-collapse text-left">
               <thead>
-                <tr className="bg-slate-50/90 dark:bg-slate-800/80 border-b">
-                  <th className="p-4 text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider w-36 border-r text-center">
+                <tr className="bg-muted/80 border-b border-border">
+                  <th className="p-4 text-xs font-black text-foreground uppercase tracking-wider w-36 border-r border-border text-center">
                     Kademe
                   </th>
                   {allowedDates.map((dateStr) => (
                     <th
                       key={dateStr}
-                      className="p-3.5 text-center border-r last:border-r-0 min-w-[150px]"
+                      className="p-3.5 text-center border-r border-border last:border-r-0 min-w-[150px]"
                     >
-                      <div className="text-[11px] font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight">
+                      <div className="text-[11px] font-black text-foreground uppercase tracking-tight">
                         {formatDayName(dateStr)}
                       </div>
                       <div className="text-[10px] font-semibold text-muted-foreground">
@@ -489,19 +489,19 @@ export function ExamScheduleManager({
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className="divide-y divide-border">
                 {displayedGradeLevels.map((grade) => {
                   return (
                     <tr
                       key={grade}
-                      className="hover:bg-slate-50/40 dark:hover:bg-slate-800/20 transition-colors"
+                      className="hover:bg-muted/40 transition-colors"
                     >
                       {/* Sol Kademe Başlığı */}
-                      <td className="p-4 border-r bg-slate-50/50 dark:bg-slate-800/40 text-center align-middle">
+                      <td className="p-4 border-r border-border bg-muted/30 text-center align-middle">
                         <div className="inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-primary/10 text-primary font-black text-lg shadow-2xs">
                           {grade}
                         </div>
-                        <div className="text-xs font-black text-slate-800 dark:text-slate-200 mt-1">
+                        <div className="text-xs font-black text-foreground mt-1">
                           {grade}. Sınıflar
                         </div>
                       </td>
@@ -519,7 +519,7 @@ export function ExamScheduleManager({
                         return (
                           <td
                             key={dateStr}
-                            className="p-2 border-r last:border-r-0 align-top group relative"
+                            className="p-2 border-r border-border last:border-r-0 align-top group relative"
                           >
                             <div className="space-y-1.5 min-h-[90px] flex flex-col justify-between">
                               {/* Mevcut Sınavlar */}
@@ -543,7 +543,7 @@ export function ExamScheduleManager({
                                       }`}
                                     >
                                       <div className="flex items-center justify-between gap-1">
-                                        <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded-md bg-white/90 dark:bg-black/40 text-slate-700 dark:text-slate-200 shadow-2xs">
+                                        <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-md bg-background/90 text-foreground shadow-2xs border border-border/50">
                                           {exam.lesson_period}. Ders
                                         </span>
                                         {canEdit && (
@@ -571,7 +571,7 @@ export function ExamScheduleManager({
                                   <button
                                     type="button"
                                     onClick={() => handleOpenAddExam(grade, dateStr)}
-                                    className="w-full py-1.5 px-2 rounded-lg border border-dashed border-slate-200 dark:border-slate-700 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-all text-[10px] font-semibold flex items-center justify-center gap-1 opacity-40 group-hover:opacity-100"
+                                    className="w-full py-1.5 px-2 rounded-lg border border-dashed border-border hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-all text-[10px] font-semibold flex items-center justify-center gap-1 opacity-40 group-hover:opacity-100"
                                   >
                                     <Plus className="w-3 h-3" />
                                     <span>Ekle</span>

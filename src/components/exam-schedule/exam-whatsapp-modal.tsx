@@ -111,7 +111,7 @@ export function ExamWhatsAppModal({
               className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors ${
                 selectedGrade === "ALL"
                   ? "bg-primary text-primary-foreground"
-                  : "bg-slate-100 dark:bg-slate-800 text-muted-foreground hover:text-foreground"
+                  : "bg-muted text-muted-foreground hover:text-foreground border border-border"
               }`}
             >
               Tüm Sınıflar
@@ -124,7 +124,7 @@ export function ExamWhatsAppModal({
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors ${
                   selectedGrade === String(g)
                     ? "bg-primary text-primary-foreground"
-                    : "bg-slate-100 dark:bg-slate-800 text-muted-foreground hover:text-foreground"
+                    : "bg-muted text-muted-foreground hover:text-foreground border border-border"
                 }`}
               >
                 {g}. Sınıflar

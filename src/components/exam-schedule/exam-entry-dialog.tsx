@@ -358,7 +358,7 @@ export function ExamEntryDialog({
             </span>
           </Label>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto p-2 bg-slate-50 dark:bg-slate-900/40 rounded-xl border">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto p-2 bg-muted/40 rounded-xl border border-border">
             {allowedDates.map((dateStr) => {
               const targetGradesList = gradeLevel === "ALL" ? gradeLevels : [Number(gradeLevel)];
               const maxCountInGrades = Math.max(
@@ -407,7 +407,7 @@ export function ExamEntryDialog({
                     </span>
                   </div>
                   <div className="mt-1">
-                    <span className="text-sm font-black">
+                    <span className="text-sm font-black text-foreground">
                       {dateStr.split("-")[2]} {formatTurkishDate(dateStr).split(" ")[1]}
                     </span>
                   </div>
@@ -447,7 +447,7 @@ export function ExamEntryDialog({
           </div>
 
           {/* Canlı Durum Bildirimi */}
-          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-border flex flex-col justify-center">
+          <div className="p-3 rounded-xl bg-muted/40 border border-border flex flex-col justify-center">
             {isDayFull ? (
               <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 text-xs font-semibold">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
