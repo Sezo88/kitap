@@ -11,72 +11,136 @@ export interface TahtaQuizSettings {
   duration: number;
   speedBonus: boolean;
   autoCloseSeconds: number;
+  hasColumns?: boolean;
 }
 
 export async function getTahtaQuizSettings(schoolId: string): Promise<TahtaQuizSettings> {
-  const supabase = createAdminClient();
-  const { data } = await supabase
-    .from("panel_settings")
-    .select("tahta_quiz_enabled, tahta_quiz_start_time, tahta_quiz_end_time, tahta_quiz_duration, tahta_quiz_speed_bonus, tahta_quiz_auto_close_seconds")
-    .eq("school_id", schoolId)
-    .maybeSingle();
+  try {
+    let supabase;
+    try {
+      supabase = createAdminClient();
+    } catch {
+      const { createClient } = await import("@/lib/supabase/server");
+      supabase = await createClient();
+    }
 
-  return {
-    enabled: data?.tahta_quiz_enabled ?? true,
-    startTime: data?.tahta_quiz_start_time ?? "08:30",
-    endTime: data?.tahta_quiz_end_time ?? "08:55",
-    duration: data?.tahta_quiz_duration ?? 30,
-    speedBonus: data?.tahta_quiz_speed_bonus ?? true,
-    autoCloseSeconds: data?.tahta_quiz_auto_close_seconds ?? 15,
-  };
+    const { data, error } = await supabase
+      .from("panel_settings")
+      .select("tahta_quiz_enabled, tahta_quiz_start_time, tahta_quiz_end_time, tahta_quiz_duration, tahta_quiz_speed_bonus, tahta_quiz_auto_close_seconds")
+      .eq("school_id", schoolId)
+      .maybeSingle();
+
+    const hasColumns = !error || !error.message?.includes("does not exist");
+
+    return {
+      enabled: data?.tahta_quiz_enabled ?? true,
+      startTime: data?.tahta_quiz_start_time ?? "08:30",
+      endTime: data?.tahta_quiz_end_time ?? "08:55",
+      duration: data?.tahta_quiz_duration ?? 30,
+      speedBonus: data?.tahta_quiz_speed_bonus ?? true,
+      autoCloseSeconds: data?.tahta_quiz_auto_close_seconds ?? 15,
+      hasColumns,
+    };
+  } catch (err) {
+    console.error("getTahtaQuizSettings error:", err);
+    return {
+      enabled: true,
+      startTime: "08:30",
+      endTime: "08:55",
+      duration: 30,
+      speedBonus: true,
+      autoCloseSeconds: 15,
+      hasColumns: false,
+    };
+  }
 }
 
 export async function saveTahtaQuizSettings(schoolId: string, settings: TahtaQuizSettings) {
-  const { user, profile } = await getCachedUserAndProfile();
-  if (!user || !profile) return { success: false, error: "Oturum açmanız gerekiyor" };
-  if (profile.role !== "super_admin" && profile.role !== "idareci") {
-    return { success: false, error: "Bu işlem için yetkiniz yok" };
-  }
+  try {
+    const { user, profile } = await getCachedUserAndProfile();
+    if (!user || !profile) return { success: false, error: "Oturum açmanız gerekiyor" };
+    if (profile.role !== "super_admin" && profile.role !== "idareci") {
+      return { success: false, error: "Bu işlem için yetkiniz yok" };
+    }
 
-  const supabase = createAdminClient();
+    let supabase;
+    try {
+      supabase = createAdminClient();
+    } catch {
+      const { createClient } = await import("@/lib/supabase/server");
+      supabase = await createClient();
+    }
 
-  // Check if panel_settings exists for this school
-  const { data: existing } = await supabase
-    .from("panel_settings")
-    .select("id")
-    .eq("school_id", schoolId)
-    .maybeSingle();
-
-  const payload = {
-    tahta_quiz_enabled: settings.enabled,
-    tahta_quiz_start_time: settings.startTime,
-    tahta_quiz_end_time: settings.endTime,
-    tahta_quiz_duration: settings.duration,
-    tahta_quiz_speed_bonus: settings.speedBonus,
-    tahta_quiz_auto_close_seconds: settings.autoCloseSeconds,
-  };
-
-  if (existing) {
-    const { error } = await supabase
+    // Check if panel_settings exists for this school
+    const { data: existing, error: selectErr } = await supabase
       .from("panel_settings")
-      .update(payload)
-      .eq("id", existing.id);
+      .select("id")
+      .eq("school_id", schoolId)
+      .maybeSingle();
 
-    if (error) return { success: false, error: error.message };
-  } else {
-    const { error } = await supabase
-      .from("panel_settings")
-      .insert({
-        school_id: schoolId,
-        ...payload,
-      });
+    if (selectErr) {
+      if (selectErr.message?.includes("does not exist")) {
+        return {
+          success: false,
+          error: "Veritabanında yarışma ayarları kolonları eksik. Lütfen SQL güncellemesini çalıştırın.",
+          needsMigration: true,
+        };
+      }
+      return { success: false, error: selectErr.message };
+    }
 
-    if (error) return { success: false, error: error.message };
+    const payload = {
+      tahta_quiz_enabled: settings.enabled,
+      tahta_quiz_start_time: settings.startTime,
+      tahta_quiz_end_time: settings.endTime,
+      tahta_quiz_duration: settings.duration,
+      tahta_quiz_speed_bonus: settings.speedBonus,
+      tahta_quiz_auto_close_seconds: settings.autoCloseSeconds,
+    };
+
+    if (existing) {
+      const { error } = await supabase
+        .from("panel_settings")
+        .update(payload)
+        .eq("id", existing.id);
+
+      if (error) {
+        if (error.message?.includes("does not exist")) {
+          return {
+            success: false,
+            error: "Veritabanında yarışma ayarları kolonları eksik. Lütfen SQL güncellemesini çalıştırın.",
+            needsMigration: true,
+          };
+        }
+        return { success: false, error: error.message };
+      }
+    } else {
+      const { error } = await supabase
+        .from("panel_settings")
+        .insert({
+          school_id: schoolId,
+          ...payload,
+        });
+
+      if (error) {
+        if (error.message?.includes("does not exist")) {
+          return {
+            success: false,
+            error: "Veritabanında yarışma ayarları kolonları eksik. Lütfen SQL güncellemesini çalıştırın.",
+            needsMigration: true,
+          };
+        }
+        return { success: false, error: error.message };
+      }
+    }
+
+    revalidatePath("/dashboard/admin/quiz");
+    revalidatePath("/tahta-quiz");
+    return { success: true };
+  } catch (err: any) {
+    console.error("saveTahtaQuizSettings caught error:", err);
+    return { success: false, error: err?.message || "Sunucu işlem hatası oluştu" };
   }
-
-  revalidatePath("/dashboard/admin/quiz");
-  revalidatePath("/tahta-quiz");
-  return { success: true };
 }
 
 export interface QuizSubmitResult {

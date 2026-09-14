@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/toast";
+import { createClient } from "@/lib/supabase/client";
 import { saveTahtaQuizSettings, type TahtaQuizSettings } from "@/lib/actions/tahta-quiz";
-import { Monitor, Clock, Zap, Copy, Check, ExternalLink, ShieldCheck, Terminal, HelpCircle } from "lucide-react";
+import { Monitor, Clock, Zap, Copy, Check, ExternalLink, ShieldCheck, Terminal, AlertCircle } from "lucide-react";
 
 interface Props {
   schoolId: string;
@@ -15,23 +16,122 @@ interface Props {
   initialSettings: TahtaQuizSettings;
 }
 
+const MIGRATION_SQL = `-- Supabase SQL Editor alanında çalıştırılacak:
+ALTER TABLE public.panel_settings
+ADD COLUMN IF NOT EXISTS tahta_quiz_enabled boolean NOT NULL DEFAULT true,
+ADD COLUMN IF NOT EXISTS tahta_quiz_start_time text NOT NULL DEFAULT '08:30',
+ADD COLUMN IF NOT EXISTS tahta_quiz_end_time text NOT NULL DEFAULT '08:55',
+ADD COLUMN IF NOT EXISTS tahta_quiz_duration int NOT NULL DEFAULT 30,
+ADD COLUMN IF NOT EXISTS tahta_quiz_speed_bonus boolean NOT NULL DEFAULT true,
+ADD COLUMN IF NOT EXISTS tahta_quiz_auto_close_seconds int NOT NULL DEFAULT 15;
+
+ALTER TABLE public.quiz_answers
+ADD COLUMN IF NOT EXISTS seconds_left int DEFAULT 0,
+ADD COLUMN IF NOT EXISTS points_awarded int DEFAULT 0;`;
+
 export function TahtaQuizSettingsForm({ schoolId, schoolCode, initialSettings }: Props) {
   const [settings, setSettings] = useState<TahtaQuizSettings>(initialSettings);
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copiedSql, setCopiedSql] = useState(false);
+  const [showMigrationWarning, setShowMigrationWarning] = useState(initialSettings.hasColumns === false);
   const { toast } = useToast();
 
   const installCommand = `curl -sL ${typeof window !== "undefined" ? window.location.origin : ""}/api/tahta/kurulum.sh | sudo bash -s ${schoolCode}`;
 
   async function handleSave() {
     setSaving(true);
-    const res = await saveTahtaQuizSettings(schoolId, settings);
-    if (!res.success) {
-      toast("Ayarlar kaydedilemedi: " + res.error, "error");
-    } else {
-      toast("Akıllı tahta yarışma ayarları güncellendi!", "success");
+    try {
+      // 1. Önce Server Action dene
+      const res = await saveTahtaQuizSettings(schoolId, settings);
+
+      if (res && res.success) {
+        setShowMigrationWarning(false);
+        toast("Akıllı tahta yarışma ayarları güncellendi!", "success");
+        return;
+      }
+
+      // Eğer kolon eksikliği hatası geldiyse uyar
+      if (res?.needsMigration || res?.error?.includes("kolon") || res?.error?.includes("does not exist")) {
+        setShowMigrationWarning(true);
+        toast("Veritabanında yarışma ayarları kolonları eksik. Lütfen SQL güncellemesini uygulayın.", "error");
+        return;
+      }
+
+      // 2. Server Action başka nedenle başarısız olduysa istemci Supabase client ile dene
+      console.warn("Server action başarısız oldu, istemci oturumuyla deneniyor:", res?.error);
+      const supabase = createClient();
+      const { data: existing } = await supabase
+        .from("panel_settings")
+        .select("id")
+        .eq("school_id", schoolId)
+        .maybeSingle();
+
+      const payload = {
+        tahta_quiz_enabled: settings.enabled,
+        tahta_quiz_start_time: settings.startTime,
+        tahta_quiz_end_time: settings.endTime,
+        tahta_quiz_duration: settings.duration,
+        tahta_quiz_speed_bonus: settings.speedBonus,
+        tahta_quiz_auto_close_seconds: settings.autoCloseSeconds,
+      };
+
+      const { error: clientErr } = existing
+        ? await supabase.from("panel_settings").update(payload).eq("id", existing.id)
+        : await supabase.from("panel_settings").insert({ school_id: schoolId, ...payload });
+
+      if (clientErr) {
+        if (clientErr.message?.includes("does not exist")) {
+          setShowMigrationWarning(true);
+          toast("Veritabanında yarışma ayarları kolonları eksik. Lütfen SQL güncellemesini uygulayın.", "error");
+        } else {
+          toast("Ayarlar kaydedilemedi: " + clientErr.message, "error");
+        }
+      } else {
+        setShowMigrationWarning(false);
+        toast("Akıllı tahta yarışma ayarları güncellendi!", "success");
+      }
+    } catch (err: any) {
+      console.error("handleSave beklenmeyen hata:", err);
+      // Fallback istemci denemesi
+      try {
+        const supabase = createClient();
+        const { data: existing } = await supabase
+          .from("panel_settings")
+          .select("id")
+          .eq("school_id", schoolId)
+          .maybeSingle();
+
+        const payload = {
+          tahta_quiz_enabled: settings.enabled,
+          tahta_quiz_start_time: settings.startTime,
+          tahta_quiz_end_time: settings.endTime,
+          tahta_quiz_duration: settings.duration,
+          tahta_quiz_speed_bonus: settings.speedBonus,
+          tahta_quiz_auto_close_seconds: settings.autoCloseSeconds,
+        };
+
+        const { error: fallbackErr } = existing
+          ? await supabase.from("panel_settings").update(payload).eq("id", existing.id)
+          : await supabase.from("panel_settings").insert({ school_id: schoolId, ...payload });
+
+        if (fallbackErr) {
+          if (fallbackErr.message?.includes("does not exist")) {
+            setShowMigrationWarning(true);
+            toast("Veritabanında yarışma ayarları kolonları eksik. Lütfen SQL güncellemesini uygulayın.", "error");
+          } else {
+            toast("Ayarlar kaydedilemedi: " + fallbackErr.message, "error");
+          }
+        } else {
+          setShowMigrationWarning(false);
+          toast("Akıllı tahta yarışma ayarları güncellendi!", "success");
+        }
+      } catch (fallbackCatch: any) {
+        toast("İşlem hatası: " + (fallbackCatch?.message || err?.message || "Bağlantı kurulamadı"), "error");
+      }
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   function handleCopy() {
@@ -41,8 +141,41 @@ export function TahtaQuizSettingsForm({ schoolId, schoolCode, initialSettings }:
     setTimeout(() => setCopied(false), 3000);
   }
 
+  function handleCopySql() {
+    navigator.clipboard.writeText(MIGRATION_SQL);
+    setCopiedSql(true);
+    toast("SQL güncelleme komutları panoya kopyalandı!", "success");
+    setTimeout(() => setCopiedSql(false), 3000);
+  }
+
   return (
     <div className="space-y-6">
+      {/* Veritabanı Kolon Eksikliği Uyarısı */}
+      {showMigrationWarning && (
+        <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 space-y-3 shadow-xs">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 font-bold text-sm">
+              <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span>Veritabanı Güncellemesi Gerekli (Yarışma Saatleri Kolonları)</span>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleCopySql}
+              className="text-xs h-8 bg-amber-100/80 dark:bg-amber-900/50 border-amber-300 dark:border-amber-700 hover:bg-amber-200 dark:hover:bg-amber-900"
+            >
+              {copiedSql ? <Check className="h-3.5 w-3.5 mr-1 text-emerald-600" /> : <Copy className="h-3.5 w-3.5 mr-1" />}
+              {copiedSql ? "Kopyalandı" : "SQL Komutlarını Kopyala"}
+            </Button>
+          </div>
+          <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-300">
+            panel_settings tablosuna yarışma ayarları kolonlarını eklemek için lütfen aşağıdaki SQL komutunu Supabase panelinizdeki <strong>SQL Editor</strong> alanında bir defa çalıştırın:
+          </p>
+          <pre className="p-3 rounded-xl bg-black/80 font-mono text-[11px] text-emerald-400 overflow-x-auto select-all leading-relaxed">
+            {MIGRATION_SQL}
+          </pre>
+        </div>
+      )}
       <Card className="border shadow-sm">
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
