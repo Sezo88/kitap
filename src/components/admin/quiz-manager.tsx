@@ -77,18 +77,57 @@ export function QuizManager({ schoolId, initialQuestions, askedQuestionIds }: Pr
     setImporting(true);
     const supabase = createClient();
 
-    // Format: soru|cevap|a_secenegi|b_secenegi|c_secenegi|d_secenegi|zorluk|kategori
+    // Desteklenen Formatlar:
+    // 1) soru|cevap (Kısa cevaplı)
+    // 2) soru|cevap|zorluk (Kısa cevaplı, örn: Soru|Cevap|zor)
+    // 3) soru|cevap|zorluk|kategori (Kısa cevaplı)
+    // 4) soru|cevap|A|B|C|D (Çoktan seçmeli)
+    // 5) soru|cevap|A|B|C|D|zorluk (Çoktan seçmeli)
+    // 6) soru|cevap|A|B|C|D|zorluk|kategori (Çoktan seçmeli)
     const lines = importText.trim().split("\n").filter(Boolean);
     let added = 0;
     for (const line of lines) {
       const parts = line.split("|").map((s) => s.trim());
       if (parts.length < 2) continue;
-      const [q, a, oa, ob, oc, od, diff, cat] = parts;
+
+      const q = parts[0];
+      const a = parts[1];
+      let oa: string | null = null;
+      let ob: string | null = null;
+      let oc: string | null = null;
+      let od: string | null = null;
+      let diff = "orta";
+      let cat: string | null = null;
+
+      if (parts.length === 2) {
+        // soru|cevap
+      } else if (parts.length === 3) {
+        // soru|cevap|zorluk
+        diff = parts[2].toLowerCase();
+      } else if (parts.length === 4 || parts.length === 5) {
+        // soru|cevap|zorluk|kategori
+        diff = parts[2].toLowerCase();
+        cat = parts[3] || null;
+      } else if (parts.length >= 6) {
+        // soru|cevap|A|B|C|D ...
+        oa = parts[2] || null;
+        ob = parts[3] || null;
+        oc = parts[4] || null;
+        od = parts[5] || null;
+        if (parts.length >= 7) diff = parts[6].toLowerCase() || "orta";
+        if (parts.length >= 8) cat = parts[7] || null;
+      }
+
       const { error } = await supabase.from("quiz_questions").insert({
-        school_id: schoolId, question: q, answer: a,
-        option_a: oa || null, option_b: ob || null,
-        option_c: oc || null, option_d: od || null,
-        difficulty: diff || "orta", category: cat || null,
+        school_id: schoolId,
+        question: q,
+        answer: a,
+        option_a: oa,
+        option_b: ob,
+        option_c: oc,
+        option_d: od,
+        difficulty: ["kolay", "orta", "zor"].includes(diff) ? diff : "orta",
+        category: cat,
       });
       if (!error) added++;
     }

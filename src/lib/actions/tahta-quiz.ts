@@ -223,9 +223,19 @@ export async function submitTahtaQuizAnswer(params: {
 
   // 5. Doğruluk ve Puanlama Hesaplama
   const qData: any = daily.quiz_questions;
-  const rawExpected = (qData.answer || "").trim().toLowerCase();
-  const rawGiven = (params.answer || "").trim().toLowerCase();
-  const isCorrect = rawGiven === rawExpected;
+  
+  function normalizeText(str: string = "") {
+    return str
+      .trim()
+      .toLocaleLowerCase("tr-TR")
+      .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, "")
+      .replace(/\s+/g, " ");
+  }
+
+  const rawExpected = normalizeText(qData.answer || "");
+  const rawGiven = normalizeText(params.answer || "");
+  const isTimeOut = params.answer === "SURE_DOLDU";
+  const isCorrect = !isTimeOut && rawGiven === rawExpected;
 
   // Ayarları oku (hız bonusu açık mı?)
   const settings = await getTahtaQuizSettings(school.id);
@@ -237,8 +247,8 @@ export async function submitTahtaQuizAnswer(params: {
     }
   }
 
-  // 6. Cevabı kaydet
-  const { error: insErr } = await supabase
+  // 6. Cevabı kaydet (Önce tüm kolonlarla dene, kolon eksikse temel kolonlarla kaydet)
+  let { error: insErr } = await supabase
     .from("quiz_answers")
     .insert({
       daily_id: daily.id,
@@ -248,6 +258,18 @@ export async function submitTahtaQuizAnswer(params: {
       seconds_left: Math.max(0, params.secondsLeft),
       points_awarded: points,
     });
+
+  if (insErr && insErr.message?.includes("does not exist")) {
+    const retry = await supabase
+      .from("quiz_answers")
+      .insert({
+        daily_id: daily.id,
+        class_id: cls.id,
+        answer: params.answer.trim(),
+        is_correct: isCorrect,
+      });
+    insErr = retry.error;
+  }
 
   if (insErr) {
     if (insErr.code === "23505") {
@@ -301,7 +323,14 @@ export async function submitTahtaQuizAnswer(params: {
 }
 
 async function getClassRankAndScore(schoolId: string, classId: string) {
-  const supabase = createAdminClient();
+  let supabase;
+  try {
+    supabase = createAdminClient();
+  } catch {
+    const { createClient } = await import("@/lib/supabase/server");
+    supabase = await createClient();
+  }
+
   const { data: scores } = await supabase
     .from("quiz_scores")
     .select("class_id, score")

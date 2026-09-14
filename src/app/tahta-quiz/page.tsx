@@ -4,7 +4,14 @@ import { useState, useEffect, useRef, useTransition, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { submitTahtaQuizAnswer } from "@/lib/actions/tahta-quiz";
-import { Loader2, Award, Clock, CheckCircle2, XCircle, Volume2, VolumeX, Sparkles, Trophy } from "lucide-react";
+import { Loader2, Award, Clock, CheckCircle2, XCircle, Volume2, VolumeX, Sparkles, Trophy, Delete, Send } from "lucide-react";
+
+// Akıllı Tahta Sanal Dokunmatik Klavye Düzeni (Pardus ETA 23 Uyumlu)
+const TURKISH_Q_KEYBOARD = [
+  ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "Ğ", "Ü"],
+  ["A", "S", "D", "F", "G", "H", "J", "K", "L", "Ş", "İ"],
+  ["Z", "X", "C", "V", "B", "N", "M", "Ö", "Ç"],
+];
 
 // Web Audio API Sound Synthesizer (Harici dosya gerektirmez, %100 yerel ve guvenli)
 class SoundFx {
@@ -101,11 +108,14 @@ function TahtaQuizContent() {
   const [duration, setDuration] = useState(30);
   const [timeLeft, setTimeLeft] = useState(30);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+  const [typedAnswer, setTypedAnswer] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [autoCloseLeft, setAutoCloseLeft] = useState(15);
   const [soundOn, setSoundOn] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
+
+  const textInputRef = useRef<HTMLInputElement>(null);
 
   const [notActiveInfo, setNotActiveInfo] = useState<{
     title: string;
@@ -125,6 +135,16 @@ function TahtaQuizContent() {
   useEffect(() => {
     sfx.enabled = soundOn;
   }, [soundOn]);
+
+  // Açık uçlu sorularda klavye/input odağını sağla
+  useEffect(() => {
+    if (step === "question") {
+      const t = setTimeout(() => {
+        textInputRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(t);
+    }
+  }, [step]);
 
   // 1. Okul ve Soru Bilgilerini Yükle
   useEffect(() => {
@@ -327,6 +347,7 @@ function TahtaQuizContent() {
           isCorrect: existingAns.is_correct,
           pointsEarned: existingAns.points_awarded || 0,
           className: cls.name,
+          correctAnswer: dailyQuestion.quiz_questions?.answer || "",
         });
         setStep("already");
         startAutoClose();
@@ -336,6 +357,8 @@ function TahtaQuizContent() {
 
     // Soruyu Başlat
     setTimeLeft(duration);
+    setSelectedAnswer(null);
+    setTypedAnswer("");
     setStep("question");
     startTimer();
   }
@@ -362,14 +385,54 @@ function TahtaQuizContent() {
     if (isSubmitting) return;
     setIsSubmitting(true);
 
-    const res = await submitTahtaQuizAnswer({
-      schoolCode: schoolInfo?.id ? schoolCode : schoolCodeParam,
-      pin,
-      answer: "SURE_DOLDU",
-      secondsLeft: 0,
-    });
+    try {
+      const res = await submitTahtaQuizAnswer({
+        schoolCode: schoolInfo?.id ? schoolCode : schoolCodeParam,
+        pin,
+        answer: "SURE_DOLDU",
+        secondsLeft: 0,
+      });
 
-    setResult(res);
+      // İstemci tarafında da quiz_answers'a garanti kayıt düş (aynı PIN ile tekrar girilmesini engellemek için)
+      if (classInfo && dailyQuestion) {
+        const supabase = createClient();
+        await supabase.from("quiz_answers").upsert(
+          {
+            daily_id: dailyQuestion.id,
+            class_id: classInfo.id,
+            answer: "SURE_DOLDU",
+            is_correct: false,
+          },
+          { onConflict: "daily_id,class_id" }
+        );
+      }
+
+      setResult(res);
+    } catch (err) {
+      console.error("handleTimeOut error:", err);
+      if (classInfo && dailyQuestion) {
+        try {
+          const supabase = createClient();
+          await supabase.from("quiz_answers").upsert(
+            {
+              daily_id: dailyQuestion.id,
+              class_id: classInfo.id,
+              answer: "SURE_DOLDU",
+              is_correct: false,
+            },
+            { onConflict: "daily_id,class_id" }
+          );
+        } catch {}
+      }
+      setResult({
+        success: true,
+        isCorrect: false,
+        correctAnswer: dailyQuestion?.quiz_questions?.answer || "",
+        pointsEarned: 0,
+        className: classInfo?.name || "",
+      });
+    }
+
     setStep("result");
     setIsSubmitting(false);
     startAutoClose();
@@ -401,6 +464,62 @@ function TahtaQuizContent() {
     setStep("result");
     setIsSubmitting(false);
     startAutoClose();
+  }
+
+  // Açık Uçlu / Kısa Cevap Gönder
+  async function handleSubmitTextAnswer() {
+    if (isSubmitting || !typedAnswer.trim()) return;
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    setIsSubmitting(true);
+    const seconds = timeLeft;
+    const ans = typedAnswer.trim();
+
+    try {
+      const res = await submitTahtaQuizAnswer({
+        schoolCode: schoolInfo?.id ? schoolCode : schoolCodeParam,
+        pin,
+        answer: ans,
+        secondsLeft: seconds,
+      });
+
+      if (res.isCorrect) {
+        sfx.playCorrect();
+      } else {
+        sfx.playWrong();
+      }
+
+      setResult(res);
+    } catch (err: any) {
+      console.error("handleSubmitTextAnswer error:", err);
+      setResult({
+        success: false,
+        isCorrect: false,
+        correctAnswer: dailyQuestion?.quiz_questions?.answer || "",
+        pointsEarned: 0,
+        className: classInfo?.name || "",
+      });
+    }
+
+    setStep("result");
+    setIsSubmitting(false);
+    startAutoClose();
+  }
+
+  // Sanal Klavye Dokunmatik Tuş İşlemleri
+  function handleVirtualKey(char: string) {
+    sfx.playTick(false);
+    setTypedAnswer((prev) => prev + char);
+  }
+
+  function handleVirtualBackspace() {
+    sfx.playTick(false);
+    setTypedAnswer((prev) => prev.slice(0, -1));
+  }
+
+  function handleVirtualSpace() {
+    sfx.playTick(false);
+    setTypedAnswer((prev) => prev + " ");
   }
 
   // Otomatik Kapanma Sayacı
@@ -448,14 +567,18 @@ function TahtaQuizContent() {
   }
 
   const qObj = dailyQuestion?.quiz_questions;
-  const options = qObj
+  const rawOptions = qObj
     ? [
         { key: "A", text: qObj.option_a, color: "from-red-600/90 to-rose-700/90 hover:from-red-500 hover:to-rose-600 border-red-400/40" },
         { key: "B", text: qObj.option_b, color: "from-blue-600/90 to-cyan-700/90 hover:from-blue-500 hover:to-cyan-600 border-blue-400/40" },
         { key: "C", text: qObj.option_c, color: "from-amber-600/90 to-yellow-700/90 hover:from-amber-500 hover:to-yellow-600 border-amber-400/40" },
         { key: "D", text: qObj.option_d, color: "from-emerald-600/90 to-green-700/90 hover:from-emerald-500 hover:to-green-600 border-emerald-400/40" },
-      ].filter((o) => !!o.text)
+      ].filter((o) => !!o.text && o.text.trim().length > 0)
     : [];
+
+  // En az 2 geçerli seçenek varsa çoktan seçmeli, aksi takdirde açık uçlu / metin girişi
+  const hasMultipleChoice = rawOptions.length >= 2;
+  const options = hasMultipleChoice ? rawOptions : [];
 
   const timePct = Math.max(0, Math.min(100, (timeLeft / duration) * 100));
   const timerColor = timeLeft > 10 ? "#10b981" : timeLeft > 5 ? "#f59e0b" : "#ef4444";
@@ -653,29 +776,127 @@ function TahtaQuizContent() {
               </h2>
             </div>
 
-            {/* Secenekler (A, B, C, D) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
-              {options.map((opt) => {
-                const isSelected = selectedAnswer === opt.key;
-                return (
+            {/* Seçenekler (Çoktan Seçmeli) VEYA Metin Kutusu + Dokunmatik Klavye (Açık Uçlu) */}
+            {hasMultipleChoice ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+                {options.map((opt) => {
+                  const isSelected = selectedAnswer === opt.key;
+                  return (
+                    <button
+                      key={opt.key}
+                      onClick={() => handleSelectOption(opt.key)}
+                      disabled={isSubmitting}
+                      className={`p-6 rounded-2xl bg-gradient-to-r ${opt.color} border text-left flex items-center gap-5 transition-all shadow-xl active:scale-98 ${
+                        isSelected ? "ring-4 ring-white scale-102" : "hover:scale-[1.01]"
+                      }`}
+                    >
+                      <span className="w-12 h-12 rounded-xl bg-black/30 border border-white/20 flex items-center justify-center text-2xl font-black shrink-0">
+                        {opt.key}
+                      </span>
+                      <span className="text-xl sm:text-2xl font-bold leading-snug break-words">
+                        {opt.text}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="w-full max-w-3xl flex flex-col items-center gap-5">
+                {/* Cevap Giriş Alanı */}
+                <div className="w-full flex flex-col sm:flex-row items-center gap-3">
+                  <div className="relative flex-1 w-full">
+                    <input
+                      ref={textInputRef}
+                      type="text"
+                      value={typedAnswer}
+                      onChange={(e) => setTypedAnswer(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSubmitTextAnswer();
+                      }}
+                      placeholder="Cevabınızı buraya yazın..."
+                      autoFocus
+                      disabled={isSubmitting}
+                      className="w-full px-6 py-4 rounded-2xl bg-white/10 border-2 border-white/20 focus:border-amber-400 text-2xl sm:text-3xl font-black text-white placeholder-slate-500 outline-none transition uppercase tracking-wider text-center shadow-inner"
+                    />
+                    {typedAnswer && (
+                      <button
+                        type="button"
+                        onClick={() => setTypedAnswer("")}
+                        disabled={isSubmitting}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-lg bg-red-500/20 text-red-300 hover:bg-red-500/30 text-xs font-bold border border-red-500/30 transition"
+                      >
+                        Temizle
+                      </button>
+                    )}
+                  </div>
+
                   <button
-                    key={opt.key}
-                    onClick={() => handleSelectOption(opt.key)}
-                    disabled={isSubmitting}
-                    className={`p-6 rounded-2xl bg-gradient-to-r ${opt.color} border text-left flex items-center gap-5 transition-all shadow-xl active:scale-98 ${
-                      isSelected ? "ring-4 ring-white scale-102" : "hover:scale-[1.01]"
-                    }`}
+                    type="button"
+                    onClick={handleSubmitTextAnswer}
+                    disabled={isSubmitting || !typedAnswer.trim()}
+                    className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-black text-xl shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 shrink-0 transition active:scale-95"
                   >
-                    <span className="w-12 h-12 rounded-xl bg-black/30 border border-white/20 flex items-center justify-center text-2xl font-black shrink-0">
-                      {opt.key}
-                    </span>
-                    <span className="text-xl sm:text-2xl font-bold leading-snug break-words">
-                      {opt.text}
-                    </span>
+                    {isSubmitting ? <Loader2 className="h-6 w-6 animate-spin" /> : <Send className="h-6 w-6" />}
+                    <span>GÖNDER</span>
                   </button>
-                );
-              })}
-            </div>
+                </div>
+
+                {/* Akıllı Tahta Sanal Dokunmatik Klavye (Pardus ETA 23) */}
+                <div className="w-full p-4 sm:p-5 rounded-2xl bg-white/[0.03] border border-white/10 backdrop-blur-md flex flex-col gap-2 shadow-2xl">
+                  <div className="text-xs text-slate-400 text-center font-semibold tracking-wider uppercase mb-1">
+                    Akıllı Tahta Dokunmatik Klavye • (Fiziksel klavyeden de yazabilirsiniz)
+                  </div>
+
+                  {TURKISH_Q_KEYBOARD.map((row, rIdx) => (
+                    <div key={rIdx} className="flex justify-center gap-1 sm:gap-2">
+                      {row.map((char) => (
+                        <button
+                          key={char}
+                          type="button"
+                          onClick={() => handleVirtualKey(char)}
+                          disabled={isSubmitting}
+                          className="flex-1 max-w-[56px] h-12 sm:h-14 rounded-xl bg-white/10 hover:bg-white/20 active:bg-amber-400 active:text-slate-950 border border-white/15 text-lg sm:text-xl font-bold flex items-center justify-center transition select-none touch-manipulation shadow-sm"
+                        >
+                          {char}
+                        </button>
+                      ))}
+                    </div>
+                  ))}
+
+                  {/* 4. Satır: Sil, Boşluk, Gönder */}
+                  <div className="flex justify-center gap-2 mt-1">
+                    <button
+                      type="button"
+                      onClick={handleVirtualBackspace}
+                      disabled={isSubmitting}
+                      className="flex-1 max-w-[130px] h-12 sm:h-14 rounded-xl bg-red-500/20 hover:bg-red-500/30 active:scale-95 border border-red-500/30 text-red-200 font-bold text-sm sm:text-base flex items-center justify-center gap-1.5 transition select-none touch-manipulation"
+                    >
+                      <Delete className="h-5 w-5" />
+                      <span>SİL</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleVirtualSpace}
+                      disabled={isSubmitting}
+                      className="flex-[3] max-w-[280px] h-12 sm:h-14 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 border border-white/15 text-slate-300 font-bold text-sm sm:text-base flex items-center justify-center transition select-none touch-manipulation"
+                    >
+                      BOŞLUK
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleSubmitTextAnswer}
+                      disabled={isSubmitting || !typedAnswer.trim()}
+                      className="flex-1 max-w-[150px] h-12 sm:h-14 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 active:scale-95 disabled:opacity-40 text-slate-950 font-black text-sm sm:text-base flex items-center justify-center gap-1.5 transition select-none touch-manipulation shadow-md shadow-emerald-500/20"
+                    >
+                      <Send className="h-4 w-4" />
+                      <span>GÖNDER</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -711,8 +932,13 @@ function TahtaQuizContent() {
                   <XCircle className="h-16 w-16" />
                 </div>
                 <h2 className="text-3xl font-black text-red-400">
-                  {selectedAnswer ? "YANLIŞ CEVAP!" : "SÜRE DOLDU!"}
+                  {selectedAnswer || typedAnswer ? "YANLIŞ CEVAP!" : "SÜRE DOLDU!"}
                 </h2>
+                {typedAnswer && (
+                  <div className="p-3 rounded-xl bg-white/5 border border-white/10 text-xs text-slate-300">
+                    Verdiğiniz Cevap: <span className="font-bold text-white ml-1">{typedAnswer}</span>
+                  </div>
+                )}
                 {result.correctAnswer && (
                   <div className="p-4 rounded-2xl bg-white/5 border border-white/10 text-sm text-slate-300">
                     Doğru Cevap: <span className="font-bold text-emerald-400 text-lg ml-1">{result.correctAnswer}</span>
