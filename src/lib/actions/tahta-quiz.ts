@@ -234,8 +234,37 @@ export async function submitTahtaQuizAnswer(params: {
 
   const rawExpected = normalizeText(qData.answer || "");
   const rawGiven = normalizeText(params.answer || "");
+  const upperGiven = params.answer.trim().toUpperCase();
+
+  // Çoktan seçmeli şık tıklandıysa (A, B, C, D) tıklanan şıkkın metnini al
+  let selectedOptionText = "";
+  if (upperGiven === "A" && qData.option_a) selectedOptionText = normalizeText(qData.option_a);
+  if (upperGiven === "B" && qData.option_b) selectedOptionText = normalizeText(qData.option_b);
+  if (upperGiven === "C" && qData.option_c) selectedOptionText = normalizeText(qData.option_c);
+  if (upperGiven === "D" && qData.option_d) selectedOptionText = normalizeText(qData.option_d);
+
+  // Doğru şıkkın harfini bul
+  let expectedLetter = "";
+  const upperExpected = (qData.answer || "").trim().toUpperCase();
+  if (["A", "B", "C", "D"].includes(upperExpected)) {
+    expectedLetter = upperExpected;
+  } else {
+    if (normalizeText(qData.option_a) === rawExpected) expectedLetter = "A";
+    else if (normalizeText(qData.option_b) === rawExpected) expectedLetter = "B";
+    else if (normalizeText(qData.option_c) === rawExpected) expectedLetter = "C";
+    else if (normalizeText(qData.option_d) === rawExpected) expectedLetter = "D";
+  }
+
   const isTimeOut = params.answer === "SURE_DOLDU";
-  const isCorrect = !isTimeOut && rawGiven === rawExpected;
+  const isCorrect = !isTimeOut && (
+    rawGiven === rawExpected ||
+    (Boolean(expectedLetter) && upperGiven === expectedLetter) ||
+    (Boolean(selectedOptionText) && selectedOptionText === rawExpected)
+  );
+
+  const formattedCorrectAnswer = expectedLetter && !["A", "B", "C", "D"].includes(upperExpected)
+    ? `${expectedLetter}) ${qData.answer}`
+    : qData.answer;
 
   // Ayarları oku (hız bonusu açık mı?)
   const settings = await getTahtaQuizSettings(school.id);
@@ -314,7 +343,7 @@ export async function submitTahtaQuizAnswer(params: {
   return {
     success: true,
     isCorrect,
-    correctAnswer: qData.answer,
+    correctAnswer: formattedCorrectAnswer,
     pointsEarned: points,
     totalScore,
     schoolRank: rank,
