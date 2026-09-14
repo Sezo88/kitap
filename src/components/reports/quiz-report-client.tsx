@@ -54,7 +54,8 @@ interface QuizAnswer {
   is_correct: boolean;
   seconds_left?: number;
   points_awarded?: number;
-  created_at: string;
+  answered_at?: string;
+  created_at?: string;
 }
 
 interface ClassItem {

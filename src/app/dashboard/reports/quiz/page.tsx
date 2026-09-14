@@ -13,7 +13,14 @@ export default async function QuizReportsPage() {
     );
   }
 
-  const supabase = await createClient();
+  let supabase;
+  try {
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    supabase = createAdminClient();
+  } catch {
+    supabase = await createClient();
+  }
+
   const schoolId = profile.school_id;
 
   // 1. Okula ait sınıfları getir
@@ -25,6 +32,7 @@ export default async function QuizReportsPage() {
     .order("name", { ascending: true });
 
   const classes = classesData || [];
+  const classIds = classes.map((c) => c.id);
 
   // 2. quiz_scores tablosundaki sınıf puanlarını getir
   const { data: scoresData } = await supabase
@@ -49,25 +57,22 @@ export default async function QuizReportsPage() {
     quiz_questions: Array.isArray(d.quiz_questions) ? d.quiz_questions[0] : d.quiz_questions,
   }));
 
-  // 4. Günlük sorulara ait sınıf cevaplarını getir
-  const dailyIds = dailyQuestions.map((d) => d.id);
+  // 4. Okulun sınıflarına ait tüm quiz cevaplarını getir
   let answers: any[] = [];
 
-  if (dailyIds.length > 0) {
-    // Önce yeni kolonlarla dene
+  if (classIds.length > 0) {
+    // Önce tüm kolonlarla dene (answered_at, seconds_left, points_awarded)
     const { data: ansData, error: ansErr } = await supabase
       .from("quiz_answers")
-      .select("id, daily_id, class_id, answer, is_correct, seconds_left, points_awarded, created_at")
-      .in("daily_id", dailyIds)
-      .order("created_at", { ascending: false });
+      .select("id, daily_id, class_id, answer, is_correct, seconds_left, points_awarded, answered_at")
+      .in("class_id", classIds);
 
-    if (ansErr && ansErr.message?.includes("does not exist")) {
-      // Kolonlar henüz eklenmediyse temel kolonlarla çek
+    if (ansErr) {
+      // Kolonlardan biri yoksa temel kolonlarla çek (kesinlikle var olan kolonlar)
       const { data: fallbackAns } = await supabase
         .from("quiz_answers")
-        .select("id, daily_id, class_id, answer, is_correct, created_at")
-        .in("daily_id", dailyIds)
-        .order("created_at", { ascending: false });
+        .select("id, daily_id, class_id, answer, is_correct")
+        .in("class_id", classIds);
       answers = fallbackAns || [];
     } else {
       answers = ansData || [];

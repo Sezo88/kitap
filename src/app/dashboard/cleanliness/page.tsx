@@ -40,6 +40,8 @@ export default async function CleanlinessPage() {
     todayScores = data || [];
   }
 
+  const isAdmin = profile.role === "super_admin" || profile.role === "idareci";
+
   return (
     <div>
       <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">Temiz Sınıf Puanlama</h2>
@@ -48,6 +50,7 @@ export default async function CleanlinessPage() {
         criterias={criterias || []}
         todayScores={todayScores}
         userId={profile.id}
+        isAdmin={isAdmin}
       />
     </div>
   );

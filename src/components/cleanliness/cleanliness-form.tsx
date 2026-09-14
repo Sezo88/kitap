@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { CheckCircle2, Save, Info } from "lucide-react";
 import type { CleanlinessCriteria, CleanlinessScore } from "@/lib/types/database";
+import { CleanlinessCriteriaManager } from "@/components/cleanliness/cleanliness-criteria-manager";
 
 interface ClassRow {
   id: string;
@@ -20,14 +21,20 @@ interface Props {
   criterias: CleanlinessCriteria[];
   todayScores: CleanlinessScore[];
   userId: string;
+  isAdmin?: boolean;
 }
 
-export function CleanlinessForm({ classes, criterias, todayScores, userId }: Props) {
+export function CleanlinessForm({ classes, criterias, todayScores, userId, isAdmin }: Props) {
+  const [currentCriterias, setCurrentCriterias] = useState<CleanlinessCriteria[]>(criterias);
   const [selectedClassId, setSelectedClassId] = useState<string>(classes[0]?.id || "");
   const [scores, setScores] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
   const [localScores, setLocalScores] = useState<CleanlinessScore[]>(todayScores);
   const { toast } = useToast();
+
+  useEffect(() => {
+    setCurrentCriterias(criterias);
+  }, [criterias]);
 
   // Bu haftanın Pazartesi gününü hesapla
   function getMondayOfCurrentWeek(): string {
@@ -59,12 +66,12 @@ export function CleanlinessForm({ classes, criterias, todayScores, userId }: Pro
     } else {
       // Varsayılan olarak tüm kriterlere 5 puan seçelim (kolaylık olsun)
       const defaultScores: Record<string, number> = {};
-      criterias.forEach((c) => {
+      currentCriterias.forEach((c) => {
         defaultScores[c.id] = 5;
       });
       setScores(defaultScores);
     }
-  }, [selectedClassId, isAlreadyScored, selectedDate]);
+  }, [selectedClassId, isAlreadyScored, selectedDate, currentCriterias]);
 
   // Tarih değiştiğinde o tarihe ait puanları çek
   useEffect(() => {
@@ -93,7 +100,7 @@ export function CleanlinessForm({ classes, criterias, todayScores, userId }: Pro
 
   const handleSave = async () => {
     // Tüm kriterlerin puanlandığından emin ol
-    const missing = criterias.filter((c) => !scores[c.id]);
+    const missing = currentCriterias.filter((c) => !scores[c.id]);
     if (missing.length > 0) {
       toast("Lütfen tüm kriterleri puanlayın", "error");
       return;
@@ -102,7 +109,7 @@ export function CleanlinessForm({ classes, criterias, todayScores, userId }: Pro
     setSaving(true);
     const supabase = createClient();
 
-    const payload = criterias.map((c) => ({
+    const payload = currentCriterias.map((c) => ({
       class_id: selectedClassId,
       criteria_id: c.id,
       score_date: selectedDate,
@@ -201,11 +208,19 @@ export function CleanlinessForm({ classes, criterias, todayScores, userId }: Pro
                 </span>
               </div>
             </div>
-            {isAlreadyScored && (
-              <Badge variant="success" className="gap-1 bg-green-100 text-green-700 hover:bg-green-100 border-green-300">
-                <CheckCircle2 className="h-3 w-3" /> Puanlandı (Düzenlenebilir)
-              </Badge>
-            )}
+            <div className="flex items-center gap-2 flex-wrap">
+              {isAdmin && (
+                <CleanlinessCriteriaManager
+                  initialCriterias={currentCriterias}
+                  onCriteriaChange={setCurrentCriterias}
+                />
+              )}
+              {isAlreadyScored && (
+                <Badge variant="success" className="gap-1 bg-green-100 text-green-700 hover:bg-green-100 border-green-300">
+                  <CheckCircle2 className="h-3 w-3" /> Puanlandı (Düzenlenebilir)
+                </Badge>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="space-y-6">
             {isAlreadyScored && (
@@ -231,7 +246,7 @@ export function CleanlinessForm({ classes, criterias, todayScores, userId }: Pro
 
             {/* Kriter Kartları (Alt Alta) */}
             <div className="space-y-4">
-              {criterias.map((c) => {
+              {currentCriterias.map((c) => {
                 const currentScore = scores[c.id] || 0;
                 return (
                   <div key={c.id} className="p-4 rounded-xl border bg-card/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-card transition-colors">
