@@ -107,6 +107,17 @@ function TahtaQuizContent() {
   const [soundOn, setSoundOn] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
 
+  const [notActiveInfo, setNotActiveInfo] = useState<{
+    title: string;
+    description: string;
+    type: "time" | "no_question" | "disabled";
+    canBypass?: boolean;
+  }>({
+    title: "Yarışma Saati Dışındasınız",
+    description: "Günün sorusu idarenin belirlediği saat aralığında açılmaktadır.",
+    type: "time",
+  });
+
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const closeTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -123,6 +134,7 @@ function TahtaQuizContent() {
         return;
       }
 
+      const isPreview = searchParams.get("preview") === "true";
       const supabase = createClient();
 
       // Okul kodu çöz
@@ -151,13 +163,19 @@ function TahtaQuizContent() {
           .maybeSingle(),
         supabase
           .from("panel_settings")
-          .select("tahta_quiz_duration, tahta_quiz_enabled, tahta_quiz_auto_close_seconds")
+          .select("tahta_quiz_duration, tahta_quiz_enabled, tahta_quiz_auto_close_seconds, tahta_quiz_start_time, tahta_quiz_end_time")
           .eq("school_id", school.id)
           .maybeSingle(),
       ]);
 
       if (settingsRes.data) {
-        if (settingsRes.data.tahta_quiz_enabled === false) {
+        if (settingsRes.data.tahta_quiz_enabled === false && !isPreview) {
+          setNotActiveInfo({
+            title: "Yarışma Sistemi Devre Dışı",
+            description: "Günün sorusu idare tarafından geçici olarak kapatılmıştır.",
+            type: "disabled",
+            canBypass: true,
+          });
           setStep("not_active");
           return;
         }
@@ -170,13 +188,89 @@ function TahtaQuizContent() {
         }
       }
 
-      if (!dailyRes.data || !dailyRes.data.quiz_questions) {
-        setErrorMsg("Bugün için soru belirlenmemiş.");
+      // Saat aralığı kontrolü (Türkiye Saati: Europe/Istanbul)
+      const startTimeStr = settingsRes.data?.tahta_quiz_start_time || "08:30";
+      const endTimeStr = settingsRes.data?.tahta_quiz_end_time || "08:55";
+
+      const now = new Date();
+      const trFormatter = new Intl.DateTimeFormat("tr-TR", {
+        timeZone: "Europe/Istanbul",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      const currentTimeStr = trFormatter.format(now);
+
+      const inWindow = currentTimeStr >= startTimeStr && currentTimeStr <= endTimeStr;
+
+      if (!inWindow && !isPreview) {
+        setNotActiveInfo({
+          title: "Yarışma Saati Dışındasınız",
+          description: `Günün sorusu ${startTimeStr} — ${endTimeStr} saatleri arasında açılmaktadır. (Şu anki saat: ${currentTimeStr})`,
+          type: "time",
+          canBypass: true,
+        });
         setStep("not_active");
         return;
       }
 
-      setDailyQuestion(dailyRes.data);
+      // Soru kontrolü & otomatik atama
+      let activeDaily: any = dailyRes.data;
+
+      // Eğer bugün için henüz soru seçilmemişse otomatik olarak bugünün sorusunu seç
+      if (!activeDaily || !activeDaily.quiz_questions) {
+        try {
+          await supabase.rpc("pick_daily_question", { p_school_id: school.id });
+        } catch (e) {
+          console.warn("pick_daily_question rpc failed:", e);
+        }
+
+        const { data: refetched } = await supabase
+          .from("quiz_daily")
+          .select("id, question_id, quiz_questions(question, answer, option_a, option_b, option_c, option_d, difficulty, category)")
+          .eq("school_id", school.id)
+          .eq("question_date", today)
+          .maybeSingle();
+
+        if (refetched && refetched.quiz_questions) {
+          activeDaily = refetched;
+        } else {
+          // Doğrudan soru bankasından aktif bir soru seçip bugüne ata
+          const { data: qList } = await supabase
+            .from("quiz_questions")
+            .select("id, question, answer, option_a, option_b, option_c, option_d, difficulty, category")
+            .eq("school_id", school.id)
+            .limit(1);
+
+          if (qList && qList.length > 0) {
+            const q = qList[0];
+            const { data: inserted } = await supabase
+              .from("quiz_daily")
+              .insert({
+                school_id: school.id,
+                question_id: q.id,
+                question_date: today,
+              })
+              .select("id, question_id, quiz_questions(question, answer, option_a, option_b, option_c, option_d, difficulty, category)")
+              .maybeSingle();
+
+            activeDaily = inserted || ({ id: "temp", question_id: q.id, quiz_questions: q } as any);
+          }
+        }
+      }
+
+      if (!activeDaily || !activeDaily.quiz_questions) {
+        setNotActiveInfo({
+          title: "Soru Bankasında Soru Bulunamadı",
+          description: "Günün sorusu yarışması için henüz soru eklenmemiş. Lütfen önce idare panelindeki 'Soru Bankası' sekmesinden soru ekleyin.",
+          type: "no_question",
+          canBypass: false,
+        });
+        setStep("not_active");
+        return;
+      }
+
+      setDailyQuestion(activeDaily);
       setStep("pin");
     }
 
@@ -419,16 +513,42 @@ function TahtaQuizContent() {
         {step === "not_active" && (
           <div className="max-w-md w-full text-center p-8 rounded-3xl bg-white/[0.03] border border-white/10 backdrop-blur-xl shadow-2xl space-y-4">
             <Clock className="h-16 w-16 mx-auto text-amber-400/80 animate-pulse" />
-            <h2 className="text-2xl font-bold">Yarışma Saati Dışındasınız</h2>
+            <h2 className="text-2xl font-bold">{notActiveInfo.title}</h2>
             <p className="text-slate-400 text-sm leading-relaxed">
-              Günün sorusu idarenin belirlediği saat aralığında açılmaktadır. Ders başlangıcında veya teneffüste tekrar deneyiniz.
+              {notActiveInfo.description}
             </p>
-            <button
-              onClick={closeWindow}
-              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-bold text-base shadow-lg shadow-amber-500/20 hover:brightness-110 active:scale-98 transition"
-            >
-              Tahtaya Dön
-            </button>
+            <div className="pt-2 flex flex-col gap-2.5">
+              {notActiveInfo.canBypass && (
+                <button
+                  onClick={() => {
+                    if (dailyQuestion) {
+                      setStep("pin");
+                    } else {
+                      window.location.href = `/tahta-quiz?okul=${schoolCode}&preview=true`;
+                    }
+                  }}
+                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-bold text-base shadow-lg shadow-amber-500/20 hover:brightness-110 active:scale-98 transition"
+                >
+                  Önizleme Olarak Test Et
+                </button>
+              )}
+
+              {notActiveInfo.type === "no_question" && (
+                <a
+                  href="/dashboard/admin/quiz"
+                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-sm shadow-lg shadow-blue-500/20 hover:brightness-110 transition flex items-center justify-center gap-2"
+                >
+                  Soru Bankasına Git & Soru Ekle
+                </a>
+              )}
+
+              <button
+                onClick={closeWindow}
+                className="w-full py-2.5 rounded-xl bg-white/5 border border-white/10 text-xs font-semibold text-slate-400 hover:text-white hover:bg-white/10 transition"
+              >
+                Tahtaya Dön
+              </button>
+            </div>
           </div>
         )}
 

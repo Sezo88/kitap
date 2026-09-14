@@ -191,7 +191,7 @@ export function TahtaQuizSettingsForm({ schoolId, schoolCode, initialSettings }:
               </div>
             </div>
             <a
-              href={`/tahta-quiz?okul=${schoolCode}`}
+              href={`/tahta-quiz?okul=${schoolCode}&preview=true`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline px-3 py-1.5 rounded-lg border border-border hover:bg-muted"
