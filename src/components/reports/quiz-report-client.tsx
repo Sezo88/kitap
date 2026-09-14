@@ -20,8 +20,9 @@ import {
   HelpCircle,
   GraduationCap,
   Users,
+  Gift,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 interface QuizScore {
@@ -80,6 +81,7 @@ export function QuizReportClient({
   schoolName,
 }: Props) {
   const [activeTab, setActiveTab] = useState<"leaderboard" | "daily" | "class_detail">("leaderboard");
+  const [periodFilter, setPeriodFilter] = useState<"week" | "month" | "all">("week");
   const [gradeFilter, setGradeFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedClassId, setSelectedClassId] = useState<string>(classes[0]?.id || "");
@@ -92,27 +94,70 @@ export function QuizReportClient({
     return map;
   }, [classes]);
 
-  // Sınıf bazında cevap istatistikleri
-  const classStatsMap = useMemo(() => {
+  // Günlük Soru Tarih Haritası
+  const dailyDateMap = useMemo(() => {
+    const map = new Map<string, string>();
+    dailyQuestions.forEach((d) => map.set(d.id, d.question_date));
+    return map;
+  }, [dailyQuestions]);
+
+  // Türkiye saatine göre bu haftanın Pazartesi günü ve bu ayın 1. günü
+  const { mondayStr, monthStartStr } = useMemo(() => {
+    const now = new Date();
+    const trNow = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Istanbul" }));
+    const day = trNow.getDay(); // 0=Sun, 1=Mon, ...
+    const diff = day === 0 ? 6 : day - 1;
+    const monday = new Date(trNow);
+    monday.setDate(trNow.getDate() - diff);
+
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const mStr = `${monday.getFullYear()}-${pad(monday.getMonth() + 1)}-${pad(monday.getDate())}`;
+    const moStr = `${trNow.getFullYear()}-${pad(trNow.getMonth() + 1)}-01`;
+
+    return { mondayStr: mStr, monthStartStr: moStr };
+  }, []);
+
+  // Seçili döneme göre filtrelenmiş cevaplar
+  const filteredAnswers = useMemo(() => {
+    if (periodFilter === "all") return answers;
+
+    return answers.filter((ans) => {
+      const qDate = dailyDateMap.get(ans.daily_id) || (ans.answered_at ? ans.answered_at.split("T")[0] : "");
+      if (!qDate) return true;
+
+      if (periodFilter === "week") {
+        return qDate >= mondayStr;
+      }
+      if (periodFilter === "month") {
+        return qDate >= monthStartStr;
+      }
+      return true;
+    });
+  }, [answers, periodFilter, dailyDateMap, mondayStr, monthStartStr]);
+
+  // Seçili döneme göre sınıf puanları ve istatistikleri
+  const periodClassStats = useMemo(() => {
     const map = new Map<
       string,
-      { totalAnswered: number; correctCount: number; wrongCount: number; timeoutCount: number }
+      { totalAnswered: number; correctCount: number; wrongCount: number; timeoutCount: number; periodScore: number }
     >();
 
     classes.forEach((c) => {
-      map.set(c.id, { totalAnswered: 0, correctCount: 0, wrongCount: 0, timeoutCount: 0 });
+      map.set(c.id, { totalAnswered: 0, correctCount: 0, wrongCount: 0, timeoutCount: 0, periodScore: 0 });
     });
 
-    answers.forEach((ans) => {
+    filteredAnswers.forEach((ans) => {
       const cur = map.get(ans.class_id) || {
         totalAnswered: 0,
         correctCount: 0,
         wrongCount: 0,
         timeoutCount: 0,
+        periodScore: 0,
       };
       cur.totalAnswered += 1;
       if (ans.is_correct) {
         cur.correctCount += 1;
+        cur.periodScore += ans.points_awarded && ans.points_awarded > 0 ? ans.points_awarded : 100;
       } else if (ans.answer === "SURE_DOLDU") {
         cur.timeoutCount += 1;
       } else {
@@ -122,29 +167,37 @@ export function QuizReportClient({
     });
 
     return map;
-  }, [answers, classes]);
+  }, [filteredAnswers, classes]);
 
   // Sıralanmış Liderlik Tablosu
   const leaderboard = useMemo(() => {
-    // Sınıf puanlarını birleştir (quiz_scores tablosunda olmayan sınıflar da 0 puanla görünsün)
-    const scoreMap = new Map<string, number>();
-    scores.forEach((s) => scoreMap.set(s.class_id, s.score));
+    const allTimeScoreMap = new Map<string, number>();
+    scores.forEach((s) => allTimeScoreMap.set(s.class_id, s.score));
 
     const list = classes.map((c) => {
-      const stats = classStatsMap.get(c.id) || {
+      const stats = periodClassStats.get(c.id) || {
         totalAnswered: 0,
         correctCount: 0,
         wrongCount: 0,
         timeoutCount: 0,
+        periodScore: 0,
       };
-      const score = scoreMap.get(c.id) || 0;
+
+      // Eğer "all" (Tüm Dönem) ise veritabanındaki quiz_scores tablosu veya cevaplar toplamının büyüğünü kullan
+      let displayScore = stats.periodScore;
+      if (periodFilter === "all") {
+        const recorded = allTimeScoreMap.get(c.id) || 0;
+        displayScore = Math.max(recorded, stats.periodScore);
+      }
+
       const accuracy = stats.totalAnswered > 0 ? Math.round((stats.correctCount / stats.totalAnswered) * 100) : 0;
 
       return {
         classId: c.id,
         className: c.name,
         gradeLevel: c.grade_level ? String(c.grade_level) : c.name.charAt(0),
-        score,
+        score: displayScore,
+        allTimeScore: allTimeScoreMap.get(c.id) || 0,
         ...stats,
         accuracy,
       };
@@ -153,7 +206,7 @@ export function QuizReportClient({
     // Puana göre azalan sırala
     list.sort((a, b) => b.score - a.score || b.accuracy - a.accuracy || a.className.localeCompare(b.className));
     return list;
-  }, [classes, scores, classStatsMap]);
+  }, [classes, scores, periodClassStats, periodFilter]);
 
   // Filtrelenmiş Liderlik
   const filteredLeaderboard = useMemo(() => {
@@ -171,27 +224,37 @@ export function QuizReportClient({
     });
   }, [leaderboard, gradeFilter, searchQuery]);
 
+  // Seçili Döneme Göre Günlük Sorular Listesi
+  const filteredDailyQuestions = useMemo(() => {
+    if (periodFilter === "all") return dailyQuestions;
+    return dailyQuestions.filter((d) => {
+      if (periodFilter === "week") return d.question_date >= mondayStr;
+      if (periodFilter === "month") return d.question_date >= monthStartStr;
+      return true;
+    });
+  }, [dailyQuestions, periodFilter, mondayStr, monthStartStr]);
+
   // Genel Özet İstatistikler
   const summary = useMemo(() => {
     const leader = leaderboard[0];
-    const totalAnswers = answers.length;
-    const totalCorrect = answers.filter((a) => a.is_correct).length;
+    const totalAnswers = filteredAnswers.length;
+    const totalCorrect = filteredAnswers.filter((a) => a.is_correct).length;
     const overallAccuracy = totalAnswers > 0 ? Math.round((totalCorrect / totalAnswers) * 100) : 0;
 
     // Aktif katılım sağlayan sınıf sayısı
-    const activeClassesCount = new Set(answers.map((a) => a.class_id)).size;
+    const activeClassesCount = new Set(filteredAnswers.map((a) => a.class_id)).size;
 
     return {
       leaderName: leader ? leader.className : "—",
       leaderScore: leader ? leader.score : 0,
-      totalQuestions: dailyQuestions.length,
+      totalQuestions: filteredDailyQuestions.length,
       totalAnswers,
       totalCorrect,
       overallAccuracy,
       activeClassesCount,
       totalClasses: classes.length,
     };
-  }, [leaderboard, answers, dailyQuestions, classes]);
+  }, [leaderboard, filteredAnswers, filteredDailyQuestions, classes]);
 
   // Seçili sınıfın detay karnesi
   const selectedClass = useMemo(() => {
@@ -200,13 +263,13 @@ export function QuizReportClient({
 
   const selectedClassAnswers = useMemo(() => {
     if (!selectedClass) return [];
-    return answers
+    return filteredAnswers
       .filter((a) => a.class_id === selectedClass.classId)
       .map((ans) => {
         const daily = dailyQuestions.find((d) => d.id === ans.daily_id);
         return {
           ...ans,
-          dailyDate: daily?.question_date || "",
+          dailyDate: daily?.question_date || (ans.answered_at ? ans.answered_at.split("T")[0] : ""),
           question: daily?.quiz_questions?.question || "Günün Sorusu",
           correctAnswer: daily?.quiz_questions?.answer || "",
           category: daily?.quiz_questions?.category || "Genel Kültür",
@@ -214,7 +277,7 @@ export function QuizReportClient({
         };
       })
       .sort((a, b) => b.dailyDate.localeCompare(a.dailyDate));
-  }, [answers, dailyQuestions, selectedClass]);
+  }, [filteredAnswers, dailyQuestions, selectedClass]);
 
   // Kademeler listesi
   const availableGrades = useMemo(() => {
@@ -264,6 +327,91 @@ export function QuizReportClient({
         </div>
       </div>
 
+      {/* ── PEKISTIREC & DONEM SECICI (HAFTALIK / AYLIK / DONEMLIK) ─ */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-card border border-border/80 shadow-sm">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+            <Gift className="h-5 w-5" />
+          </div>
+          <div>
+            <span className="text-xs font-bold text-foreground block">
+              Pekiştireç & Değerlendirme Aralığı
+            </span>
+            <span className="text-[11px] text-muted-foreground">
+              Ödül ve pekiştireç vermek için dönemi belirleyin:
+            </span>
+          </div>
+        </div>
+
+        {/* 3'lü Dönem Seçim Butonları */}
+        <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-muted/80 border border-border/50">
+          <button
+            type="button"
+            onClick={() => setPeriodFilter("week")}
+            className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 select-none touch-manipulation ${
+              periodFilter === "week"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <span>📅 Bu Hafta</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setPeriodFilter("month")}
+            className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 select-none touch-manipulation ${
+              periodFilter === "month"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <span>🗓️ Bu Ay</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setPeriodFilter("all")}
+            className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 select-none touch-manipulation ${
+              periodFilter === "all"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <span>🏆 Tüm Dönem</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ── PEKISTIREC SAMPIYONLUK KARTI (HAFTALIK/AYLIK BIRINCI) ── */}
+      {leaderboard[0] && leaderboard[0].score > 0 && periodFilter !== "all" && (
+        <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-card border border-amber-500/35 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm animate-in fade-in">
+          <div className="flex items-center gap-3.5">
+            <div className="p-3.5 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-300 text-slate-950 font-black text-2xl shadow-lg shadow-amber-500/25 shrink-0">
+              👑
+            </div>
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 mb-1">
+                {periodFilter === "week" ? "Haftalık Pekiştireç Önerisi" : "Aylık Pekiştireç Önerisi"}
+              </div>
+              <h3 className="text-base sm:text-lg font-black text-foreground">
+                {leaderboard[0].className} Sınıfı {periodFilter === "week" ? "Bu Haftanın" : "Bu Ayın"} Birincisi!
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {periodFilter === "week" ? "Bu hafta" : "Bu ay"} toplam <strong>{leaderboard[0].score} puan</strong> topladı (%{leaderboard[0].accuracy} başarı). Bu sınıfa haftalık bayrak, sertifika veya başarı ödülü verilebilir.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+            <span className="px-3.5 py-2 rounded-xl bg-amber-500 text-slate-950 font-black text-xs shadow-md shadow-amber-500/20 flex items-center gap-1.5">
+              <Trophy className="h-4 w-4" />
+              <span>+{leaderboard[0].score} Puan</span>
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* ── OZET METRIK KARTLARI (MOBIL UYUMLU) ────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Lider Sınıf */}
@@ -274,7 +422,7 @@ export function QuizReportClient({
             </div>
             <div className="min-w-0">
               <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
-                Lig Lideri
+                {periodFilter === "week" ? "Haftanın Lideri" : periodFilter === "month" ? "Ayın Lideri" : "Dönem Lideri"}
               </span>
               <div className="text-lg sm:text-xl font-black text-foreground truncate">
                 {summary.leaderName}
@@ -286,7 +434,7 @@ export function QuizReportClient({
           </CardContent>
         </Card>
 
-        {/* Okul Başarı Oranı */}
+        {/* Başarı Oranı */}
         <Card className="bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-transparent border-emerald-500/30 shadow-sm">
           <CardContent className="p-4 sm:p-5 flex items-center gap-3">
             <div className="p-3 rounded-2xl bg-emerald-500/20 text-emerald-500 shrink-0">
@@ -324,7 +472,7 @@ export function QuizReportClient({
           </CardContent>
         </Card>
 
-        {/* Toplam Günlük Soru */}
+        {/* Toplam Soru */}
         <Card className="bg-gradient-to-br from-purple-500/10 via-violet-500/5 to-transparent border-purple-500/30 shadow-sm">
           <CardContent className="p-4 sm:p-5 flex items-center gap-3">
             <div className="p-3 rounded-2xl bg-purple-500/20 text-purple-500 shrink-0">
@@ -335,9 +483,11 @@ export function QuizReportClient({
                 Sorulan Soru
               </span>
               <div className="text-lg sm:text-xl font-black text-foreground">
-                {summary.totalQuestions} Gün
+                {summary.totalQuestions} Soru
               </div>
-              <span className="text-xs text-muted-foreground">Yarışma Günü</span>
+              <span className="text-xs text-muted-foreground">
+                {periodFilter === "week" ? "Bu Hafta" : periodFilter === "month" ? "Bu Ay" : "Tüm Dönem"}
+              </span>
             </div>
           </CardContent>
         </Card>
@@ -488,6 +638,11 @@ export function QuizReportClient({
                           <Badge variant="outline" className="text-[10px] hidden xs:inline-flex">
                             {item.gradeLevel}. Kademe
                           </Badge>
+                          {isTop1 && periodFilter !== "all" && item.score > 0 && (
+                            <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                              {periodFilter === "week" ? "Haftanın 1.si" : "Ayın 1.si"}
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
                           <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
@@ -499,6 +654,14 @@ export function QuizReportClient({
                           </span>
                           <span>•</span>
                           <span>%{item.accuracy} Başarı</span>
+                          {periodFilter !== "all" && (
+                            <>
+                              <span>•</span>
+                              <span className="text-[11px] text-muted-foreground">
+                                Genel: {item.allTimeScore} Puan
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -510,7 +673,7 @@ export function QuizReportClient({
                           {item.score}
                         </div>
                         <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">
-                          Toplam Puan
+                          {periodFilter === "week" ? "Haftalık Puan" : periodFilter === "month" ? "Aylık Puan" : "Toplam Puan"}
                         </span>
                       </div>
                       <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground group-hover:translate-x-1 transition-transform" />
@@ -526,19 +689,24 @@ export function QuizReportClient({
       {/* ── TAB 2: GUNLUK SORULAR VE CEVAP DAGILIMI ────────────── */}
       {activeTab === "daily" && (
         <div className="space-y-4">
-          <div className="text-xs text-muted-foreground">
-            Aşağıda sorulmuş tüm günün soruları ve sınıfların verdiği yanıtlar yer almaktadır. Soru detayını görmek için karta tıklayın:
+          <div className="text-xs text-muted-foreground flex items-center justify-between">
+            <span>
+              {periodFilter === "week" ? "Bu haftanın" : periodFilter === "month" ? "Bu ayın" : "Tüm dönemin"} soruları ve sınıfların verdiği yanıtlar:
+            </span>
+            <span className="font-bold text-foreground">
+              {filteredDailyQuestions.length} Soru
+            </span>
           </div>
 
-          {dailyQuestions.length === 0 ? (
+          {filteredDailyQuestions.length === 0 ? (
             <div className="p-8 text-center bg-card rounded-2xl border border-border text-muted-foreground text-sm">
-              Henüz soru sorulmamış veya yarışma günü başlamamış.
+              Seçili dönemde ({periodFilter === "week" ? "Bu hafta" : "Bu ay"}) henüz soru sorulmamış.
             </div>
           ) : (
-            dailyQuestions.map((daily) => {
+            filteredDailyQuestions.map((daily) => {
               const q = daily.quiz_questions;
               const isExpanded = expandedDailyId === daily.id;
-              const dailyAnswers = answers.filter((a) => a.daily_id === daily.id);
+              const dailyAnswers = filteredAnswers.filter((a) => a.daily_id === daily.id);
               const correctCount = dailyAnswers.filter((a) => a.is_correct).length;
               const totalAnswers = dailyAnswers.length;
               const pct = totalAnswers > 0 ? Math.round((correctCount / totalAnswers) * 100) : 0;
@@ -678,7 +846,7 @@ export function QuizReportClient({
             <Card className="bg-card">
               <CardContent className="p-4 text-center">
                 <span className="text-xs text-muted-foreground block uppercase font-semibold">
-                  Okul Derecesi
+                  {periodFilter === "week" ? "Haftalık Sıra" : periodFilter === "month" ? "Aylık Sıra" : "Dönem Sırası"}
                 </span>
                 <span className="text-2xl font-black text-amber-500">
                   #{leaderboard.findIndex((l) => l.classId === selectedClass.classId) + 1}
@@ -689,7 +857,7 @@ export function QuizReportClient({
             <Card className="bg-card">
               <CardContent className="p-4 text-center">
                 <span className="text-xs text-muted-foreground block uppercase font-semibold">
-                  Toplam Puan
+                  {periodFilter === "week" ? "Bu Hafta Puan" : periodFilter === "month" ? "Bu Ay Puan" : "Toplam Puan"}
                 </span>
                 <span className="text-2xl font-black text-foreground">
                   {selectedClass.score}
@@ -723,12 +891,12 @@ export function QuizReportClient({
           {/* Sınıfın Katıldığı Sorular Listesi */}
           <div className="space-y-2.5">
             <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground pt-2">
-              {selectedClass.className} Sınıfının Günlük Soru Yanıtları
+              {selectedClass.className} Sınıfının {periodFilter === "week" ? "Bu Haftaki" : periodFilter === "month" ? "Bu Ayki" : "Dönemlik"} Soru Yanıtları
             </h3>
 
             {selectedClassAnswers.length === 0 ? (
               <div className="p-8 text-center bg-card rounded-2xl border border-border text-muted-foreground text-sm">
-                Bu sınıf henüz hiçbir günün sorusuna yanıt vermemiş.
+                Bu sınıf seçili dönemde ({periodFilter === "week" ? "Bu Hafta" : "Bu Ay"}) henüz hiçbir günün sorusuna yanıt vermemiş.
               </div>
             ) : (
               selectedClassAnswers.map((ans) => {
