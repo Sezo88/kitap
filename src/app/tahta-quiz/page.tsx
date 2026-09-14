@@ -98,6 +98,7 @@ function TahtaQuizContent() {
   const searchParams = useSearchParams();
   const schoolCodeParam = searchParams.get("okul") || "";
   const classParam = searchParams.get("sinif") || "";
+  const isPreview = searchParams.get("preview") === "true";
 
   const [step, setStep] = useState<"loading" | "pin" | "question" | "result" | "already" | "not_active">("loading");
   const [schoolCode, setSchoolCode] = useState(schoolCodeParam);
@@ -114,6 +115,7 @@ function TahtaQuizContent() {
   const [autoCloseLeft, setAutoCloseLeft] = useState(15);
   const [soundOn, setSoundOn] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
+  const [timeWindow, setTimeWindow] = useState<{ start: string; end: string }>({ start: "08:30", end: "08:55" });
 
   const textInputRef = useRef<HTMLInputElement>(null);
 
@@ -211,6 +213,7 @@ function TahtaQuizContent() {
       // Saat aralığı kontrolü (Türkiye Saati: Europe/Istanbul)
       const startTimeStr = settingsRes.data?.tahta_quiz_start_time || "08:30";
       const endTimeStr = settingsRes.data?.tahta_quiz_end_time || "08:55";
+      setTimeWindow({ start: startTimeStr, end: endTimeStr });
 
       const now = new Date();
       const trFormatter = new Intl.DateTimeFormat("tr-TR", {
@@ -228,7 +231,7 @@ function TahtaQuizContent() {
           title: "Yarışma Saati Dışındasınız",
           description: `Günün sorusu ${startTimeStr} — ${endTimeStr} saatleri arasında açılmaktadır. (Şu anki saat: ${currentTimeStr})`,
           type: "time",
-          canBypass: true,
+          canBypass: false,
         });
         setStep("not_active");
         return;
@@ -301,6 +304,30 @@ function TahtaQuizContent() {
   async function handlePinSubmit(pinCode: string) {
     if (!pinCode.trim()) return;
     setErrorMsg("");
+
+    const isPreview = searchParams.get("preview") === "true";
+    if (!isPreview) {
+      const now = new Date();
+      const trFormatter = new Intl.DateTimeFormat("tr-TR", {
+        timeZone: "Europe/Istanbul",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      const currentTimeStr = trFormatter.format(now);
+      if (currentTimeStr < timeWindow.start || currentTimeStr > timeWindow.end) {
+        setErrorMsg(`Yarışma saati doldu (${timeWindow.start} - ${timeWindow.end}). Şu anki saat: ${currentTimeStr}`);
+        setNotActiveInfo({
+          title: "Yarışma Saati Sona Erdi",
+          description: `Günün sorusu ${timeWindow.start} — ${timeWindow.end} saatleri arasında cevaplanabilir. (Şu anki saat: ${currentTimeStr})`,
+          type: "time",
+          canBypass: false,
+        });
+        setStep("not_active");
+        return;
+      }
+    }
+
     const supabase = createClient();
 
     let targetSchoolId = schoolInfo?.id;
@@ -606,6 +633,12 @@ function TahtaQuizContent() {
         </div>
 
         <div className="flex items-center gap-3">
+          {isPreview && (
+            <span className="hidden sm:inline-flex px-3 py-1.5 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold uppercase tracking-wider items-center gap-1.5 shadow-sm">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+              Önizleme / Test Modu (Saat Serbest)
+            </span>
+          )}
           <button
             onClick={() => setSoundOn(!soundOn)}
             className="p-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition text-slate-300"
