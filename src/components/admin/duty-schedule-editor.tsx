@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,14 +18,14 @@ import {
   Calendar,
   AlertTriangle,
   CheckCircle2,
-  Upload,
   ArrowRight,
-  RefreshCw,
   PlusCircle,
   MinusCircle,
   Download,
-  Info,
   Search,
+  Sparkles,
+  UserCheck,
+  Zap,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import {
@@ -45,6 +45,7 @@ interface DutyEntry {
   teacher_name?: string;
   day_of_week: number;
   location: string;
+  is_extra?: boolean;
 }
 
 export interface DutyStatItem {
@@ -82,8 +83,9 @@ export function DutyScheduleEditor({
       : ["ÖN BAHÇE", "ARKA BAHÇE", "ZEMİN KAT", "1. KAT", "2. KAT"]
   );
 
-  const [entries, setEntries] = useState<DutyEntry[]>(
-    initialSchedule.map((d) => ({
+  // Başlangıç nöbetlerini yükle ve çift nöbetleri otomatik belirle
+  const [entries, setEntries] = useState<DutyEntry[]>(() => {
+    const list: DutyEntry[] = initialSchedule.map((d) => ({
       id: d.id,
       teacher_id: d.teacher_id || null,
       teacher_name:
@@ -93,8 +95,28 @@ export function DutyScheduleEditor({
         "",
       day_of_week: d.day_of_week,
       location: d.location || "",
-    }))
-  );
+      is_extra: d.time_slot === "EK_NOBET" || (d as any).is_extra === true,
+    }));
+
+    // Eğer veritabanında henüz is_extra etiketlenmemişse, haftada birden fazla geçen öğretmenlerin
+    // 2. nöbetlerini otomatik olarak is_extra = true yap
+    const hasAnyTagged = list.some((e) => e.is_extra);
+    if (!hasAnyTagged) {
+      const seen = new Set<string>();
+      list.forEach((e) => {
+        const key = (e.teacher_name || e.teacher_id || "").toLocaleUpperCase("tr-TR");
+        if (!key) return;
+        if (seen.has(key)) {
+          e.is_extra = true;
+        } else {
+          seen.add(key);
+          e.is_extra = false;
+        }
+      });
+    }
+
+    return list;
+  });
 
   // Kümülatif İstatistikler (DB + LocalStorage fallback)
   const statsStorageKey = `kitap_duty_stats_${schoolId}`;
@@ -122,9 +144,13 @@ export function DutyScheduleEditor({
   const [importResult, setImportResult] = useState<ParseDutyScheduleResult | null>(null);
   const [importing, setImporting] = useState(false);
 
-  // Rotate Modal
+  // Rotate Modal & Çift Nöbet Değişim State'i
   const [showRotateModal, setShowRotateModal] = useState(false);
   const [rotateWithStats, setRotateWithStats] = useState(true);
+  // Çift nöbet yerlerine sonraki hafta atanacak yeni öğretmenler: { [entryIndex]: { teacher_id, teacher_name } }
+  const [extraAssignments, setExtraAssignments] = useState<
+    Record<number, { teacher_id: string | null; teacher_name: string }>
+  >({});
 
   // ── Helper: Öğretmen Eşleştirme ───────────────────────────
   function matchTeacher(name: string): Teacher | null {
@@ -145,7 +171,7 @@ export function DutyScheduleEditor({
     return teachers.find((t) => clean(t.full_name) === target) || null;
   }
 
-  // Bütün bilinen öğretmen seçenekleri (Profilde olanlar + Excel'den gelenler)
+  // Bütün bilinen öğretmen seçenekleri
   const teacherOptions = useMemo(() => {
     const map = new Map<string, { id: string; name: string }>();
     teachers.forEach((t) => {
@@ -166,7 +192,7 @@ export function DutyScheduleEditor({
   const currentWeekAnalysis = useMemo(() => {
     const teacherMap: Record<
       string,
-      { count: number; teacher_id: string | null; assignments: { day: number; location: string }[] }
+      { count: number; teacher_id: string | null; extraCount: number; assignments: { day: number; location: string; is_extra?: boolean }[] }
     > = {};
 
     entries.forEach((e) => {
@@ -178,26 +204,28 @@ export function DutyScheduleEditor({
       if (!teacherMap[name]) {
         teacherMap[name] = {
           count: 0,
+          extraCount: 0,
           teacher_id: e.teacher_id || null,
           assignments: [],
         };
       }
       teacherMap[name].count++;
-      teacherMap[name].assignments.push({ day: e.day_of_week, location: e.location });
+      if (e.is_extra) teacherMap[name].extraCount++;
+      teacherMap[name].assignments.push({ day: e.day_of_week, location: e.location, is_extra: e.is_extra });
     });
 
     const list = Object.entries(teacherMap).map(([name, data]) => ({
       teacher_name: name,
       teacher_id: data.teacher_id,
       count: data.count,
-      extra_duties: Math.max(0, data.count - 1),
+      extra_duties: data.extraCount > 0 ? data.extraCount : Math.max(0, data.count - 1),
       assignments: data.assignments,
     }));
 
     list.sort((a, b) => b.count - a.count || a.teacher_name.localeCompare(b.teacher_name, "tr-TR"));
 
-    const extraDutyTeachers = list.filter((t) => t.extra_duties > 0);
-    const totalExtraDuties = extraDutyTeachers.reduce((acc, t) => acc + t.extra_duties, 0);
+    const extraDutyTeachers = list.filter((t) => t.extra_duties > 0 || t.count > 1);
+    const totalExtraDuties = entries.filter((e) => e.is_extra).length || extraDutyTeachers.reduce((acc, t) => acc + t.extra_duties, 0);
 
     return {
       list,
@@ -208,6 +236,41 @@ export function DutyScheduleEditor({
     };
   }, [entries, teachers]);
 
+  // ── Çift Nöbet (is_extra) Değiştirme (Tıklama ile Tik Atma) ─
+  function toggleIsExtra(idx: number) {
+    const targetEntry = entries[idx];
+    if (!targetEntry) return;
+
+    const teacherName =
+      targetEntry.teacher_name || teachers.find((t) => t.id === targetEntry.teacher_id)?.full_name;
+
+    // Eğer bu öğretmenin 2 nöbeti varsa ve birine tıklandıysa, diğerinin durumunu tersine çevir
+    const teacherSameDuties = entries
+      .map((e, i) => ({ ...e, originalIndex: i }))
+      .filter((e) => {
+        const name = e.teacher_name || teachers.find((t) => t.id === e.teacher_id)?.full_name;
+        return name && name === teacherName;
+      });
+
+    if (teacherSameDuties.length === 2) {
+      const otherDuty = teacherSameDuties.find((d) => d.originalIndex !== idx);
+      const newExtraState = !targetEntry.is_extra;
+
+      setEntries((prev) =>
+        prev.map((e, i) => {
+          if (i === idx) return { ...e, is_extra: newExtraState };
+          if (otherDuty && i === otherDuty.originalIndex) return { ...e, is_extra: !newExtraState };
+          return e;
+        })
+      );
+    } else {
+      // Tek nöbeti varsa da serbestçe toggle edebilir
+      setEntries((prev) =>
+        prev.map((e, i) => (i === idx ? { ...e, is_extra: !e.is_extra } : e))
+      );
+    }
+  }
+
   // ── Manuel Satır Ekleme / Silme / Düzenleme ─────────────────
   function addEntry(dayOfWeek: number) {
     setEntries([
@@ -217,6 +280,7 @@ export function DutyScheduleEditor({
         teacher_name: "",
         day_of_week: dayOfWeek,
         location: nobetYerleri[0] || "ÖN BAHÇE",
+        is_extra: false,
       },
     ]);
   }
@@ -247,10 +311,8 @@ export function DutyScheduleEditor({
     const supabase = createClient();
 
     try {
-      // 1. Önce eski nöbetleri sil
       await supabase.from("duty_schedule").delete().eq("school_id", schoolId);
 
-      // 2. Yeni nöbetleri ekle
       if (entries.length > 0) {
         const insertData = entries.map((e) => {
           const matched = e.teacher_name ? matchTeacher(e.teacher_name) : null;
@@ -262,7 +324,7 @@ export function DutyScheduleEditor({
               teachers.find((t) => t.id === e.teacher_id)?.full_name ||
               "",
             day_of_week: e.day_of_week,
-            time_slot: e.location,
+            time_slot: e.is_extra ? "EK_NOBET" : e.location,
             location: e.location,
           };
         });
@@ -271,12 +333,10 @@ export function DutyScheduleEditor({
         if (error) throw error;
       }
 
-      // 3. Nöbet yerlerini panel_config tablosuna kaydet
       if (nobetYerleri.length > 0) {
-        const placesStr = nobetYerleri.join(", ");
         await supabase
           .from("panel_config")
-          .update({ nobet_yerleri: placesStr })
+          .update({ nobet_yerleri: nobetYerleri.join(", ") })
           .eq("school_id", schoolId);
       }
 
@@ -315,7 +375,6 @@ export function DutyScheduleEditor({
       const newPlaces = importResult.places;
       const parsedEntries = importResult.entries;
 
-      // entries formatına dönüştür ve öğretmenleri eşle
       const newDutyEntries: DutyEntry[] = parsedEntries.map((pe) => {
         const matched = matchTeacher(pe.teacher_name);
         return {
@@ -323,10 +382,10 @@ export function DutyScheduleEditor({
           teacher_name: pe.teacher_name,
           day_of_week: pe.day_of_week,
           location: pe.location,
+          is_extra: pe.is_extra ?? false,
         };
       });
 
-      // Veritabanındaki eski nöbetleri temizle ve yenilerini kaydet
       await supabase.from("duty_schedule").delete().eq("school_id", schoolId);
 
       const insertData = newDutyEntries.map((e) => ({
@@ -334,26 +393,24 @@ export function DutyScheduleEditor({
         teacher_id: e.teacher_id,
         teacher_name: e.teacher_name,
         day_of_week: e.day_of_week,
-        time_slot: e.location,
+        time_slot: e.is_extra ? "EK_NOBET" : e.location,
         location: e.location,
       }));
 
       const { error: insErr } = await supabase.from("duty_schedule").insert(insertData);
       if (insErr) throw insErr;
 
-      // Nöbet yerlerini de A sütunundan alınanlarla güncelle
       await supabase
         .from("panel_config")
         .update({ nobet_yerleri: newPlaces.join(", ") })
         .eq("school_id", schoolId);
 
-      // State'leri güncelle
       setNobetYerleri(newPlaces);
       setEntries(newDutyEntries);
       setShowImportModal(false);
 
       toast(
-        `Excel'den ${insertData.length} nöbet kaydı ve ${newPlaces.length} nöbet yeri başarıyla yüklendi!`,
+        `Excel'den ${insertData.length} nöbet kaydı yüklendi. Çift nöbetler otomatik olarak işaretlendi!`,
         "success"
       );
     } catch (err: any) {
@@ -363,19 +420,129 @@ export function DutyScheduleEditor({
     }
   }
 
-  // ── Nöbet Döndürme (Rotasyon) ────────────────────────────────
+  // ── NÖBET DÖNDÜRME SİHİRBAZI & ÇİFT NÖBET ADİL DAĞITIMI ──────
+
+  // Aktif çizelgede çift (ek) olarak işaretlenmiş nöbet satırları
+  const extraDutyEntriesWithIdx = useMemo(() => {
+    return entries
+      .map((e, idx) => ({ ...e, idx }))
+      .filter((e) => e.is_extra);
+  }, [entries]);
+
+  // Çift nöbet tutmaya en uygun adaylar (Kümülatif fazla nöbeti en az olanlar)
+  const candidateTeachersSorted = useMemo(() => {
+    const statsMap = new Map<string, number>();
+    dutyStats.forEach((s) => statsMap.set(s.teacher_name.toLocaleUpperCase("tr-TR"), s.extra_duties));
+
+    return [...teacherOptions].sort((a, b) => {
+      const aCount = statsMap.get(a.name.toLocaleUpperCase("tr-TR")) || 0;
+      const bCount = statsMap.get(b.name.toLocaleUpperCase("tr-TR")) || 0;
+      if (aCount !== bCount) return aCount - bCount;
+      return a.name.localeCompare(b.name, "tr-TR");
+    });
+  }, [teacherOptions, dutyStats]);
+
+  // Döndürme modalı açıldığında önerileri hazırla
+  function handleOpenRotateModal() {
+    // Çift nöbet yerleri için başlangıç önerisi oluştur
+    const initialAssigns: Record<number, { teacher_id: string | null; teacher_name: string }> = {};
+
+    // Bu hafta çift nöbet tutan öğretmenler (dinlendirilecekler)
+    const currentExtraHolders = new Set(
+      extraDutyEntriesWithIdx.map((e) => (e.teacher_name || "").toLocaleUpperCase("tr-TR"))
+    );
+
+    // Çift tutmayan ve en az fazla nöbeti olan öğretmen havuzu
+    const availablePool = candidateTeachersSorted.filter(
+      (c) => !currentExtraHolders.has(c.name.toLocaleUpperCase("tr-TR"))
+    );
+
+    extraDutyEntriesWithIdx.forEach((extraItem, i) => {
+      const candidate = availablePool[i % availablePool.length];
+      if (candidate) {
+        initialAssigns[extraItem.idx] = {
+          teacher_id: candidate.id || null,
+          teacher_name: candidate.name,
+        };
+      }
+    });
+
+    setExtraAssignments(initialAssigns);
+    setShowRotateModal(true);
+  }
+
+  // Otomatik Adil Dağıt Butonu: Sıradaki en adil öğretmenleri otomatik yerleştirir
+  function autoAssignFairCandidates() {
+    const initialAssigns: Record<number, { teacher_id: string | null; teacher_name: string }> = {};
+
+    const currentExtraHolders = new Set(
+      extraDutyEntriesWithIdx.map((e) => (e.teacher_name || "").toLocaleUpperCase("tr-TR"))
+    );
+
+    // Bu hafta çift tutmayan ve en az fazla nöbeti olanlar
+    const availablePool = candidateTeachersSorted.filter(
+      (c) => !currentExtraHolders.has(c.name.toLocaleUpperCase("tr-TR"))
+    );
+
+    extraDutyEntriesWithIdx.forEach((extraItem, i) => {
+      // Mümkünse aynı gün nöbeti olmayan bir aday seç
+      const candidatesWithoutDutyOnThisDay = availablePool.filter((c) => {
+        return !entries.some(
+          (e) =>
+            e.day_of_week === extraItem.day_of_week &&
+            !e.is_extra &&
+            (e.teacher_name || "").toLocaleUpperCase("tr-TR") === c.name.toLocaleUpperCase("tr-TR")
+        );
+      });
+
+      const selected =
+        candidatesWithoutDutyOnThisDay[i % candidatesWithoutDutyOnThisDay.length] ||
+        availablePool[i % availablePool.length];
+
+      if (selected) {
+        initialAssigns[extraItem.idx] = {
+          teacher_id: selected.id || null,
+          teacher_name: selected.name,
+        };
+      }
+    });
+
+    setExtraAssignments(initialAssigns);
+    toast("Çift nöbet yerleri en az fazla nöbet tutmuş öğretmenlere adil şekilde paylaştırıldı.", "info");
+  }
+
+  // Döndürmeyi Uygula ve Veritabanına Kaydet
   async function handleRotateSchedule() {
     setSaving(true);
     const supabase = createClient();
 
     try {
-      // 1. Yeni döndürülmüş nöbet yerlerini hesapla
-      const rotatedEntries: DutyEntry[] = entries.map((e) => ({
-        ...e,
-        location: rotateDutyLocation(e.location, nobetYerleri),
-      }));
+      // 1. Nöbet yerlerini rotasyon kuralına göre döndür
+      const rotatedEntries: DutyEntry[] = entries.map((e, idx) => {
+        const nextLoc = rotateDutyLocation(e.location, nobetYerleri);
 
-      // 2. İstatistik sayacını güncelle (eğer seçiliyse)
+        // Eğer bu bir ÇİFT (EK) nöbet satırıysa:
+        if (e.is_extra) {
+          const assigned = extraAssignments[idx];
+          return {
+            ...e,
+            location: nextLoc,
+            // Yeni atanan öğretmen (önceki çift tutan kişi oradan kaldırıldı!)
+            teacher_id: assigned ? assigned.teacher_id : null,
+            teacher_name: assigned ? assigned.teacher_name : "",
+            is_extra: true, // Bir sonraki haftada da ek nöbet olarak takip edilsin
+          };
+        }
+
+        // ASIL NÖBET: Öğretmenin orijinal nöbeti bir sonraki yere geçer
+        return {
+          ...e,
+          location: nextLoc,
+          is_extra: false,
+        };
+      });
+
+      // 2. Bu haftanın nöbetlerini kümülatif istatistik sayacına işle
       if (rotateWithStats) {
         await addCurrentWeekToStatsInternal(currentWeekAnalysis.list);
       }
@@ -393,7 +560,7 @@ export function DutyScheduleEditor({
             teachers.find((t) => t.id === e.teacher_id)?.full_name ||
             "",
           day_of_week: e.day_of_week,
-          time_slot: e.location,
+          time_slot: e.is_extra ? "EK_NOBET" : e.location,
           location: e.location,
         };
       });
@@ -405,7 +572,7 @@ export function DutyScheduleEditor({
       setShowRotateModal(false);
 
       toast(
-        "Nöbetler bir sonraki haftaya başarıyla döndürüldü ve kaydedildi (Ön Bahçe ➔ Arka Bahçe ➔ Zemin ➔ 1. Kat ➔ 2. Kat ➔ Ön Bahçe).",
+        "Nöbet programı döndürüldü! Asıl nöbetler sonraki yere geçti, çift nöbet yerleri yeni öğretmenlere aktarıldı.",
         "success"
       );
     } catch (err: any) {
@@ -421,12 +588,10 @@ export function DutyScheduleEditor({
   ) {
     const updatedStatsMap = new Map<string, DutyStatItem>();
 
-    // Mevcut istatistikleri haritaya al
     dutyStats.forEach((st) => {
       updatedStatsMap.set(st.teacher_name.toLocaleUpperCase("tr-TR"), { ...st });
     });
 
-    // Bu haftayı ekle
     weekList.forEach((w) => {
       const key = w.teacher_name.toLocaleUpperCase("tr-TR");
       const existing = updatedStatsMap.get(key);
@@ -450,13 +615,11 @@ export function DutyScheduleEditor({
       (a, b) => b.extra_duties - a.extra_duties || b.total_duties - a.total_duties
     );
 
-    // Local storage & State
     setDutyStats(newStatsList);
     try {
       localStorage.setItem(statsStorageKey, JSON.stringify(newStatsList));
     } catch (e) {}
 
-    // Supabase duty_stats tablosuna kaydet
     const supabase = createClient();
     try {
       for (const item of newStatsList) {
@@ -476,7 +639,7 @@ export function DutyScheduleEditor({
           );
       }
     } catch (err) {
-      console.warn("duty_stats tablosuna kaydedilemedi (migration gerekebilir):", err);
+      console.warn("duty_stats tablosuna kaydedilemedi:", err);
     }
   }
 
@@ -507,7 +670,6 @@ export function DutyScheduleEditor({
       return item;
     });
 
-    // Eğer listede yoksa ekle
     if (!updated.some((item) => item.teacher_name === teacherName)) {
       const matched = matchTeacher(teacherName);
       updated.push({
@@ -575,9 +737,9 @@ export function DutyScheduleEditor({
       "Öğretmen Adı": t.teacher_name,
       "Bu Haftaki Nöbet Sayısı": t.week_count,
       "Bu Haftaki Nöbet Yerleri": t.week_assignments
-        .map((a) => `${DAY_NAMES[a.day - 1]}: ${a.location}`)
+        .map((a) => `${DAY_NAMES[a.day - 1]}: ${a.location}${a.is_extra ? " (Çift)" : ""}`)
         .join(", ") || "Yok",
-      "Bu Hafta Fazla Nöbet": t.week_extra > 0 ? `${t.week_extra} Fazla` : "Normal",
+      "Bu Hafta Çift/Fazla Nöbet": t.week_extra > 0 ? `${t.week_extra} Çift Nöbet` : "Normal",
       "Toplam Tutulan Nöbet": t.total_duties,
       "Toplam Fazla Nöbet Sayacı": t.extra_duties,
     }));
@@ -597,13 +759,12 @@ export function DutyScheduleEditor({
         teacher_id: string | null;
         week_count: number;
         week_extra: number;
-        week_assignments: { day: number; location: string }[];
+        week_assignments: { day: number; location: string; is_extra?: boolean }[];
         total_duties: number;
         extra_duties: number;
       }
     >();
 
-    // 1. Önce aktif haftadaki öğretmenleri ekle
     currentWeekAnalysis.list.forEach((w) => {
       const key = w.teacher_name.toLocaleUpperCase("tr-TR");
       map.set(key, {
@@ -617,7 +778,6 @@ export function DutyScheduleEditor({
       });
     });
 
-    // 2. Kümülatif istatistikleri birleştir
     dutyStats.forEach((st) => {
       const key = st.teacher_name.toLocaleUpperCase("tr-TR");
       const existing = map.get(key);
@@ -637,7 +797,6 @@ export function DutyScheduleEditor({
       }
     });
 
-    // 3. Okulun kayıtlı diğer öğretmenlerini de ekle
     teachers.forEach((t) => {
       const key = t.full_name.toLocaleUpperCase("tr-TR");
       if (!map.has(key)) {
@@ -677,7 +836,7 @@ export function DutyScheduleEditor({
           <button
             type="button"
             onClick={() => setActiveTab("schedule")}
-            className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+            className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
               activeTab === "schedule"
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -689,7 +848,7 @@ export function DutyScheduleEditor({
           <button
             type="button"
             onClick={() => setActiveTab("stats")}
-            className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+            className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
               activeTab === "stats"
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -699,7 +858,7 @@ export function DutyScheduleEditor({
             Fazla Nöbet & İstatistikler
             {currentWeekAnalysis.totalExtraDuties > 0 && (
               <span className="bg-amber-500 text-white rounded-full px-1.5 py-0.2 text-[10px] font-bold">
-                {currentWeekAnalysis.totalExtraDuties} Fazla
+                {currentWeekAnalysis.totalExtraDuties} Çift Nöbet
               </span>
             )}
           </button>
@@ -707,7 +866,6 @@ export function DutyScheduleEditor({
 
         {/* Sağ: Aksiyon Butonları */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Gizli Dosya Seçici */}
           <input
             type="file"
             ref={fileInputRef}
@@ -733,8 +891,8 @@ export function DutyScheduleEditor({
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => setShowRotateModal(true)}
-            className="border-indigo-600/30 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30"
+            onClick={handleOpenRotateModal}
+            className="border-indigo-600/30 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 font-medium"
           >
             <RotateCw className="h-4 w-4 mr-1.5 text-indigo-600 animate-spin-reverse" />
             Nöbet Döndür (Sonraki Hafta)
@@ -746,7 +904,7 @@ export function DutyScheduleEditor({
             size="sm"
             onClick={handleSave}
             disabled={saving}
-            className="bg-primary text-primary-foreground shadow"
+            className="bg-primary text-primary-foreground shadow font-medium"
           >
             <Save className="h-4 w-4 mr-1.5" />
             {saving ? "Kaydediliyor..." : "Tümünü Kaydet"}
@@ -770,27 +928,23 @@ export function DutyScheduleEditor({
       {/* ── TAB 1: HAFTALIK ÇİZELGE GÖRÜNÜMÜ ────────────────── */}
       {activeTab === "schedule" && (
         <div className="space-y-4">
-          {/* Fazla Nöbet Uyarısı (Eğer varsa) */}
-          {currentWeekAnalysis.extraDutyTeachers.length > 0 && (
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-xs flex items-start gap-2.5 text-amber-900 dark:text-amber-200">
-              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold">
-                  Bu hafta {currentWeekAnalysis.extraDutyTeachers.length} öğretmen fazla nöbet tutmaktadır:
+          {/* Çift Nöbet Bilgi & İpucu Kartı */}
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-xs flex items-start gap-2.5 text-amber-900 dark:text-amber-200">
+            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p>
+                <strong>Çift Nöbet İşaretleme:</strong> Haftada birden fazla nöbet tutan öğretmenlerin hangi nöbetinin{" "}
+                <strong>&quot;Asıl&quot;</strong>, hangisinin <strong>&quot;Çift (Ek)&quot;</strong> nöbet olduğunu aşağıdaki kartların üzerindeki{" "}
+                <span className="bg-amber-500 text-white px-1.5 py-0.5 rounded font-semibold text-[10px]">
+                  ✓ Çift Nöbet
                 </span>{" "}
-                {currentWeekAnalysis.extraDutyTeachers.map((t, idx) => (
-                  <span key={idx} className="inline-block mr-2">
-                    <strong>{t.teacher_name}</strong> ({t.count} nöbet -{" "}
-                    <span className="text-amber-700 dark:text-amber-300">
-                      +{t.extra_duties} fazla
-                    </span>
-                    )
-                    {idx < currentWeekAnalysis.extraDutyTeachers.length - 1 ? "," : ""}
-                  </span>
-                ))}
-              </div>
+                butonuna tıklayarak belirleyebilirsiniz.
+              </p>
+              <p className="text-muted-foreground text-[11px]">
+                💡 <em>Nöbet Döndür</em> yapıldığında, öğretmenin asıl nöbeti rotasyona göre kaydırılırken; çift nöbet tuttuğu yere o hafta çift tutmayan başka bir öğretmen adil şekilde yerleştirilecektir.
+              </p>
             </div>
-          )}
+          </div>
 
           {/* 5 Gün Kolonları */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
@@ -822,7 +976,7 @@ export function DutyScheduleEditor({
                     </div>
                   </CardHeader>
 
-                  <CardContent className="p-2.5 flex-1 space-y-2 overflow-y-auto max-h-[600px]">
+                  <CardContent className="p-2.5 flex-1 space-y-2.5 overflow-y-auto max-h-[600px]">
                     {dayEntries.length === 0 && (
                       <div className="text-center py-8 text-xs text-muted-foreground">
                         Nöbetçi eklenmemiş
@@ -830,7 +984,6 @@ export function DutyScheduleEditor({
                     )}
 
                     {dayEntries.map((entry) => {
-                      // Bu öğretmenin bu hafta başka nöbeti var mı kontrolü
                       const teacherName =
                         entry.teacher_name ||
                         teachers.find((t) => t.id === entry.teacher_id)?.full_name;
@@ -842,16 +995,62 @@ export function DutyScheduleEditor({
                       return (
                         <div
                           key={entry._idx}
-                          className={`flex flex-col gap-1.5 rounded-lg p-2 text-xs border transition-colors ${
-                            hasMultipleDuties
-                              ? "bg-amber-50/60 dark:bg-amber-950/20 border-amber-300 dark:border-amber-800/40"
+                          className={`flex flex-col gap-2 rounded-lg p-2.5 text-xs border transition-all ${
+                            entry.is_extra
+                              ? "bg-amber-50/80 dark:bg-amber-950/30 border-amber-400 dark:border-amber-700/60 shadow-xs ring-1 ring-amber-400/20"
+                              : hasMultipleDuties
+                              ? "bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900"
                               : "bg-background border-border/70"
                           }`}
                         >
+                          {/* Üst Kısım: Asıl / Çift Nöbet Tiki/Rozeti */}
+                          <div className="flex items-center justify-between gap-1">
+                            <button
+                              type="button"
+                              onClick={() => toggleIsExtra(entry._idx)}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold transition-all cursor-pointer ${
+                                entry.is_extra
+                                  ? "bg-amber-500 hover:bg-amber-600 text-white shadow-xs"
+                                  : hasMultipleDuties
+                                  ? "bg-blue-600 hover:bg-blue-700 text-white"
+                                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+                              }`}
+                              title="Bu nöbetin türünü (Asıl / Çift) değiştirmek için tıklayın"
+                            >
+                              {entry.is_extra ? (
+                                <>
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  ✓ Çift Nöbet (Döndürmede Değişecek)
+                                </>
+                              ) : hasMultipleDuties ? (
+                                <>
+                                  <UserCheck className="h-3 w-3" />
+                                  Asıl Nöbeti (Sabit Kalacak)
+                                </>
+                              ) : (
+                                <>
+                                  <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />
+                                  Asıl Nöbet
+                                </>
+                              )}
+                            </button>
+
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
+                              onClick={() => removeEntry(entry._idx)}
+                              title="Sil"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+
                           {/* Öğretmen Seçimi */}
-                          <div className="flex items-center gap-1">
+                          <div>
                             <select
-                              className="text-xs font-medium border rounded px-1.5 py-1 bg-background w-full focus:ring-1 focus:ring-primary truncate"
+                              className="text-xs font-medium border rounded px-1.5 py-1.5 bg-background w-full focus:ring-1 focus:ring-primary truncate"
                               value={
                                 entry.teacher_id ||
                                 entry.teacher_name ||
@@ -881,21 +1080,12 @@ export function DutyScheduleEditor({
                                 </option>
                               ))}
                             </select>
-
-                            {hasMultipleDuties && (
-                              <span
-                                title="Bu öğretmen bu hafta 1'den fazla nöbet tutmaktadır"
-                                className="bg-amber-500 text-white rounded px-1 py-0.5 text-[9px] font-bold shrink-0"
-                              >
-                                2x
-                              </span>
-                            )}
                           </div>
 
-                          {/* Nöbet Yeri ve Sil Butonu */}
-                          <div className="flex items-center gap-1.5">
+                          {/* Nöbet Yeri Seçimi */}
+                          <div>
                             <select
-                              className="text-xs border rounded px-1.5 py-1 bg-background flex-1 focus:ring-1 focus:ring-primary truncate"
+                              className="text-xs border rounded px-1.5 py-1 bg-background w-full focus:ring-1 focus:ring-primary truncate"
                               value={entry.location}
                               onChange={(e) => updateEntry(entry._idx, { location: e.target.value })}
                             >
@@ -908,17 +1098,6 @@ export function DutyScheduleEditor({
                                 <option value={entry.location}>{entry.location}</option>
                               )}
                             </select>
-
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
-                              onClick={() => removeEntry(entry._idx)}
-                              title="Sil"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
                           </div>
                         </div>
                       );
@@ -966,7 +1145,7 @@ export function DutyScheduleEditor({
                   <AlertTriangle className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Bu Hafta Fazla Nöbet Tutan</p>
+                  <p className="text-xs text-muted-foreground">Bu Hafta Çift Nöbet Tutan</p>
                   <p className="text-xl font-bold text-amber-600">
                     {currentWeekAnalysis.extraDutyTeachers.length} Öğretmen
                   </p>
@@ -980,7 +1159,7 @@ export function DutyScheduleEditor({
                   <RotateCw className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Toplam Fazla Nöbet Sayısı</p>
+                  <p className="text-xs text-muted-foreground">Toplam Çift/Fazla Nöbet</p>
                   <p className="text-xl font-bold text-indigo-600">
                     +{currentWeekAnalysis.totalExtraDuties} Görev
                   </p>
@@ -989,16 +1168,17 @@ export function DutyScheduleEditor({
             </Card>
           </div>
 
-          {/* Bu Hafta Fazla Nöbet Tutanlar Detay Kartı */}
+          {/* Bu Hafta Çift Nöbet Tutanlar Detay Kartı */}
           {currentWeekAnalysis.extraDutyTeachers.length > 0 && (
             <Card className="border-amber-300 dark:border-amber-800 bg-amber-50/30 dark:bg-amber-950/20">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2 text-amber-900 dark:text-amber-200">
                   <AlertTriangle className="h-4 w-4 text-amber-600" />
-                  Bu Hafta Fazla Nöbet Tutan Öğretmenler ({currentWeekAnalysis.extraDutyTeachers.length})
+                  Bu Hafta Çift Nöbet Tutan Öğretmenler ({currentWeekAnalysis.extraDutyTeachers.length})
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Nöbetçi sayısı nöbet noktalarına yetmediği için bu öğretmenler bu hafta 1'den fazla nöbet tutmaktadır.
+                  Nöbetçi sayısı nöbet noktalarından az olduğu için bu öğretmenler bu hafta 1&apos;den fazla nöbet tutmaktadır.
+                  Bir sonraki hafta döndürmede bu öğretmenler dinlendirilecek ve yerlerine başkaları geçecektir.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1014,11 +1194,19 @@ export function DutyScheduleEditor({
                           {t.count} Nöbet (+{t.extra_duties} Fazla)
                         </Badge>
                       </div>
-                      <div className="text-xs text-muted-foreground space-y-0.5">
+                      <div className="text-xs text-muted-foreground space-y-1 mt-1">
                         {t.assignments.map((a, i) => (
-                          <div key={i} className="flex justify-between">
-                            <span>{DAY_NAMES[a.day - 1]}:</span>
-                            <span className="font-medium text-foreground">{a.location}</span>
+                          <div key={i} className="flex items-center justify-between">
+                            <span>{DAY_NAMES[a.day - 1]}: <strong>{a.location}</strong></span>
+                            <span
+                              className={`text-[9px] px-1.5 py-0.2 rounded font-semibold ${
+                                a.is_extra
+                                  ? "bg-amber-500 text-white"
+                                  : "bg-muted text-muted-foreground"
+                              }`}
+                            >
+                              {a.is_extra ? "Çift Nöbet" : "Asıl"}
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -1038,12 +1226,11 @@ export function DutyScheduleEditor({
                   Öğretmen Nöbet ve Fazla Nöbet Takip Sayacı
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Her öğretmenin bu haftaki ve kümülatif olarak kaç defa fazla nöbet tuttuğunun dökümü.
+                  Her öğretmenin kümülatif olarak kaç defa çift/fazla nöbet tuttuğunun dökümü. Nöbet döndürülürken bu sayaca göre en az tutanlar önerilir.
                 </CardDescription>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                {/* Arama Input */}
                 <div className="relative">
                   <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
                   <input
@@ -1055,7 +1242,6 @@ export function DutyScheduleEditor({
                   />
                 </div>
 
-                {/* Bu Haftayı Sayaca Ekle */}
                 <Button
                   type="button"
                   variant="outline"
@@ -1069,7 +1255,6 @@ export function DutyScheduleEditor({
                   Bu Haftayı Sayaca Ekle
                 </Button>
 
-                {/* Excel İndir */}
                 <Button
                   type="button"
                   variant="outline"
@@ -1081,7 +1266,6 @@ export function DutyScheduleEditor({
                   Excel İndir
                 </Button>
 
-                {/* Sıfırla */}
                 <Button
                   type="button"
                   variant="ghost"
@@ -1151,9 +1335,14 @@ export function DutyScheduleEditor({
                               {t.week_assignments.map((a, i) => (
                                 <span
                                   key={i}
-                                  className="bg-muted px-1.5 py-0.5 rounded text-[10px] text-muted-foreground"
+                                  className={`px-1.5 py-0.5 rounded text-[10px] ${
+                                    a.is_extra
+                                      ? "bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 font-medium"
+                                      : "bg-muted text-muted-foreground"
+                                  }`}
                                 >
                                   {DAY_NAMES[a.day - 1]}: <strong>{a.location}</strong>
+                                  {a.is_extra && " (Çift)"}
                                 </span>
                               ))}
                             </div>
@@ -1219,13 +1408,12 @@ export function DutyScheduleEditor({
             </DialogTitle>
             <DialogDescription className="text-xs">
               Excel dosyasından tespit edilen nöbet yerleri ve öğretmen eşleşmeleri aşağıdadır.
-              Yüklemeyi onayladığınızda mevcut veritabanındaki kayıtlar silinip bu çizelgeyle güncellenecektir.
+              Çift nöbet tutan öğretmenlerin 2. nöbetleri otomatik olarak işaretlenmiştir.
             </DialogDescription>
           </DialogHeader>
 
           {importResult && (
             <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-              {/* Tespit Edilen Nöbet Yerleri */}
               <div className="bg-muted/40 p-3 rounded-lg border space-y-1.5">
                 <p className="text-xs font-semibold text-muted-foreground">
                   A Sütunundan Tespit Edilen Nöbet Yerleri ({importResult.places.length}):
@@ -1239,7 +1427,6 @@ export function DutyScheduleEditor({
                 </div>
               </div>
 
-              {/* İstatistik Özeti */}
               <div className="grid grid-cols-3 gap-2 text-center text-xs">
                 <div className="p-2.5 bg-background border rounded-lg">
                   <p className="text-muted-foreground">Toplam Görev</p>
@@ -1250,33 +1437,31 @@ export function DutyScheduleEditor({
                   <p className="text-base font-bold text-emerald-600">{importResult.summary.distinctTeachers}</p>
                 </div>
                 <div className="p-2.5 bg-background border rounded-lg">
-                  <p className="text-muted-foreground">Fazla Nöbet</p>
+                  <p className="text-muted-foreground">Çift Nöbet</p>
                   <p className="text-base font-bold text-amber-600">
                     {importResult.summary.teacherDutyCounts.filter((t) => t.extra_duties > 0).length} Öğretmen
                   </p>
                 </div>
               </div>
 
-              {/* Fazla Nöbet Uyarısı */}
               {importResult.summary.teacherDutyCounts.some((t) => t.extra_duties > 0) && (
                 <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-900 dark:text-amber-200">
                   <p className="font-semibold mb-1 flex items-center gap-1.5">
                     <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
-                    Haftalık 1'den Fazla Nöbet Tutan Öğretmenler:
+                    Otomatik Tespit Edilen Çift Nöbetçiler:
                   </p>
                   <div className="flex flex-wrap gap-1">
                     {importResult.summary.teacherDutyCounts
                       .filter((t) => t.extra_duties > 0)
                       .map((t, i) => (
                         <Badge key={i} className="bg-amber-500 hover:bg-amber-600 text-white text-[10px]">
-                          {t.teacher_name} ({t.count} Nöbet)
+                          {t.teacher_name} ({t.count} Nöbet - 1 Çift)
                         </Badge>
                       ))}
                   </div>
                 </div>
               )}
 
-              {/* Gün Bazında Özet */}
               <div className="border rounded-lg p-2.5 space-y-2 bg-card">
                 <p className="text-xs font-semibold text-muted-foreground">Günlük Dağılım:</p>
                 <div className="space-y-1.5">
@@ -1286,7 +1471,7 @@ export function DutyScheduleEditor({
                       <div key={idx} className="text-xs flex items-center justify-between border-b pb-1 last:border-0">
                         <span className="font-medium text-foreground">{dayName}</span>
                         <span className="text-muted-foreground">
-                          {dayEntries.map((e) => e.teacher_name).join(", ")}
+                          {dayEntries.map((e) => `${e.teacher_name}${e.is_extra ? " [Çift]" : ""}`).join(", ")}
                         </span>
                       </div>
                     );
@@ -1311,7 +1496,7 @@ export function DutyScheduleEditor({
               size="sm"
               onClick={handleApplyExcel}
               disabled={importing}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
             >
               {importing ? "Yükleniyor..." : "Mevcutu Sil ve Bu Çizelgeyi Yükle"}
             </Button>
@@ -1319,55 +1504,154 @@ export function DutyScheduleEditor({
         </div>
       </Dialog>
 
-      {/* ── NÖBET DÖNDÜRME MODALI ────────────────────────────── */}
+      {/* ── NÖBET DÖNDÜRME VE ÇİFT NÖBET DEĞİŞİM MODALI ──────── */}
       <Dialog open={showRotateModal} onOpenChange={setShowRotateModal}>
-        <div className="space-y-4">
+        <div className="space-y-4 max-h-[85vh] overflow-y-auto pr-1">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400">
+            <DialogTitle className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400 text-base">
               <RotateCw className="h-5 w-5" />
-              Nöbet Programını Döndür (Sonraki Hafta)
+              Nöbet Programını Döndür & Çift Nöbet Değişimi
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Bu işlem, her öğretmenin nöbet yerini bir sonraki haftanın rotasyon kurallarına göre kaydırır ve günceller.
+              Bu haftanın asıl nöbetçileri rotasyon kuralına göre sonraki yere geçecek; çift nöbet tutanlar dinlendirilecek ve yerlerine başkaları atanacaktır.
             </DialogDescription>
           </DialogHeader>
 
-          {/* Rotasyon Döngüsü Şeması */}
-          <div className="bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-3.5 space-y-2 text-xs">
-            <p className="font-semibold text-indigo-950 dark:text-indigo-200">
-              Rotasyon Akışı:
+          {/* 1. Rotasyon Kuralı Şeması */}
+          <div className="bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-3 text-xs">
+            <p className="font-semibold text-indigo-950 dark:text-indigo-200 mb-1.5 flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
+              Asıl Nöbetler İçin Rotasyon Akışı:
             </p>
-            <div className="grid grid-cols-1 gap-1.5 font-medium">
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="bg-background">🌿 ÖN BAHÇE</Badge>
-                <ArrowRight className="h-3.5 w-3.5 text-indigo-500" />
-                <Badge variant="secondary">🌲 ARKA BAHÇE</Badge>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px] font-medium text-muted-foreground">
+              <div className="flex items-center gap-1.5">
+                <Badge variant="outline" className="text-[10px]">ÖN BAHÇE</Badge>
+                <ArrowRight className="h-3 w-3 text-indigo-500" />
+                <Badge variant="secondary" className="text-[10px]">ARKA BAHÇE</Badge>
               </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="bg-background">🌲 ARKA BAHÇE</Badge>
-                <ArrowRight className="h-3.5 w-3.5 text-indigo-500" />
-                <Badge variant="secondary">🏢 ZEMİN KAT</Badge>
+              <div className="flex items-center gap-1.5">
+                <Badge variant="outline" className="text-[10px]">ARKA BAHÇE</Badge>
+                <ArrowRight className="h-3 w-3 text-indigo-500" />
+                <Badge variant="secondary" className="text-[10px]">ZEMİN KAT</Badge>
               </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="bg-background">🏢 ZEMİN KAT</Badge>
-                <ArrowRight className="h-3.5 w-3.5 text-indigo-500" />
-                <Badge variant="secondary">1️⃣ 1. KAT</Badge>
+              <div className="flex items-center gap-1.5">
+                <Badge variant="outline" className="text-[10px]">ZEMİN KAT</Badge>
+                <ArrowRight className="h-3 w-3 text-indigo-500" />
+                <Badge variant="secondary" className="text-[10px]">1. KAT</Badge>
               </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="bg-background">1️⃣ 1. KAT</Badge>
-                <ArrowRight className="h-3.5 w-3.5 text-indigo-500" />
-                <Badge variant="secondary">2️⃣ 2. KAT</Badge>
+              <div className="flex items-center gap-1.5">
+                <Badge variant="outline" className="text-[10px]">1. KAT</Badge>
+                <ArrowRight className="h-3 w-3 text-indigo-500" />
+                <Badge variant="secondary" className="text-[10px]">2. KAT</Badge>
               </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="bg-background">2️⃣ 2. KAT</Badge>
-                <ArrowRight className="h-3.5 w-3.5 text-indigo-500" />
-                <Badge variant="secondary">🌿 ÖN BAHÇE</Badge>
+              <div className="flex items-center gap-1.5">
+                <Badge variant="outline" className="text-[10px]">2. KAT</Badge>
+                <ArrowRight className="h-3 w-3 text-indigo-500" />
+                <Badge variant="secondary" className="text-[10px]">ÖN BAHÇE</Badge>
               </div>
             </div>
           </div>
 
+          {/* 2. ÇİFT NÖBET DEĞİŞİM BÖLÜMÜ */}
+          <div className="border border-amber-300 dark:border-amber-800 bg-amber-50/40 dark:bg-amber-950/20 rounded-lg p-3.5 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <h4 className="font-semibold text-xs text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  Çift Nöbet Yerleri ve Yeni Nöbetçi Dağıtımı ({extraDutyEntriesWithIdx.length})
+                </h4>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Bu hafta çift nöbet tutanlar dinlendirildi. Boşalan bu noktalara sonraki hafta için öğretmen atayınız:
+                </p>
+              </div>
+
+              {/* Otomatik Adil Dağıt Butonu */}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={autoAssignFairCandidates}
+                className="text-xs bg-amber-100 dark:bg-amber-900/40 border-amber-400 text-amber-900 dark:text-amber-100 hover:bg-amber-200"
+              >
+                <Zap className="h-3.5 w-3.5 mr-1 text-amber-600 fill-amber-600" />
+                Otomatik Adil Dağıt
+              </Button>
+            </div>
+
+            {extraDutyEntriesWithIdx.length === 0 ? (
+              <div className="bg-background/80 p-3 rounded text-xs text-muted-foreground text-center">
+                Çizelgede çift nöbet olarak işaretlenmiş satır bulunmuyor.
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {extraDutyEntriesWithIdx.map((item) => {
+                  const rotatedLoc = rotateDutyLocation(item.location, nobetYerleri);
+                  const currentAssign = extraAssignments[item.idx];
+
+                  return (
+                    <div
+                      key={item.idx}
+                      className="bg-background/90 border rounded-lg p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs shadow-xs"
+                    >
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-foreground">
+                            {DAY_NAMES[item.day_of_week - 1]}
+                          </span>
+                          <span className="text-muted-foreground">➔</span>
+                          <Badge variant="outline" className="font-semibold">
+                            {rotatedLoc}
+                          </Badge>
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">
+                          Önceki Çift Nöbetçi:{" "}
+                          <span className="line-through text-amber-700 dark:text-amber-300">
+                            {item.teacher_name}
+                          </span>{" "}
+                          (Dinlendirildi)
+                        </div>
+                      </div>
+
+                      {/* Yeni Öğretmen Seçici */}
+                      <div className="w-full sm:w-60">
+                        <select
+                          className="text-xs border rounded px-2 py-1.5 bg-background w-full focus:ring-1 focus:ring-primary font-medium"
+                          value={currentAssign?.teacher_id || currentAssign?.teacher_name || ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const matched = teachers.find((t) => t.id === val);
+                            setExtraAssignments((prev) => ({
+                              ...prev,
+                              [item.idx]: {
+                                teacher_id: matched ? matched.id : null,
+                                teacher_name: matched ? matched.full_name : val,
+                              },
+                            }));
+                          }}
+                        >
+                          <option value="">-- Yeni Nöbetçi Seçin --</option>
+                          {candidateTeachersSorted.map((cand, ci) => {
+                            const st = dutyStats.find(
+                              (s) => s.teacher_name.toLocaleUpperCase("tr-TR") === cand.name.toLocaleUpperCase("tr-TR")
+                            );
+                            const extraCount = st ? st.extra_duties : 0;
+                            return (
+                              <option key={ci} value={cand.id || cand.name}>
+                                {cand.name} ({extraCount === 0 ? "⭐ 0 Fazla Nöbet" : `${extraCount} Fazla`})
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {/* İstatistik Seçeneği Checkbox */}
-          <label className="flex items-start gap-2 text-xs cursor-pointer p-2 rounded-lg border bg-muted/30">
+          <label className="flex items-start gap-2 text-xs cursor-pointer p-2.5 rounded-lg border bg-muted/30">
             <input
               type="checkbox"
               checked={rotateWithStats}
@@ -1379,7 +1663,7 @@ export function DutyScheduleEditor({
                 Bu haftanın nöbetlerini istatistik sayacına işle
               </span>
               <p className="text-muted-foreground text-[11px] mt-0.5">
-                Döndürmeden önce mevcut haftada nöbet tutan ve fazla nöbet alan öğretmenlerin sayıları genel sayaca eklenir.
+                Döndürmeden önce mevcut haftada çift nöbet tutan öğretmenlerin sayıları genel fazla nöbet sayacına eklenir.
               </p>
             </div>
           </label>
@@ -1399,7 +1683,7 @@ export function DutyScheduleEditor({
               size="sm"
               onClick={handleRotateSchedule}
               disabled={saving}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
             >
               <RotateCw className="h-3.5 w-3.5 mr-1" />
               {saving ? "Döndürülüyor..." : "Döndür ve Kaydet"}

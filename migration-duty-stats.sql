@@ -15,6 +15,10 @@ CREATE TABLE IF NOT EXISTS public.duty_stats (
   CONSTRAINT duty_stats_school_teacher_unique UNIQUE(school_id, teacher_name)
 );
 
+-- duty_schedule tablosunda çift/ek nöbet bayrağı
+ALTER TABLE public.duty_schedule 
+ADD COLUMN IF NOT EXISTS is_extra boolean DEFAULT false;
+
 ALTER TABLE public.duty_stats ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "duty_stats_select" ON public.duty_stats;

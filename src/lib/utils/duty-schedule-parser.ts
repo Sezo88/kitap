@@ -4,6 +4,7 @@ export interface ParsedDutyEntry {
   day_of_week: number;
   location: string;
   teacher_name: string;
+  is_extra?: boolean;
 }
 
 export interface ParseDutyScheduleResult {
@@ -128,6 +129,18 @@ export function parseDutyScheduleExcel(data: ArrayBuffer | Uint8Array): ParseDut
       entries.push(...rowAssignments);
     }
   }
+
+  // Çift nöbetleri belirle: Aynı öğretmenin ilk nöbeti 'asıl', 2. ve sonraki nöbetleri 'ek/çift'
+  const seenTeachers = new Set<string>();
+  entries.forEach((e) => {
+    const key = e.teacher_name.toLocaleUpperCase("tr-TR");
+    if (seenTeachers.has(key)) {
+      e.is_extra = true;
+    } else {
+      seenTeachers.add(key);
+      e.is_extra = false;
+    }
+  });
 
   // İstatistikleri hesapla
   const countsMap: Record<string, number> = {};
