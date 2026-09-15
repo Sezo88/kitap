@@ -298,6 +298,7 @@ export async function verifyTahtaQuizPin(params: {
       if (existingAns) {
         const { rank, totalScore } = await getClassRankAndScore(school.id, cls.id);
         const qData: any = daily.quiz_questions;
+        const isAnswerCorrect = Boolean(existingAns.is_correct || (existingAns.points_awarded && existingAns.points_awarded > 0));
         return {
           success: true,
           alreadyAnswered: true,
@@ -305,9 +306,9 @@ export async function verifyTahtaQuizPin(params: {
           existingResult: {
             success: true,
             error: "Bu sınıf bugünün sorusunu zaten yanıtlamış!",
-            isCorrect: existingAns.is_correct ?? false,
+            isCorrect: isAnswerCorrect,
             correctAnswer: qData?.answer || "",
-            pointsEarned: existingAns.points_awarded ?? 0,
+            pointsEarned: existingAns.points_awarded ?? (isAnswerCorrect ? 100 : 0),
             totalScore,
             schoolRank: rank,
             className: cls.name,
@@ -489,6 +490,20 @@ export async function submitTahtaQuizAnswer(params: {
       return { success: false, error: "Bu sınıf soruyu daha önce yanıtladı" };
     }
     return { success: false, error: "Cevap kaydedilemedi: " + insErr.message };
+  }
+
+  // Veritabanı tetikleyicisi (trg_check_answer) is_correct'i ezmişse doğru değerlerle güncelle
+  try {
+    await supabase
+      .from("quiz_answers")
+      .update({
+        is_correct: isCorrect,
+        points_awarded: points,
+      })
+      .eq("daily_id", daily.id)
+      .eq("class_id", cls.id);
+  } catch (updErr) {
+    console.warn("quiz_answers post-update error:", updErr);
   }
 
   // 7. quiz_scores tablosundaki toplam skoru güncelle

@@ -918,7 +918,7 @@ function TahtaQuizContent() {
             <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex justify-between items-center text-sm">
               <span>Sonuç:</span>
               <span className={`font-bold ${result.isCorrect ? "text-emerald-400" : "text-red-400"}`}>
-                {result.isCorrect ? "Doğru (+100 Puan)" : "Yanlış (0 Puan)"}
+                {result.isCorrect ? `Doğru (+${result.pointsEarned ?? 100} Puan)` : "Yanlış (0 Puan)"}
               </span>
             </div>
             <p className="text-xs text-slate-400 font-medium">
