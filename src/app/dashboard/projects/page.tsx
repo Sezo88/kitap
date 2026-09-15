@@ -42,12 +42,14 @@ export default async function ProjectsPage() {
       .match(schoolFilter)
       .order("name");
 
+    const eligibleSubjects = (subjects || []).filter((s) => (s as any).is_project_eligible !== false);
+
     return (
       <div>
         <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">Proje Belirleme</h2>
         <ProjectAssignment
           classes={classes}
-          subjects={subjects || []}
+          subjects={eligibleSubjects}
           schoolFilter={schoolFilter}
           userId={profile.id}
         />
@@ -73,12 +75,14 @@ export default async function ProjectsPage() {
       .order("name"),
   ]);
 
+  const eligibleSubjects = (subjects || []).filter((s) => (s as any).is_project_eligible !== false);
+
   return (
     <div>
       <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">Proje Belirleme</h2>
       <ProjectAssignment
         classes={classes || []}
-        subjects={subjects || []}
+        subjects={eligibleSubjects}
         schoolFilter={schoolFilter}
         userId={profile.id}
       />

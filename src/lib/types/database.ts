@@ -200,6 +200,7 @@ export interface Subject {
   id: string;
   school_id: string;
   name: string;
+  is_project_eligible?: boolean;
   created_at: string;
 }
 

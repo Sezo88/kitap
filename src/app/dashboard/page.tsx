@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Users, GraduationCap, Library, Cake, HelpCircle, Trophy } from "lucide-react";
+import { Users, GraduationCap, Library, Cake, HelpCircle, Trophy, Sparkles, BookOpen, ClipboardCheck, ArrowRight, ChevronRight, Flame, FolderKanban } from "lucide-react";
 import { getCachedUserAndProfile } from "@/lib/supabase/auth-cache";
 import { TeacherDashboardView } from "@/components/dashboard/teacher-dashboard-view";
 import Link from "next/link";
@@ -163,7 +163,11 @@ export default async function DashboardPage() {
     { count: classCount },
     { count: bookCount },
     schoolClassIdsRes,
-    adminCleanScoresRes
+    adminCleanScoresRes,
+    topQuizRes,
+    completedBooksRes,
+    todayAttendanceRes,
+    projectStatsRes
   ] = await Promise.all([
     supabase.from("students").select("*", { count: "exact", head: true }).match(schoolFilter).eq("is_active", true),
     supabase.from("classes").select("*", { count: "exact", head: true }).match(schoolFilter),
@@ -176,8 +180,64 @@ export default async function DashboardPage() {
       .select("score, classes!inner(name, school_id)")
       .eq("classes.school_id", profile.school_id)
       .gte("score_date", weekMon)
-      .lte("score_date", weekSun)
+      .lte("score_date", weekSun),
+    supabase
+      .from("quiz_scores")
+      .select("class_name, score")
+      .match(schoolFilter)
+      .order("score", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("student_books")
+      .select("student_id, students!inner(full_name, classes!inner(name, school_id))")
+      .match(profile.school_id ? { "students.classes.school_id": profile.school_id } : {})
+      .eq("status", "completed")
+      .limit(100),
+    supabase
+      .from("attendance_logs")
+      .select("id, status, class_id, classes!inner(school_id)")
+      .match(profile.school_id ? { "classes.school_id": profile.school_id } : {})
+      .eq("log_date", todayStr),
+    supabase
+      .from("student_projects")
+      .select("id, subject_id, subjects!inner(name, school_id)")
+      .match(profile.school_id ? { "subjects.school_id": profile.school_id } : {})
   ]);
+
+  // Quiz Lideri
+  const quizLeader = topQuizRes?.data || null;
+
+  // Okuma Lideri (En çok kitap bitiren öğrenci)
+  let topReader: { name: string; className: string; bookCount: number } | null = null;
+  if (completedBooksRes?.data && completedBooksRes.data.length > 0) {
+    const readerMap: Record<string, { name: string; className: string; bookCount: number }> = {};
+    completedBooksRes.data.forEach((b: any) => {
+      const sid = b.student_id;
+      const sName = b.students?.full_name || "Öğrenci";
+      const cName = b.students?.classes?.name || "";
+      if (!readerMap[sid]) readerMap[sid] = { name: sName, className: cName, bookCount: 0 };
+      readerMap[sid].bookCount++;
+    });
+    const sortedReaders = Object.values(readerMap).sort((a, b) => b.bookCount - a.bookCount);
+    if (sortedReaders.length > 0) topReader = sortedReaders[0];
+  }
+
+  // Günlük Yoklama Durumu
+  const todayLogs = todayAttendanceRes?.data || [];
+  const absentCount = todayLogs.filter((l: any) => l.status === "absent").length;
+  const hasAttendanceData = todayLogs.length > 0;
+
+  // Proje Dağılımı
+  const projectList = projectStatsRes?.data || [];
+  const totalAssignedProjects = projectList.length;
+  const subjectCounts: Record<string, number> = {};
+  projectList.forEach((p: any) => {
+    const sName = p.subjects?.name;
+    if (sName) subjectCounts[sName] = (subjectCounts[sName] || 0) + 1;
+  });
+  const topProjectSubjectEntry = Object.entries(subjectCounts).sort((a, b) => b[1] - a[1])[0];
+  const topProjectSubject = topProjectSubjectEntry ? { name: topProjectSubjectEntry[0], count: topProjectSubjectEntry[1] } : null;
 
   let todayQuery = supabase.from("reading_logs").select("*", { count: "exact", head: true }).eq("log_date", todayStr);
   if (profile.school_id && schoolClassIdsRes.data) {
@@ -313,6 +373,219 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      {/* ── RAPOR ÖZETLERİ & OKUL LİDERLERİ PANOSU ── */}
+      <div className="space-y-4 pt-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 rounded-lg bg-primary/10 text-primary">
+              <Trophy className="h-5 w-5 text-amber-500" />
+            </span>
+            <div>
+              <h3 className="text-lg font-bold tracking-tight">Rapor Özetleri & Okul Liderleri</h3>
+              <p className="text-xs text-muted-foreground">Temizlik, yarışma ligi, okuma ve yoklama verilerinin canlı özetleri</p>
+            </div>
+          </div>
+          <Link
+            href="/dashboard/reports"
+            className="text-xs text-primary font-semibold hover:underline inline-flex items-center gap-1 bg-primary/5 hover:bg-primary/10 px-3 py-1.5 rounded-lg border border-primary/20 transition-all"
+          >
+            Tüm Raporlar Portalı <ChevronRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          {/* 1. Temiz Sınıf Lideri */}
+          <div className="group relative overflow-hidden rounded-2xl border bg-gradient-to-br from-amber-500/10 via-yellow-500/5 to-card p-5 transition-all hover:shadow-md hover:border-amber-500/40 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5" /> Temiz Sınıf
+                </span>
+                <span className="p-2 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 group-hover:scale-110 transition-transform">
+                  <Trophy className="h-4 w-4" />
+                </span>
+              </div>
+              {adminTopClean ? (
+                <div>
+                  <div className="text-2xl font-black tracking-tight text-foreground">{adminTopClean.name}</div>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-800 dark:text-amber-200">
+                      {adminTopClean.score} Puan
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">Haftalık 1.</span>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div className="text-sm font-semibold text-muted-foreground">Bu hafta puan yok</div>
+                  <p className="text-[11px] text-muted-foreground/70 mt-0.5">Denetim bekleniyor</p>
+                </div>
+              )}
+            </div>
+            <div className="pt-3 mt-3 border-t border-amber-500/15 flex justify-end">
+              <Link
+                href="/dashboard/reports/cleanliness"
+                className="text-xs font-bold text-amber-700 dark:text-amber-300 hover:underline inline-flex items-center gap-1"
+              >
+                Temizlik Raporu <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
+          </div>
+
+          {/* 2. Bilgi Yarışması Ligi */}
+          <div className="group relative overflow-hidden rounded-2xl border bg-gradient-to-br from-purple-500/10 via-indigo-500/5 to-card p-5 transition-all hover:shadow-md hover:border-purple-500/40 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-1.5">
+                  <Flame className="h-3.5 w-3.5" /> Quiz / Yarışma
+                </span>
+                <span className="p-2 rounded-xl bg-purple-500/20 text-purple-700 dark:text-purple-300 group-hover:scale-110 transition-transform">
+                  <Trophy className="h-4 w-4" />
+                </span>
+              </div>
+              {quizLeader ? (
+                <div>
+                  <div className="text-2xl font-black tracking-tight text-foreground">{quizLeader.class_name}</div>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-purple-500/20 text-purple-800 dark:text-purple-200">
+                      {quizLeader.score} Puan
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">Lig Şampiyonu</span>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div className="text-sm font-semibold text-muted-foreground">Henüz yarışma skoru yok</div>
+                  <p className="text-[11px] text-muted-foreground/70 mt-0.5">Günün sorusuna katılım bekleniyor</p>
+                </div>
+              )}
+            </div>
+            <div className="pt-3 mt-3 border-t border-purple-500/15 flex justify-end">
+              <Link
+                href="/dashboard/reports/quiz"
+                className="text-xs font-bold text-purple-700 dark:text-purple-300 hover:underline inline-flex items-center gap-1"
+              >
+                Lig Sıralaması <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
+          </div>
+
+          {/* 3. Okuma Şampiyonu */}
+          <div className="group relative overflow-hidden rounded-2xl border bg-gradient-to-br from-blue-500/10 via-cyan-500/5 to-card p-5 transition-all hover:shadow-md hover:border-blue-500/40 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
+                  <BookOpen className="h-3.5 w-3.5" /> Kitap Kurdu
+                </span>
+                <span className="p-2 rounded-xl bg-blue-500/20 text-blue-700 dark:text-blue-300 group-hover:scale-110 transition-transform">
+                  <BookOpen className="h-4 w-4" />
+                </span>
+              </div>
+              {topReader ? (
+                <div>
+                  <div className="text-lg font-black tracking-tight truncate text-foreground" title={topReader.name}>{topReader.name}</div>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-blue-500/20 text-blue-800 dark:text-blue-200">
+                      {topReader.bookCount} Kitap
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">{topReader.className}</span>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div className="text-sm font-semibold text-muted-foreground">Dönem Başlangıcı</div>
+                  <p className="text-[11px] text-muted-foreground/70 mt-0.5">Bitirilen kitaplar listelenir</p>
+                </div>
+              )}
+            </div>
+            <div className="pt-3 mt-3 border-t border-blue-500/15 flex justify-end">
+              <Link
+                href="/dashboard/reports/reading"
+                className="text-xs font-bold text-blue-700 dark:text-blue-300 hover:underline inline-flex items-center gap-1"
+              >
+                Okuma Raporu <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
+          </div>
+
+          {/* 4. Günlük Devamsızlık */}
+          <div className="group relative overflow-hidden rounded-2xl border bg-gradient-to-br from-rose-500/10 via-red-500/5 to-card p-5 transition-all hover:shadow-md hover:border-rose-500/40 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
+                  <ClipboardCheck className="h-3.5 w-3.5" /> Devamsızlık
+                </span>
+                <span className="p-2 rounded-xl bg-rose-500/20 text-rose-700 dark:text-rose-300 group-hover:scale-110 transition-transform">
+                  <Users className="h-4 w-4" />
+                </span>
+              </div>
+              {hasAttendanceData ? (
+                <div>
+                  <div className="text-2xl font-black tracking-tight text-foreground">
+                    {absentCount > 0 ? (
+                      <span className="text-rose-600 dark:text-rose-400">{absentCount} Öğrenci</span>
+                    ) : (
+                      <span className="text-emerald-600 dark:text-emerald-400">0 Devamsız</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {absentCount > 0 ? "Bugün okula gelmeyen" : "Bugün herkes okulda"}
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <div className="text-sm font-semibold text-muted-foreground">Bugün yoklama yok</div>
+                  <p className="text-[11px] text-muted-foreground/70 mt-0.5">Öğretmen girişi bekleniyor</p>
+                </div>
+              )}
+            </div>
+            <div className="pt-3 mt-3 border-t border-rose-500/15 flex justify-end">
+              <Link
+                href="/dashboard/reports/attendance"
+                className="text-xs font-bold text-rose-700 dark:text-rose-300 hover:underline inline-flex items-center gap-1"
+              >
+                Yoklama Takibi <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
+          </div>
+
+          {/* 5. Proje Ödevi Dağılımı */}
+          <div className="group relative overflow-hidden rounded-2xl border bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-card p-5 transition-all hover:shadow-md hover:border-emerald-500/40 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                  <FolderKanban className="h-3.5 w-3.5" /> Proje Dağılımı
+                </span>
+                <span className="p-2 rounded-xl bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 group-hover:scale-110 transition-transform">
+                  <FolderKanban className="h-4 w-4" />
+                </span>
+              </div>
+              {totalAssignedProjects > 0 ? (
+                <div>
+                  <div className="text-2xl font-black tracking-tight text-foreground">{totalAssignedProjects} Proje</div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 truncate" title={topProjectSubject ? `En çok: ${topProjectSubject.name} (${topProjectSubject.count})` : ""}>
+                    {topProjectSubject ? `En çok: ${topProjectSubject.name}` : "Öğrenci proje atamaları"}
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <div className="text-sm font-semibold text-muted-foreground">Henüz proje yok</div>
+                  <p className="text-[11px] text-muted-foreground/70 mt-0.5">Derslerden proje ataması yapın</p>
+                </div>
+              )}
+            </div>
+            <div className="pt-3 mt-3 border-t border-emerald-500/15 flex justify-end">
+              <Link
+                href="/dashboard/projects/list"
+                className="text-xs font-bold text-emerald-700 dark:text-emerald-300 hover:underline inline-flex items-center gap-1"
+              >
+                Proje Listesi <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Doğum günleri */}
