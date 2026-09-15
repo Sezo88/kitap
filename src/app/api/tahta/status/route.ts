@@ -105,6 +105,7 @@ export async function GET(request: NextRequest) {
     auto_close_seconds: autoCloseSeconds,
     seconds_until_window: secondsUntilWindow,
     server_time: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:${String(second).padStart(2, "0")}`,
+    today_date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`,
     quiz_url: quizUrl,
     version: "1.0.0",
   });
