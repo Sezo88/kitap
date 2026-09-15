@@ -174,59 +174,56 @@ function TahtaQuizContent() {
       setSchoolInfo(school);
       setSchoolCode(school.code);
 
-      // Ayarları ve aktif soru kontrolünü yap
+      // Ayarları ve aktif soru kontrolünü yap (Ayarlar admin API'sinden çekilir, RLS engeline takılmaz)
       const today = new Date().toISOString().split("T")[0];
-      const [dailyRes, settingsRes] = await Promise.all([
+      const [dailyRes, statusRes] = await Promise.all([
         supabase
           .from("quiz_daily")
           .select("id, question_id, quiz_questions(question, answer, option_a, option_b, option_c, option_d, difficulty, category)")
           .eq("school_id", school.id)
           .eq("question_date", today)
           .maybeSingle(),
-        supabase
-          .from("panel_settings")
-          .select("tahta_quiz_duration, tahta_quiz_enabled, tahta_quiz_auto_close_seconds, tahta_quiz_start_time, tahta_quiz_end_time")
-          .eq("school_id", school.id)
-          .maybeSingle(),
+        fetch(`/api/tahta/status?okul_kodu=${encodeURIComponent(school.code)}`, { cache: "no-store" })
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null),
       ]);
 
-      if (settingsRes.data) {
-        if (settingsRes.data.tahta_quiz_enabled === false && !isPreview) {
-          setNotActiveInfo({
-            title: "Yarışma Sistemi Devre Dışı",
-            description: "Günün sorusu idare tarafından geçici olarak kapatılmıştır.",
-            type: "disabled",
-            canBypass: true,
-          });
-          setStep("not_active");
-          return;
-        }
-        if (settingsRes.data.tahta_quiz_duration) {
-          setDuration(settingsRes.data.tahta_quiz_duration);
-          setTimeLeft(settingsRes.data.tahta_quiz_duration);
-        }
-        if (settingsRes.data.tahta_quiz_auto_close_seconds) {
-          setAutoCloseLeft(settingsRes.data.tahta_quiz_auto_close_seconds);
-        }
+      const statusData = statusRes?.success ? statusRes : null;
+      const isEnabled = statusData ? statusData.enabled : true;
+      const startTimeStr = statusData?.start_time || "08:30";
+      const endTimeStr = statusData?.end_time || "08:55";
+      const quizDuration = statusData?.duration_seconds || 30;
+      const autoCloseSec = statusData?.auto_close_seconds || 15;
+
+      if (!isEnabled && !isPreview) {
+        setNotActiveInfo({
+          title: "Yarışma Sistemi Devre Dışı",
+          description: "Günün sorusu idare tarafından geçici olarak kapatılmıştır.",
+          type: "disabled",
+          canBypass: true,
+        });
+        setStep("not_active");
+        return;
       }
 
-      // Saat aralığı kontrolü (Türkiye Saati: Europe/Istanbul)
-      const startTimeStr = settingsRes.data?.tahta_quiz_start_time || "08:30";
-      const endTimeStr = settingsRes.data?.tahta_quiz_end_time || "08:55";
+      setDuration(quizDuration);
+      setTimeLeft(quizDuration);
+      setAutoCloseLeft(autoCloseSec);
       setTimeWindow({ start: startTimeStr, end: endTimeStr });
 
-      const now = new Date();
-      const trFormatter = new Intl.DateTimeFormat("tr-TR", {
-        timeZone: "Europe/Istanbul",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      });
-      const currentTimeStr = trFormatter.format(now);
-
-      const inWindow = currentTimeStr >= startTimeStr && currentTimeStr <= endTimeStr;
+      // Saat aralığı kontrolü (Sunucudan gelen in_window Türkiye saatine göre tam hesaplanır)
+      const inWindow = isPreview ? true : (statusData ? statusData.in_window : true);
 
       if (!inWindow && !isPreview) {
+        const now = new Date();
+        const trFormatter = new Intl.DateTimeFormat("tr-TR", {
+          timeZone: "Europe/Istanbul",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        });
+        const currentTimeStr = statusData?.server_time ? statusData.server_time.slice(0, 5) : trFormatter.format(now);
+
         setNotActiveInfo({
           title: "Yarışma Saati Dışındasınız",
           description: `Günün sorusu ${startTimeStr} — ${endTimeStr} saatleri arasında açılmaktadır. (Şu anki saat: ${currentTimeStr})`,
