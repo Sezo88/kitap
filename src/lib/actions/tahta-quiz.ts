@@ -203,6 +203,8 @@ export async function getTahtaQuizInitialData(schoolCode: string) {
           .from("quiz_questions")
           .select("id, question, answer, option_a, option_b, option_c, option_d, difficulty, category")
           .eq("school_id", school.id)
+          .eq("is_active", true)
+          .not("option_a", "is", null)
           .limit(1);
 
         if (qList && qList.length > 0) {
