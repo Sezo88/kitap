@@ -143,6 +143,190 @@ export async function saveTahtaQuizSettings(schoolId: string, settings: TahtaQui
   }
 }
 
+export interface PinVerifyResult {
+  success: boolean;
+  error?: string;
+  classInfo?: { id: string; name: string };
+  alreadyAnswered?: boolean;
+  existingResult?: QuizSubmitResult;
+}
+
+export async function getTahtaQuizInitialData(schoolCode: string) {
+  try {
+    const supabase = createAdminClient();
+
+    // 1. Okul
+    const { data: school } = await supabase
+      .from("schools")
+      .select("id, name, code")
+      .eq("code", schoolCode.trim())
+      .maybeSingle();
+
+    if (!school) {
+      return { success: false, error: "Geçersiz okul kodu!" };
+    }
+
+    // 2. Ayarlar
+    const { data: settings } = await supabase
+      .from("panel_settings")
+      .select("tahta_quiz_duration, tahta_quiz_enabled, tahta_quiz_auto_close_seconds, tahta_quiz_start_time, tahta_quiz_end_time")
+      .eq("school_id", school.id)
+      .maybeSingle();
+
+    // 3. Günün Sorusu
+    const today = new Date().toISOString().split("T")[0];
+    let { data: activeDaily } = await supabase
+      .from("quiz_daily")
+      .select("id, question_id, quiz_questions(question, answer, option_a, option_b, option_c, option_d, difficulty, category)")
+      .eq("school_id", school.id)
+      .eq("question_date", today)
+      .maybeSingle();
+
+    if (!activeDaily || !activeDaily.quiz_questions) {
+      try {
+        await supabase.rpc("pick_daily_question", { p_school_id: school.id });
+      } catch (e) {
+        console.warn("pick_daily_question rpc failed:", e);
+      }
+
+      const { data: refetched } = await supabase
+        .from("quiz_daily")
+        .select("id, question_id, quiz_questions(question, answer, option_a, option_b, option_c, option_d, difficulty, category)")
+        .eq("school_id", school.id)
+        .eq("question_date", today)
+        .maybeSingle();
+
+      if (refetched && refetched.quiz_questions) {
+        activeDaily = refetched;
+      } else {
+        const { data: qList } = await supabase
+          .from("quiz_questions")
+          .select("id, question, answer, option_a, option_b, option_c, option_d, difficulty, category")
+          .eq("school_id", school.id)
+          .limit(1);
+
+        if (qList && qList.length > 0) {
+          const q = qList[0];
+          const { data: inserted } = await supabase
+            .from("quiz_daily")
+            .insert({
+              school_id: school.id,
+              question_id: q.id,
+              question_date: today,
+            })
+            .select("id, question_id, quiz_questions(question, answer, option_a, option_b, option_c, option_d, difficulty, category)")
+            .maybeSingle();
+
+          activeDaily = inserted || ({ id: "temp", question_id: q.id, quiz_questions: q } as any);
+        }
+      }
+    }
+
+    const enabled = settings?.tahta_quiz_enabled ?? true;
+    const startTime = settings?.tahta_quiz_start_time ?? "08:30";
+    const endTime = settings?.tahta_quiz_end_time ?? "08:55";
+    const duration = settings?.tahta_quiz_duration ?? 30;
+    const autoClose = settings?.tahta_quiz_auto_close_seconds ?? 15;
+
+    return {
+      success: true,
+      school,
+      settings: {
+        enabled,
+        startTime,
+        endTime,
+        duration,
+        autoClose,
+      },
+      dailyQuestion: activeDaily,
+    };
+  } catch (err: any) {
+    console.error("getTahtaQuizInitialData error:", err);
+    return { success: false, error: err?.message || "Sunucu hatası oluştu" };
+  }
+}
+
+export async function verifyTahtaQuizPin(params: {
+  schoolCode: string;
+  pin: string;
+}): Promise<PinVerifyResult> {
+  try {
+    const supabase = createAdminClient();
+
+    // 1. Okulu bul
+    const { data: school } = await supabase
+      .from("schools")
+      .select("id, name")
+      .eq("code", params.schoolCode.trim())
+      .maybeSingle();
+
+    if (!school) {
+      return { success: false, error: "Geçersiz okul kodu" };
+    }
+
+    // 2. Sınıfı bul (PIN ile)
+    const { data: cls } = await supabase
+      .from("classes")
+      .select("id, name, school_id, is_active")
+      .eq("school_id", school.id)
+      .eq("quiz_pin", params.pin.trim())
+      .neq("is_active", false)
+      .maybeSingle();
+
+    if (!cls) {
+      return { success: false, error: "Hatalı PIN Kodu! Lütfen sınıf PIN'inizi kontrol edin." };
+    }
+
+    // 3. Bugünün sorusu
+    const today = new Date().toISOString().split("T")[0];
+    const { data: daily } = await supabase
+      .from("quiz_daily")
+      .select("id, question_id, quiz_questions(question, answer)")
+      .eq("school_id", school.id)
+      .eq("question_date", today)
+      .maybeSingle();
+
+    // 4. Bu sınıf daha önce cevap vermiş mi?
+    if (daily) {
+      const { data: existingAns } = await supabase
+        .from("quiz_answers")
+        .select("id, answer, is_correct, points_awarded")
+        .eq("daily_id", daily.id)
+        .eq("class_id", cls.id)
+        .maybeSingle();
+
+      if (existingAns) {
+        const { rank, totalScore } = await getClassRankAndScore(school.id, cls.id);
+        const qData: any = daily.quiz_questions;
+        return {
+          success: true,
+          alreadyAnswered: true,
+          classInfo: { id: cls.id, name: cls.name },
+          existingResult: {
+            success: true,
+            error: "Bu sınıf bugünün sorusunu zaten yanıtlamış!",
+            isCorrect: existingAns.is_correct ?? false,
+            correctAnswer: qData?.answer || "",
+            pointsEarned: existingAns.points_awarded ?? 0,
+            totalScore,
+            schoolRank: rank,
+            className: cls.name,
+          },
+        };
+      }
+    }
+
+    return {
+      success: true,
+      alreadyAnswered: false,
+      classInfo: { id: cls.id, name: cls.name },
+    };
+  } catch (err: any) {
+    console.error("verifyTahtaQuizPin error:", err);
+    return { success: false, error: err?.message || "PIN doğrulama sırasında bir hata oluştu" };
+  }
+}
+
 export interface QuizSubmitResult {
   success: boolean;
   error?: string;

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useTransition, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { submitTahtaQuizAnswer } from "@/lib/actions/tahta-quiz";
+import { submitTahtaQuizAnswer, getTahtaQuizInitialData, verifyTahtaQuizPin } from "@/lib/actions/tahta-quiz";
 import { Loader2, Award, Clock, CheckCircle2, XCircle, Volume2, VolumeX, Sparkles, Trophy, Delete, Send } from "lucide-react";
 
 // Akıllı Tahta Sanal Dokunmatik Klavye Düzeni (Pardus ETA 23 Uyumlu)
@@ -156,46 +156,20 @@ function TahtaQuizContent() {
         return;
       }
 
-      const isPreview = searchParams.get("preview") === "true";
-      const supabase = createClient();
-
-      // Okul kodu çöz
-      const { data: school } = await supabase
-        .from("schools")
-        .select("id, name, code")
-        .eq("code", schoolCodeParam.trim())
-        .maybeSingle();
-
-      if (!school) {
-        setErrorMsg("Geçersiz okul kodu!");
+      const res = await getTahtaQuizInitialData(schoolCodeParam);
+      if (!res.success || !res.school) {
+        setErrorMsg(res.error || "Geçersiz okul kodu!");
         setStep("pin");
         return;
       }
-      setSchoolInfo(school);
-      setSchoolCode(school.code);
 
-      // Ayarları ve aktif soru kontrolünü yap (Ayarlar admin API'sinden çekilir, RLS engeline takılmaz)
-      const today = new Date().toISOString().split("T")[0];
-      const [dailyRes, statusRes] = await Promise.all([
-        supabase
-          .from("quiz_daily")
-          .select("id, question_id, quiz_questions(question, answer, option_a, option_b, option_c, option_d, difficulty, category)")
-          .eq("school_id", school.id)
-          .eq("question_date", today)
-          .maybeSingle(),
-        fetch(`/api/tahta/status?okul_kodu=${encodeURIComponent(school.code)}`, { cache: "no-store" })
-          .then((r) => (r.ok ? r.json() : null))
-          .catch(() => null),
-      ]);
+      setSchoolInfo(res.school);
+      setSchoolCode(res.school.code);
 
-      const statusData = statusRes?.success ? statusRes : null;
-      const isEnabled = statusData ? statusData.enabled : true;
-      const startTimeStr = statusData?.start_time || "08:30";
-      const endTimeStr = statusData?.end_time || "08:55";
-      const quizDuration = statusData?.duration_seconds || 30;
-      const autoCloseSec = statusData?.auto_close_seconds || 15;
+      const isPreview = searchParams.get("preview") === "true";
+      const { enabled, startTime, endTime, duration: quizDuration, autoClose: autoCloseSec } = res.settings;
 
-      if (!isEnabled && !isPreview) {
+      if (!enabled && !isPreview) {
         setNotActiveInfo({
           title: "Yarışma Sistemi Devre Dışı",
           description: "Günün sorusu idare tarafından geçici olarak kapatılmıştır.",
@@ -209,24 +183,23 @@ function TahtaQuizContent() {
       setDuration(quizDuration);
       setTimeLeft(quizDuration);
       setAutoCloseLeft(autoCloseSec);
-      setTimeWindow({ start: startTimeStr, end: endTimeStr });
+      setTimeWindow({ start: startTime, end: endTime });
 
-      // Saat aralığı kontrolü (Sunucudan gelen in_window Türkiye saatine göre tam hesaplanır)
-      const inWindow = isPreview ? true : (statusData ? statusData.in_window : true);
+      // Saat aralığı kontrolü (Türkiye Saati: Europe/Istanbul)
+      const now = new Date();
+      const trFormatter = new Intl.DateTimeFormat("tr-TR", {
+        timeZone: "Europe/Istanbul",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      const currentTimeStr = trFormatter.format(now);
+      const inWindow = currentTimeStr >= startTime && currentTimeStr <= endTime;
 
       if (!inWindow && !isPreview) {
-        const now = new Date();
-        const trFormatter = new Intl.DateTimeFormat("tr-TR", {
-          timeZone: "Europe/Istanbul",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-        });
-        const currentTimeStr = statusData?.server_time ? statusData.server_time.slice(0, 5) : trFormatter.format(now);
-
         setNotActiveInfo({
           title: "Yarışma Saati Dışındasınız",
-          description: `Günün sorusu ${startTimeStr} — ${endTimeStr} saatleri arasında açılmaktadır. (Şu anki saat: ${currentTimeStr})`,
+          description: `Günün sorusu ${startTime} — ${endTime} saatleri arasında açılmaktadır. (Şu anki saat: ${currentTimeStr})`,
           type: "time",
           canBypass: false,
         });
@@ -234,52 +207,7 @@ function TahtaQuizContent() {
         return;
       }
 
-      // Soru kontrolü & otomatik atama
-      let activeDaily: any = dailyRes.data;
-
-      // Eğer bugün için henüz soru seçilmemişse otomatik olarak bugünün sorusunu seç
-      if (!activeDaily || !activeDaily.quiz_questions) {
-        try {
-          await supabase.rpc("pick_daily_question", { p_school_id: school.id });
-        } catch (e) {
-          console.warn("pick_daily_question rpc failed:", e);
-        }
-
-        const { data: refetched } = await supabase
-          .from("quiz_daily")
-          .select("id, question_id, quiz_questions(question, answer, option_a, option_b, option_c, option_d, difficulty, category)")
-          .eq("school_id", school.id)
-          .eq("question_date", today)
-          .maybeSingle();
-
-        if (refetched && refetched.quiz_questions) {
-          activeDaily = refetched;
-        } else {
-          // Doğrudan soru bankasından aktif bir soru seçip bugüne ata
-          const { data: qList } = await supabase
-            .from("quiz_questions")
-            .select("id, question, answer, option_a, option_b, option_c, option_d, difficulty, category")
-            .eq("school_id", school.id)
-            .limit(1);
-
-          if (qList && qList.length > 0) {
-            const q = qList[0];
-            const { data: inserted } = await supabase
-              .from("quiz_daily")
-              .insert({
-                school_id: school.id,
-                question_id: q.id,
-                question_date: today,
-              })
-              .select("id, question_id, quiz_questions(question, answer, option_a, option_b, option_c, option_d, difficulty, category)")
-              .maybeSingle();
-
-            activeDaily = inserted || ({ id: "temp", question_id: q.id, quiz_questions: q } as any);
-          }
-        }
-      }
-
-      if (!activeDaily || !activeDaily.quiz_questions) {
+      if (!res.dailyQuestion || !res.dailyQuestion.quiz_questions) {
         setNotActiveInfo({
           title: "Soru Bankasında Soru Bulunamadı",
           description: "Günün sorusu yarışması için henüz soru eklenmemiş. Lütfen önce idare panelindeki 'Soru Bankası' sekmesinden soru ekleyin.",
@@ -290,14 +218,14 @@ function TahtaQuizContent() {
         return;
       }
 
-      setDailyQuestion(activeDaily);
+      setDailyQuestion(res.dailyQuestion);
       setStep("pin");
     }
 
     loadData();
   }, [schoolCodeParam]);
 
-  // PIN Giriş Kontrolü
+  // PIN Giriş Kontrolü (Sunucu Eylemi - Admin yetkisiyle kontrol edilir, Fatih ağına takılmaz)
   async function handlePinSubmit(pinCode: string) {
     if (!pinCode.trim()) return;
     setErrorMsg("");
@@ -325,58 +253,35 @@ function TahtaQuizContent() {
       }
     }
 
-    const supabase = createClient();
-
-    let targetSchoolId = schoolInfo?.id;
-    if (!targetSchoolId && schoolCode) {
-      const { data: sc } = await supabase.from("schools").select("id, name").eq("code", schoolCode.trim()).maybeSingle();
-      if (sc) {
-        targetSchoolId = sc.id;
-        setSchoolInfo(sc);
-      }
-    }
-
-    if (!targetSchoolId) {
+    const currentSchoolCode = schoolCode || schoolCodeParam;
+    if (!currentSchoolCode) {
       setErrorMsg("Lütfen geçerli bir okul kodu girin.");
       return;
     }
 
-    // Sınıfı PIN ile bul
-    const { data: cls } = await supabase
-      .from("classes")
-      .select("id, name")
-      .eq("school_id", targetSchoolId)
-      .eq("quiz_pin", pinCode.trim())
-      .neq("is_active", false)
-      .maybeSingle();
+    const res = await verifyTahtaQuizPin({
+      schoolCode: currentSchoolCode,
+      pin: pinCode.trim(),
+    });
 
-    if (!cls) {
-      setErrorMsg("Hatalı PIN Kodu! Lütfen sınıf PIN'inizi kontrol edin.");
+    if (!res.success || !res.classInfo) {
+      setErrorMsg(res.error || "Hatalı PIN Kodu! Lütfen sınıf PIN'inizi kontrol edin.");
       setPin("");
       return;
     }
-    setClassInfo(cls);
 
-    // Bu sınıfın bugün cevap verip vermediğini kontrol et
-    if (dailyQuestion) {
-      const { data: existingAns } = await supabase
-        .from("quiz_answers")
-        .select("id, is_correct, points_awarded, answer")
-        .eq("daily_id", dailyQuestion.id)
-        .eq("class_id", cls.id)
-        .maybeSingle();
+    setClassInfo(res.classInfo);
 
-      if (existingAns) {
-        setResult({
-          isCorrect: existingAns.is_correct,
-          pointsEarned: existingAns.points_awarded || 0,
-          className: cls.name,
-          correctAnswer: dailyQuestion.quiz_questions?.answer || "",
-        });
-        setStep("already");
-        startAutoClose();
-        return;
-      }
+    if (res.alreadyAnswered) {
+      setResult(res.existingResult || {
+        isCorrect: false,
+        pointsEarned: 0,
+        className: res.classInfo.name,
+        correctAnswer: dailyQuestion?.quiz_questions?.answer || "",
+      });
+      setStep("already");
+      startAutoClose();
+      return;
     }
 
     // Soruyu Başlat
